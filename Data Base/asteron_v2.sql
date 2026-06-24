@@ -137,11 +137,18 @@ CREATE TABLE detalle_pedido (
 CREATE TABLE maquinaria (
   id_maquina   INT          NOT NULL AUTO_INCREMENT,
   nombre       VARCHAR(120) NOT NULL,
+  codigo       VARCHAR(20)  DEFAULT NULL,
+  categoria    ENUM('maquinaria_pesada','equipo_mig','herramienta_electrica') DEFAULT 'maquinaria_pesada',
+  marca        VARCHAR(80)  DEFAULT NULL,
+  referencia   VARCHAR(80)  DEFAULT NULL,
+  serial       VARCHAR(80)  DEFAULT NULL,
   descripcion  VARCHAR(255) DEFAULT NULL,
-  estado       ENUM('activa','inactiva','en_mantenimiento') NOT NULL DEFAULT 'activa',
+  ubicacion    VARCHAR(100) DEFAULT NULL,
+  estado       ENUM('activa','inactiva','en_mantenimiento','sin_asignar','guardada','dado_de_baja') NOT NULL DEFAULT 'activa',
   created_at   DATETIME     DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (id_maquina)
+  PRIMARY KEY (id_maquina),
+  UNIQUE KEY uq_maquina_codigo (codigo)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE mantenimientos (
@@ -262,6 +269,74 @@ CREATE TABLE programacion_planta (
   CONSTRAINT fk_prog_proyecto     FOREIGN KEY (id_proyecto)      REFERENCES proyectos(id_proyecto)            ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT fk_prog_fase         FOREIGN KEY (id_fase_proyecto) REFERENCES fases_proyecto(id_fase_proyecto)  ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ============================================================
+-- BLOQUE 10: VISTA DE MAQUINARIA (para reportes y listados)
+-- ============================================================
+
+CREATE OR REPLACE VIEW v_maquinaria AS
+  SELECT
+    m.id_maquina,
+    m.nombre,
+    m.codigo,
+    m.categoria,
+    m.marca,
+    m.referencia,
+    m.serial,
+    m.ubicacion,
+    m.descripcion,
+    m.estado,
+    COUNT(mt.id_mantenimiento) AS total_mantenimientos,
+    MAX(mt.fecha)              AS ultimo_mantenimiento
+  FROM maquinaria m
+  LEFT JOIN mantenimientos mt ON mt.id_maquina = m.id_maquina
+  GROUP BY m.id_maquina;
+
+-- ============================================================
+-- BLOQUE 11: DATOS INICIALES — PERMISOS POR MÓDULO (RBAC)
+-- ============================================================
+
+INSERT INTO permisos (nombre, descripcion) VALUES
+  ('dashboard',       'Acceso al panel principal con estadísticas'),
+  ('proyectos',       'Gestión de proyectos y sus fases'),
+  ('pedidos',         'Gestión de pedidos y detalle de pedido'),
+  ('clientes',        'Gestión de clientes'),
+  ('maquinaria',      'Gestión de inventario de maquinaria'),
+  ('mantenimientos',  'Registro y consulta de mantenimientos'),
+  ('programacion',    'Programación diaria de planta'),
+  ('usuarios',        'Administración de usuarios del sistema');
+
+-- Gerente General — acceso total
+INSERT INTO roles_permisos (id_rol, id_permiso)
+  SELECT 1, id_permiso FROM permisos;
+
+-- Consultor Estrategia
+INSERT INTO roles_permisos (id_rol, id_permiso)
+  SELECT 2, id_permiso FROM permisos WHERE nombre IN ('dashboard','proyectos','pedidos','clientes');
+
+-- Coordinador de Producción
+INSERT INTO roles_permisos (id_rol, id_permiso)
+  SELECT 3, id_permiso FROM permisos WHERE nombre IN ('dashboard','proyectos','pedidos','programacion');
+
+-- Coordinador de Planta
+INSERT INTO roles_permisos (id_rol, id_permiso)
+  SELECT 4, id_permiso FROM permisos WHERE nombre IN ('dashboard','proyectos','maquinaria','mantenimientos','programacion');
+
+-- Ejecutivo Comercial
+INSERT INTO roles_permisos (id_rol, id_permiso)
+  SELECT 5, id_permiso FROM permisos WHERE nombre IN ('dashboard','pedidos','clientes');
+
+-- Jefe de Almacén
+INSERT INTO roles_permisos (id_rol, id_permiso)
+  SELECT 6, id_permiso FROM permisos WHERE nombre IN ('dashboard','maquinaria','mantenimientos');
+
+-- Administrativo
+INSERT INTO roles_permisos (id_rol, id_permiso)
+  SELECT 7, id_permiso FROM permisos WHERE nombre IN ('dashboard','pedidos','clientes','usuarios');
+
+-- Operario
+INSERT INTO roles_permisos (id_rol, id_permiso)
+  SELECT 8, id_permiso FROM permisos WHERE nombre IN ('dashboard','programacion');
 
 -- ============================================================
 -- FIN DEL ESQUEMA

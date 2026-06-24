@@ -1,7 +1,6 @@
 import { Router } from 'express'
-import { getAll, getOne, create, update, remove, getVista } from '../controllers/maquinaria.controller.js'
+import { getAll, getOne, create, update, remove } from '../controllers/maquinaria.controller.js'
 const router = Router()
-router.get('/vista', getVista)
 router.get('/',      getAll)
 router.get('/:id',   getOne)
 router.post('/',     create)

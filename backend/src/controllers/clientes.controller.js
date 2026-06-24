@@ -82,12 +82,3 @@ export const remove = async (req, res) => {
   }
 }
 
-export const getProcedimiento = async (_req, res) => {
-  try {
-    const [rows] = await pool.query('CALL sp_listar_clientes()')
-    res.json(rows[0])
-  } catch (err) {
-    console.error('[clientes.getProcedimiento]', err)
-    res.status(500).json({ message: 'Error al ejecutar procedimiento' })
-  }
-}

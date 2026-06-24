@@ -84,12 +84,3 @@ export const remove = async (req, res) => {
   }
 }
 
-export const getVista = async (_req, res) => {
-  try {
-    const [rows] = await pool.query('SELECT * FROM v_maquinaria ORDER BY categoria, nombre')
-    res.json(rows)
-  } catch (err) {
-    console.error('[maquinaria.getVista]', err)
-    res.status(500).json({ message: 'Error al consultar vista' })
-  }
-}
