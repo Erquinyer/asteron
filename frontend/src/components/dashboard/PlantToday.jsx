@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { Clock, ExternalLink } from 'lucide-react'
+import { Clock } from 'lucide-react'
 
 const estadoConfig = {
   en_proceso: { label: 'En proceso', style: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'   },
@@ -59,10 +59,6 @@ const PlantToday = ({ schedule }) => {
                 <span className={`px-2 py-1 rounded-md text-xs font-medium ${config.style}`}>
                   {config.label}
                 </span>
-                <ExternalLink
-                  size={12}
-                  className="text-slate-300 dark:text-slate-600 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors"
-                />
               </div>
             </div>
           )

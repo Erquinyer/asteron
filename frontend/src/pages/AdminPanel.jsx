@@ -326,7 +326,7 @@ function UsuariosRoles() {
                             disabled:opacity-50 disabled:cursor-not-allowed w-full max-w-[220px]"
                         >
                           <option value="">Sin rol</option>
-                          {roles.filter(r => r.nombre !== 'Administrador Sistema').map(r => (
+                          {roles.map(r => (
                             <option key={r.id_rol} value={r.id_rol}>{r.nombre}</option>
                           ))}
                         </select>

@@ -1,5 +1,4 @@
 import { useNavigate, Link } from 'react-router-dom'
-import { ExternalLink } from 'lucide-react'
 
 const estadoBadge = {
   en_curso:   'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
@@ -45,7 +44,6 @@ const RecentProjects = ({ projects }) => {
               <th className="px-6 py-3">Prioridad</th>
               <th className="px-6 py-3">Estado</th>
               <th className="px-6 py-3">Avance</th>
-              <th className="px-3 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -84,12 +82,6 @@ const RecentProjects = ({ projects }) => {
                     </div>
                     <span className="text-xs text-slate-500 dark:text-slate-400 w-8 text-right">{p.avance}%</span>
                   </div>
-                </td>
-                <td className="px-3 py-4">
-                  <ExternalLink
-                    size={13}
-                    className="text-slate-300 dark:text-slate-600 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors"
-                  />
                 </td>
               </tr>
             ))}
