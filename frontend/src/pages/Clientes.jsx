@@ -17,8 +17,11 @@ const initials = (n) => n?.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCa
 
 const EMPTY = { nombre: '', nit: '', codigo_cliente: '', direccion: '' }
 
+const inputCls = "w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+const labelCls = "block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1"
+
 function ClienteModal({ cliente, onClose, onSaved }) {
-  const [form, setForm]    = useState(cliente ? {
+  const [form, setForm] = useState(cliente ? {
     nombre:         cliente.nombre         || '',
     nit:            cliente.nit            || '',
     codigo_cliente: cliente.codigo_cliente || '',
@@ -43,10 +46,10 @@ function ClienteModal({ cliente, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h3 className="text-base font-semibold text-slate-800">{cliente ? 'Editar cliente' : 'Nuevo cliente'}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={18}/></button>
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700">
+          <h3 className="text-base font-semibold text-slate-800 dark:text-white">{cliente ? 'Editar cliente' : 'Nuevo cliente'}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><X size={18}/></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {[
@@ -56,15 +59,14 @@ function ClienteModal({ cliente, onClose, onSaved }) {
             { name: 'direccion',      label: 'Dirección / Ciudad', placeholder: 'Ej: Bogotá, Colombia' },
           ].map(f => (
             <div key={f.name}>
-              <label className="block text-xs font-medium text-slate-600 mb-1">{f.label}</label>
+              <label className={labelCls}>{f.label}</label>
               <input name={f.name} value={form[f.name]} onChange={handleChange}
-                placeholder={f.placeholder}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                placeholder={f.placeholder} className={inputCls} />
             </div>
           ))}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}
-              className="flex-1 border border-slate-300 rounded-lg py-2 text-sm text-slate-600 hover:bg-slate-50">
+              className="flex-1 border border-slate-300 dark:border-slate-600 rounded-lg py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
               Cancelar
             </button>
             <button type="submit" disabled={saving}
@@ -111,8 +113,8 @@ export default function Clientes() {
     <div className="space-y-5 max-w-7xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Clientes</h1>
-          <p className="text-sm text-slate-500">{data?.length || 0} clientes registrados</p>
+          <h1 className="text-xl font-semibold text-slate-800 dark:text-white">Clientes</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">{data?.length || 0} clientes registrados</p>
         </div>
         <button onClick={() => setModal('new')}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
@@ -121,62 +123,62 @@ export default function Clientes() {
       </div>
 
       <div className="relative max-w-sm">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
-          <input value={search} onChange={e => handleSearch(e.target.value)}
-            placeholder="Buscar por nombre o código…"
-            className="pl-9 pr-4 py-2 w-full border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-        </div>
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+        <input value={search} onChange={e => handleSearch(e.target.value)}
+          placeholder="Buscar por nombre o código…"
+          className="pl-9 pr-4 py-2 w-full border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+      </div>
 
-        {filtrada.length === 0
-          ? <EmptyState title="Sin clientes" description="Crea el primer cliente con el botón de arriba."/>
-          : (
-            <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {lista.map((c, i) => (
-                <div key={c.id_cliente}
-                  className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col gap-3 hover:shadow-sm transition-shadow group">
-                  <div className="flex items-start justify-between">
-                    <div className={`${COLORS[i % COLORS.length]} h-11 w-11 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0`}>
-                      {initials(c.nombre)}
-                    </div>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => setModal(c)}
-                        className="p-1.5 rounded hover:bg-blue-50 text-slate-400 hover:text-blue-600">
-                        <Pencil size={13}/>
-                      </button>
-                      <button onClick={() => handleDelete(c)}
-                        className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-red-600">
-                        <Trash2 size={13}/>
-                      </button>
-                    </div>
+      {filtrada.length === 0
+        ? <EmptyState title="Sin clientes" description="Crea el primer cliente con el botón de arriba."/>
+        : (
+          <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {lista.map((c, i) => (
+              <div key={c.id_cliente}
+                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 flex flex-col gap-3 hover:shadow-sm transition-shadow group">
+                <div className="flex items-start justify-between">
+                  <div className={`${COLORS[i % COLORS.length]} h-11 w-11 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0`}>
+                    {initials(c.nombre)}
                   </div>
-
-                  <div>
-                    <p className="font-semibold text-slate-800 text-sm leading-tight">{c.nombre}</p>
-                    {c.nit && <p className="text-xs text-slate-400 mt-0.5">NIT: {c.nit}</p>}
-                    {c.codigo_cliente && <p className="text-xs font-mono text-slate-400">{c.codigo_cliente}</p>}
-                  </div>
-
-                  {c.direccion && (
-                    <p className="text-xs text-slate-500 flex items-start gap-1.5">
-                      <Building2 size={12} className="mt-0.5 shrink-0 text-slate-400"/>
-                      {c.direccion}
-                    </p>
-                  )}
-
-                  <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100 mt-auto">
-                    <ShoppingBag size={13} className="text-slate-400"/>
-                    <span className="text-xs text-slate-500">
-                      {c.total_pedidos} {c.total_pedidos === 1 ? 'pedido' : 'pedidos'}
-                    </span>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => setModal(c)}
+                      className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-600">
+                      <Pencil size={13}/>
+                    </button>
+                    <button onClick={() => handleDelete(c)}
+                      className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-600">
+                      <Trash2 size={13}/>
+                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
-            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-            </>
-          )
-        }
+
+                <div>
+                  <p className="font-semibold text-slate-800 dark:text-white text-sm leading-tight">{c.nombre}</p>
+                  {c.nit && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">NIT: {c.nit}</p>}
+                  {c.codigo_cliente && <p className="text-xs font-mono text-slate-400 dark:text-slate-500">{c.codigo_cliente}</p>}
+                </div>
+
+                {c.direccion && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 flex items-start gap-1.5">
+                    <Building2 size={12} className="mt-0.5 shrink-0 text-slate-400"/>
+                    {c.direccion}
+                  </p>
+                )}
+
+                <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-700 mt-auto">
+                  <ShoppingBag size={13} className="text-slate-400"/>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    {c.total_pedidos} {c.total_pedidos === 1 ? 'pedido' : 'pedidos'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+          </>
+        )
+      }
 
       {modal && (
         <ClienteModal

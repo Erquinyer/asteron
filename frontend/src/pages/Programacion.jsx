@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Calendar, Clock, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, X } from 'lucide-react'
+import { Calendar, Clock, ChevronLeft, ChevronRight, Plus, Trash2, X } from 'lucide-react'
 import { useFetch }          from '../hooks/useFetch'
 import { getProgramacion, createProgramacion, updateEstadoTurno, deleteProgramacion } from '../api/programacion.service'
 import { getUsuarios }       from '../api/usuarios.service'
@@ -10,16 +10,19 @@ import EmptyState from '../components/ui/EmptyState'
 import toast      from 'react-hot-toast'
 
 const estadoConfig = {
-  en_proceso: { label: 'En proceso', style: 'bg-blue-100 text-blue-700',   dot: 'bg-blue-500'   },
-  programado: { label: 'Programado', style: 'bg-amber-100 text-amber-700', dot: 'bg-amber-400'  },
-  completado: { label: 'Completado', style: 'bg-green-100 text-green-700', dot: 'bg-green-500'  },
-  cancelado:  { label: 'Cancelado',  style: 'bg-red-100 text-red-600',     dot: 'bg-red-400'    },
+  en_proceso: { label: 'En proceso', style: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',   dot: 'bg-blue-500'   },
+  programado: { label: 'Programado', style: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300', dot: 'bg-amber-400'  },
+  completado: { label: 'Completado', style: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300', dot: 'bg-green-500'  },
+  cancelado:  { label: 'Cancelado',  style: 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300',     dot: 'bg-red-400'    },
 }
 
 const toISO = d => d.toISOString().split('T')[0]
 
+const inputCls = "w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+const labelCls = "block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1"
+
 function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClose, onSaved }) {
-  const [form, setForm]    = useState({
+  const [form, setForm] = useState({
     fecha, id_operario: '', id_maquina: '', id_proyecto: '',
     tiempo_estimado: 480, observaciones: '',
   })
@@ -47,22 +50,20 @@ function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClose, onSaved }) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h3 className="text-base font-semibold text-slate-800">Programar turno</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={18}/></button>
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700">
+          <h3 className="text-base font-semibold text-slate-800 dark:text-white">Programar turno</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><X size={18}/></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Fecha</label>
-            <input type="date" name="fecha" value={form.fecha} onChange={set}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+            <label className={labelCls}>Fecha</label>
+            <input type="date" name="fecha" value={form.fecha} onChange={set} className={inputCls}/>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Operario *</label>
-            <select name="id_operario" value={form.id_operario} onChange={set} required
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <label className={labelCls}>Operario *</label>
+            <select name="id_operario" value={form.id_operario} onChange={set} required className={inputCls}>
               <option value="">Seleccionar operario</option>
               {operarios.map(u => (
                 <option key={u.id_usuario} value={u.id_usuario}>{u.nombre} — {u.rol}</option>
@@ -71,9 +72,8 @@ function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClose, onSaved }) 
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Máquina / Equipo *</label>
-            <select name="id_maquina" value={form.id_maquina} onChange={set} required
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <label className={labelCls}>Máquina / Equipo *</label>
+            <select name="id_maquina" value={form.id_maquina} onChange={set} required className={inputCls}>
               <option value="">Seleccionar equipo</option>
               {maqActivas.map(m => (
                 <option key={m.id_maquina} value={m.id_maquina}>
@@ -84,9 +84,8 @@ function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClose, onSaved }) 
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Proyecto</label>
-            <select name="id_proyecto" value={form.id_proyecto} onChange={set}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <label className={labelCls}>Proyecto</label>
+            <select name="id_proyecto" value={form.id_proyecto} onChange={set} className={inputCls}>
               <option value="">Sin proyecto</option>
               {proyectos.map(p => (
                 <option key={p.id_proyecto} value={p.id_proyecto}>{p.nombre}</option>
@@ -95,24 +94,21 @@ function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClose, onSaved }) 
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              Tiempo estimado (minutos) — por defecto 8h
-            </label>
+            <label className={labelCls}>Tiempo estimado (minutos) — por defecto 8h</label>
             <input type="number" name="tiempo_estimado" value={form.tiempo_estimado}
-              onChange={set} min={30} step={30}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+              onChange={set} min={30} step={30} className={inputCls}/>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Observaciones</label>
+            <label className={labelCls}>Observaciones</label>
             <textarea name="observaciones" value={form.observaciones} onChange={set} rows={2}
               placeholder="Tarea específica, instrucciones, etc."
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"/>
+              className={`${inputCls} resize-none`}/>
           </div>
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}
-              className="flex-1 border border-slate-300 rounded-lg py-2 text-sm text-slate-600 hover:bg-slate-50">
+              className="flex-1 border border-slate-300 dark:border-slate-600 rounded-lg py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
               Cancelar
             </button>
             <button type="submit" disabled={saving}
@@ -166,8 +162,8 @@ export default function Programacion() {
     <div className="space-y-5 max-w-5xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Programación de planta</h1>
-          <p className="text-sm text-slate-500">
+          <h1 className="text-xl font-semibold text-slate-800 dark:text-white">Programación de planta</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             {(data || []).length} turnos · {stats.en_proceso} en proceso · {stats.programado} programados · {stats.completado} completados
           </p>
         </div>
@@ -180,21 +176,21 @@ export default function Programacion() {
       {/* Navegador de fecha */}
       <div className="flex items-center gap-3">
         <button onClick={prevDay}
-          className="p-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-600">
+          className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400">
           <ChevronLeft size={16}/>
         </button>
-        <div className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg">
+        <div className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg">
           <Calendar size={15} className="text-slate-400"/>
           <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
-            className="text-sm text-slate-700 focus:outline-none cursor-pointer"/>
+            className="text-sm text-slate-700 dark:text-slate-200 bg-transparent focus:outline-none cursor-pointer"/>
         </div>
         <button onClick={nextDay}
-          className="p-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-600">
+          className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400">
           <ChevronRight size={16}/>
         </button>
         {!isToday && (
           <button onClick={() => setFecha(toISO(new Date()))}
-            className="px-3 py-1.5 text-xs text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">
+            className="px-3 py-1.5 text-xs text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30">
             Hoy
           </button>
         )}
@@ -216,29 +212,28 @@ export default function Programacion() {
             const hReal = item.tiempo_real ? (item.tiempo_real / 60).toFixed(1) : null
             return (
               <div key={item.id_programacion}
-                className="bg-white border border-slate-200 rounded-xl p-5 flex items-start justify-between gap-4 hover:shadow-sm transition-shadow">
+                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 flex items-start justify-between gap-4 hover:shadow-sm transition-shadow">
                 <div className="mt-1.5 shrink-0">
                   <div className={`h-2.5 w-2.5 rounded-full ${cfg.dot}`}/>
                 </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-medium text-slate-800">{item.maquina}</p>
+                    <p className="font-medium text-slate-800 dark:text-white">{item.maquina}</p>
                     {item.maquina_codigo && (
-                      <span className="text-xs font-mono text-slate-400">[{item.maquina_codigo}]</span>
+                      <span className="text-xs font-mono text-slate-400 dark:text-slate-500">[{item.maquina_codigo}]</span>
                     )}
                   </div>
-                  <p className="text-sm text-slate-500 mt-0.5">{item.proyecto || 'Sin proyecto asignado'}</p>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Operario: <span className="text-slate-600 font-medium">{item.operario}</span>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{item.proyecto || 'Sin proyecto asignado'}</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                    Operario: <span className="text-slate-600 dark:text-slate-300 font-medium">{item.operario}</span>
                   </p>
                   {item.observaciones && (
-                    <p className="text-xs text-slate-400 mt-1 italic">{item.observaciones}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 italic">{item.observaciones}</p>
                   )}
                 </div>
 
                 <div className="flex flex-col items-end gap-2 shrink-0">
-                  {/* Selector de estado */}
                   <select
                     value={item.estado}
                     onChange={e => handleEstado(item, e.target.value)}
@@ -249,12 +244,12 @@ export default function Programacion() {
                   </select>
 
                   <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1 text-slate-400">
+                    <div className="flex items-center gap-1 text-slate-400 dark:text-slate-500">
                       <Clock size={13}/>
                       <span className="text-xs">{hReal ? `${hReal}h real` : `${hEst}h est.`}</span>
                     </div>
                     <button onClick={() => handleDelete(item)}
-                      className="p-1 rounded hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors">
+                      className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-300 hover:text-red-500 transition-colors">
                       <Trash2 size={13}/>
                     </button>
                   </div>

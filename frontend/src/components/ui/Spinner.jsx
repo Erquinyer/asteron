@@ -4,9 +4,9 @@ export default function Spinner({ size = 'md', text = 'Cargando...' }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-12">
       <div
-        className={`${sizes[size]} animate-spin rounded-full border-4 border-gray-200 border-t-blue-600`}
+        className={`${sizes[size]} animate-spin rounded-full border-4 border-gray-200 dark:border-slate-700 border-t-blue-600`}
       />
-      {text && <p className="text-sm text-gray-500">{text}</p>}
+      {text && <p className="text-sm text-gray-500 dark:text-slate-400">{text}</p>}
     </div>
   )
 }

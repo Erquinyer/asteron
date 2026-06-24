@@ -17,8 +17,11 @@ const initials = (n) => n?.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCa
 
 const EMPTY = { codigo_empleado: '', nombre: '', correo: '', password: '', id_rol: '', estado: 1 }
 
+const inputCls = "w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+const labelCls = "block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1"
+
 function UsuarioModal({ usuario, roles, onClose, onSaved }) {
-  const [form, setForm]        = useState(usuario ? {
+  const [form, setForm] = useState(usuario ? {
     codigo_empleado: usuario.codigo_empleado || '',
     nombre:  usuario.nombre  || '',
     correo:  usuario.correo  || '',
@@ -38,7 +41,7 @@ function UsuarioModal({ usuario, roles, onClose, onSaved }) {
     setSaving(true)
     try {
       const payload = { ...form }
-      if (!payload.password) delete payload.password   // no enviar si está vacío en edición
+      if (!payload.password) delete payload.password
       usuario ? await updateUsuario(usuario.id_usuario, payload) : await createUsuario(payload)
       toast.success(usuario ? 'Usuario actualizado' : 'Usuario creado')
       onSaved(); onClose()
@@ -49,45 +52,43 @@ function UsuarioModal({ usuario, roles, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h3 className="text-base font-semibold text-slate-800">{usuario ? 'Editar usuario' : 'Nuevo usuario'}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={18}/></button>
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700">
+          <h3 className="text-base font-semibold text-slate-800 dark:text-white">{usuario ? 'Editar usuario' : 'Nuevo usuario'}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><X size={18}/></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Código empleado</label>
+              <label className={labelCls}>Código empleado</label>
               <input name="codigo_empleado" value={form.codigo_empleado} onChange={set}
                 placeholder="Auto (EMP-XXX)"
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                className={`${inputCls} font-mono`}/>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Nombre completo *</label>
+              <label className={labelCls}>Nombre completo *</label>
               <input name="nombre" value={form.nombre} onChange={set}
-                placeholder="Ej: Alejandro Acuña"
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                placeholder="Ej: Alejandro Acuña" className={inputCls}/>
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Correo electrónico *</label>
+            <label className={labelCls}>Correo electrónico *</label>
             <input name="correo" type="email" value={form.correo} onChange={set}
-              placeholder="nombre@macromet.com.co"
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+              placeholder="nombre@macromet.com.co" className={inputCls}/>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
+            <label className={labelCls}>
               {usuario ? 'Nueva contraseña (dejar vacío para no cambiar)' : 'Contraseña *'}
             </label>
             <div className="relative">
               <input name="password" type={showPass ? 'text' : 'password'}
                 value={form.password} onChange={set}
                 placeholder={usuario ? '••••••••' : 'Mínimo 6 caracteres'}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                className={`${inputCls} pr-10`}/>
               <button type="button" onClick={() => setShowPass(s => !s)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                 {showPass ? <EyeOff size={15}/> : <Eye size={15}/>}
               </button>
             </div>
@@ -95,17 +96,15 @@ function UsuarioModal({ usuario, roles, onClose, onSaved }) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Rol</label>
-              <select name="id_rol" value={form.id_rol} onChange={set}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <label className={labelCls}>Rol</label>
+              <select name="id_rol" value={form.id_rol} onChange={set} className={inputCls}>
                 <option value="">Sin rol</option>
                 {roles.map(r => <option key={r.id_rol} value={r.id_rol}>{r.nombre}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Estado</label>
-              <select name="estado" value={form.estado} onChange={set}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <label className={labelCls}>Estado</label>
+              <select name="estado" value={form.estado} onChange={set} className={inputCls}>
                 <option value={1}>Activo</option>
                 <option value={0}>Inactivo</option>
               </select>
@@ -114,7 +113,7 @@ function UsuarioModal({ usuario, roles, onClose, onSaved }) {
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}
-              className="flex-1 border border-slate-300 rounded-lg py-2 text-sm text-slate-600 hover:bg-slate-50">
+              className="flex-1 border border-slate-300 dark:border-slate-600 rounded-lg py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
               Cancelar
             </button>
             <button type="submit" disabled={saving}
@@ -164,8 +163,8 @@ export default function Usuarios() {
     <div className="space-y-5 max-w-7xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Equipo Macromet</h1>
-          <p className="text-sm text-slate-500">
+          <h1 className="text-xl font-semibold text-slate-800 dark:text-white">Equipo Macromet</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             {usuarios?.length || 0} personas · {activos} activas · {inactivos} inactivas
           </p>
         </div>
@@ -179,7 +178,7 @@ export default function Usuarios() {
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
         <input value={search} onChange={e => handleSearch(e.target.value)}
           placeholder="Buscar por nombre, correo, código o rol…"
-          className="pl-9 pr-4 py-2 w-full border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+          className="pl-9 pr-4 py-2 w-full border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
       </div>
 
       {filtrada.length === 0
@@ -189,8 +188,8 @@ export default function Usuarios() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {lista.map((u, i) => (
               <div key={u.id_usuario}
-                className={`bg-white border rounded-xl p-5 flex flex-col gap-3 hover:shadow-sm transition-shadow ${
-                  u.estado ? 'border-slate-200' : 'border-slate-200 opacity-60'
+                className={`bg-white dark:bg-slate-800 border rounded-xl p-5 flex flex-col gap-3 hover:shadow-sm transition-shadow ${
+                  u.estado ? 'border-slate-200 dark:border-slate-700' : 'border-slate-200 dark:border-slate-700 opacity-60'
                 }`}>
                 <div className="flex items-center justify-between">
                   <div className={`${COLORS[i % COLORS.length]} h-10 w-10 rounded-full flex items-center justify-center text-white font-semibold text-sm`}>
@@ -198,14 +197,14 @@ export default function Usuarios() {
                   </div>
                   <div className="flex gap-1">
                     <button onClick={() => setModal(u)}
-                      className="p-1.5 rounded hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors" title="Editar">
+                      className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-600 transition-colors" title="Editar">
                       <Pencil size={13}/>
                     </button>
                     <button onClick={() => handleToggle(u)}
                       className={`p-1.5 rounded transition-colors ${
                         u.estado
-                          ? 'hover:bg-red-50 text-slate-400 hover:text-red-500'
-                          : 'hover:bg-green-50 text-slate-400 hover:text-green-500'
+                          ? 'hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-500'
+                          : 'hover:bg-green-50 dark:hover:bg-green-900/30 text-slate-400 hover:text-green-500'
                       }`} title={u.estado ? 'Desactivar' : 'Activar'}>
                       {u.estado ? <UserX size={13}/> : <UserCheck size={13}/>}
                     </button>
@@ -214,19 +213,19 @@ export default function Usuarios() {
 
                 <div>
                   {u.codigo_empleado && (
-                    <p className="text-xs font-mono text-blue-600 font-semibold mb-0.5">{u.codigo_empleado}</p>
+                    <p className="text-xs font-mono text-blue-600 dark:text-blue-400 font-semibold mb-0.5">{u.codigo_empleado}</p>
                   )}
-                  <p className="font-medium text-slate-800 text-sm">{u.nombre}</p>
-                  <p className="text-xs text-slate-400 mt-0.5 truncate">{u.correo}</p>
+                  <p className="font-medium text-slate-800 dark:text-white text-sm">{u.nombre}</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 truncate">{u.correo}</p>
                 </div>
 
-                <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs w-fit">
+                <span className="inline-block px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded text-xs w-fit">
                   {u.rol || 'Sin rol'}
                 </span>
 
-                <div className="flex items-center gap-1.5 pt-1 border-t border-slate-100 mt-auto">
+                <div className="flex items-center gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-700 mt-auto">
                   <div className={`h-1.5 w-1.5 rounded-full ${u.estado ? 'bg-green-500' : 'bg-slate-300'}`}/>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
                     {u.estado
                       ? u.ultimo_login
                         ? `Último acceso: ${new Date(u.ultimo_login).toLocaleDateString('es-CO')}`
