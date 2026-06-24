@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { ArrowLeft, Eye, EyeOff } from 'lucide-react'
 import { login } from '../utils/auth'
 import { loginRequest } from '../api/auth.service'
 
 const Login = () => {
   const navigate = useNavigate()
-  const [form, setForm]             = useState({ correo: '', contrasena: '' })
-  const [errors, setErrors]         = useState({})
+  const [form, setForm]               = useState({ correo: '', contrasena: '' })
+  const [errors, setErrors]           = useState({})
   const [serverError, setServerError] = useState('')
-  const [loading, setLoading]       = useState(false)
+  const [loading, setLoading]         = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const validate = () => {
     const newErrors = {}
@@ -17,17 +19,15 @@ const Login = () => {
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo)) {
       newErrors.correo = 'Ingresa un correo válido'
     }
-    if (!form.contrasena) {
-      newErrors.contrasena = 'La contraseña es obligatoria'
-    }
+    if (!form.contrasena) newErrors.contrasena = 'La contraseña es obligatoria'
     return newErrors
   }
 
   const handleChange = (e) => {
     const { name, value } = e.target
     setForm({ ...form, [name]: value })
-    if (errors[name])  setErrors({ ...errors, [name]: '' })
-    if (serverError)   setServerError('')
+    if (errors[name]) setErrors({ ...errors, [name]: '' })
+    if (serverError)  setServerError('')
   }
 
   const handleSubmit = async (e) => {
@@ -41,46 +41,61 @@ const Login = () => {
 
     try {
       const { data } = await loginRequest(form.correo, form.contrasena)
-      login(data.user)        // guarda { nombre, correo, rol, token } en localStorage
+      login(data.user)
       navigate('/dashboard')
     } catch (err) {
-      // err.response existe cuando el servidor respondió (ej: 401 credenciales incorrectas)
-      // err.response no existe cuando no hay conexión con el servidor
-      const message = err.response?.data?.message || 'No se pudo conectar con el servidor'
-      setServerError(message)
+      setServerError(err.response?.data?.message || 'No se pudo conectar con el servidor')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md px-8 py-10">
+    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+
+      {/* Glow de fondo */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-blue-600/8 rounded-full blur-3xl" />
+      </div>
+
+      {/* Botón volver */}
+      <div className="w-full max-w-md mb-5 relative z-10">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
+        >
+          <ArrowLeft size={15} />
+          Volver al inicio
+        </Link>
+      </div>
+
+      {/* Card */}
+      <div className="relative z-10 w-full max-w-md bg-white/5 border border-white/10 rounded-2xl px-8 py-10 shadow-2xl backdrop-blur-sm">
 
         {/* Logo */}
-        <div className="flex justify-center mb-6">
-          <img src="/logo.svg" alt="Logo Asteron" className="h-20 w-auto object-contain" />
+        <div className="flex justify-center mb-7">
+          <img src="/logo.svg" alt="Asteron" className="h-12 w-auto brightness-200" />
         </div>
 
         {/* Encabezado */}
-        <h1 className="text-2xl font-bold text-center text-slate-800">Bienvenido</h1>
-        <p className="text-sm text-center text-slate-500 mt-1 mb-8">
-          Inicia sesión en el sistema de gestión Asteron
+        <h1 className="text-2xl font-bold text-center text-white">Bienvenido</h1>
+        <p className="text-sm text-center text-slate-400 mt-1 mb-8">
+          Inicia sesión en el sistema de gestión Macromet
         </p>
 
         {/* Error del servidor */}
         {serverError && (
-          <div className="mb-5 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
+          <div className="mb-5 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
             {serverError}
           </div>
         )}
 
         {/* Formulario */}
-        <form onSubmit={handleSubmit} noValidate>
+        <form onSubmit={handleSubmit} noValidate className="space-y-5">
 
           {/* Correo */}
-          <div className="mb-5">
-            <label htmlFor="correo" className="block text-sm font-medium text-slate-700 mb-1">
+          <div>
+            <label htmlFor="correo" className="block text-sm font-medium text-slate-300 mb-1.5">
               Correo electrónico
             </label>
             <input
@@ -90,41 +105,58 @@ const Login = () => {
               value={form.correo}
               onChange={handleChange}
               placeholder="ejemplo@correo.com"
-              className={`w-full px-4 py-2.5 rounded-lg border text-sm transition focus:outline-none focus:ring-2 focus:ring-slate-500
-                ${errors.correo ? 'border-red-400 bg-red-50 focus:ring-red-400' : 'border-slate-300 bg-white'}`}
+              className={`w-full px-4 py-2.5 rounded-xl border text-sm text-white placeholder-slate-500
+                bg-white/5 transition focus:outline-none focus:ring-2
+                ${errors.correo
+                  ? 'border-red-500/50 focus:ring-red-500/40'
+                  : 'border-white/10 focus:ring-blue-500/40 focus:border-blue-500/50'
+                }`}
             />
-            {errors.correo && <p className="text-red-500 text-xs mt-1">{errors.correo}</p>}
+            {errors.correo && <p className="text-red-400 text-xs mt-1.5">{errors.correo}</p>}
           </div>
 
           {/* Contraseña */}
-          <div className="mb-7">
-            <div className="flex items-center justify-between mb-1">
-              <label htmlFor="contrasena" className="block text-sm font-medium text-slate-700">
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label htmlFor="contrasena" className="block text-sm font-medium text-slate-300">
                 Contraseña
               </label>
               <Link to="/forgot-password"
-                className="text-xs text-slate-500 hover:text-slate-700 hover:underline">
+                className="text-xs text-slate-500 hover:text-blue-400 transition-colors">
                 ¿Olvidaste tu contraseña?
               </Link>
             </div>
-            <input
-              id="contrasena"
-              type="password"
-              name="contrasena"
-              value={form.contrasena}
-              onChange={handleChange}
-              placeholder="••••••••"
-              className={`w-full px-4 py-2.5 rounded-lg border text-sm transition focus:outline-none focus:ring-2 focus:ring-slate-500
-                ${errors.contrasena ? 'border-red-400 bg-red-50 focus:ring-red-400' : 'border-slate-300 bg-white'}`}
-            />
-            {errors.contrasena && <p className="text-red-500 text-xs mt-1">{errors.contrasena}</p>}
+            <div className="relative">
+              <input
+                id="contrasena"
+                type={showPassword ? 'text' : 'password'}
+                name="contrasena"
+                value={form.contrasena}
+                onChange={handleChange}
+                placeholder="••••••••"
+                className={`w-full px-4 py-2.5 pr-11 rounded-xl border text-sm text-white placeholder-slate-500
+                  bg-white/5 transition focus:outline-none focus:ring-2
+                  ${errors.contrasena
+                    ? 'border-red-500/50 focus:ring-red-500/40'
+                    : 'border-white/10 focus:ring-blue-500/40 focus:border-blue-500/50'
+                  }`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+            {errors.contrasena && <p className="text-red-400 text-xs mt-1.5">{errors.contrasena}</p>}
           </div>
 
           {/* Botón */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-white text-sm font-semibold py-3 rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-semibold py-3 rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-blue-600/20 mt-2"
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
@@ -134,13 +166,17 @@ const Login = () => {
                 </svg>
                 Iniciando sesión...
               </span>
-            ) : (
-              'Iniciar sesión'
-            )}
+            ) : 'Iniciar sesión'}
           </button>
 
         </form>
       </div>
+
+      {/* Footer */}
+      <p className="relative z-10 mt-8 text-xs text-slate-600 text-center">
+        © {new Date().getFullYear()} Asteron · Macromet S.A.S.
+      </p>
+
     </div>
   )
 }
