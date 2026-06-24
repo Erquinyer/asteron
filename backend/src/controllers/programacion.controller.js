@@ -7,11 +7,14 @@ export const getAll = async (req, res) => {
       SELECT pp.*,
              u.nombre  AS operario,
              m.nombre  AS maquina,  m.codigo AS maquina_codigo,
-             pr.nombre AS proyecto
+             pr.nombre AS proyecto,
+             fe.nombre AS fase_nombre
       FROM programacion_planta pp
-      LEFT JOIN usuarios   u  ON pp.id_operario = u.id_usuario
-      LEFT JOIN maquinaria m  ON pp.id_maquina  = m.id_maquina
-      LEFT JOIN proyectos  pr ON pp.id_proyecto = pr.id_proyecto
+      LEFT JOIN usuarios       u  ON pp.id_operario      = u.id_usuario
+      LEFT JOIN maquinaria     m  ON pp.id_maquina       = m.id_maquina
+      LEFT JOIN proyectos      pr ON pp.id_proyecto      = pr.id_proyecto
+      LEFT JOIN fases_proyecto fp ON pp.id_fase_proyecto = fp.id_fase_proyecto
+      LEFT JOIN fases_estandar fe ON fp.id_fase_estandar = fe.id_fase_estandar
       WHERE pp.fecha = ?
       ORDER BY FIELD(pp.estado,'en_proceso','programado','completado','cancelado')`, [fecha])
     res.json(rows)
@@ -22,23 +25,28 @@ export const getAll = async (req, res) => {
 }
 
 export const create = async (req, res) => {
-  const { fecha, id_operario, id_maquina, id_proyecto, tiempo_estimado, observaciones } = req.body
+  const { fecha, id_operario, id_maquina, id_proyecto, id_fase_proyecto, tiempo_estimado, observaciones } = req.body
   if (!fecha || !id_operario || !id_maquina) {
     return res.status(400).json({ message: 'Fecha, operario y máquina son requeridos' })
   }
   try {
     const [result] = await pool.query(
-      `INSERT INTO programacion_planta (fecha, id_operario, id_maquina, id_proyecto, tiempo_estimado, estado, observaciones)
-       VALUES (?,?,?,?,?,?,?)`,
+      `INSERT INTO programacion_planta (fecha, id_operario, id_maquina, id_proyecto, id_fase_proyecto, tiempo_estimado, estado, observaciones)
+       VALUES (?,?,?,?,?,?,?,?)`,
       [fecha, id_operario, id_maquina, id_proyecto || null,
-       tiempo_estimado || 480, 'programado', observaciones || null])
+       id_fase_proyecto || null, tiempo_estimado || 480, 'programado', observaciones || null])
+
     const [[row]] = await pool.query(`
-      SELECT pp.*, u.nombre AS operario, m.nombre AS maquina, pr.nombre AS proyecto
+      SELECT pp.*, u.nombre AS operario, m.nombre AS maquina, m.codigo AS maquina_codigo,
+             pr.nombre AS proyecto, fe.nombre AS fase_nombre
       FROM programacion_planta pp
-      LEFT JOIN usuarios   u  ON pp.id_operario = u.id_usuario
-      LEFT JOIN maquinaria m  ON pp.id_maquina  = m.id_maquina
-      LEFT JOIN proyectos  pr ON pp.id_proyecto = pr.id_proyecto
+      LEFT JOIN usuarios       u  ON pp.id_operario      = u.id_usuario
+      LEFT JOIN maquinaria     m  ON pp.id_maquina       = m.id_maquina
+      LEFT JOIN proyectos      pr ON pp.id_proyecto      = pr.id_proyecto
+      LEFT JOIN fases_proyecto fp ON pp.id_fase_proyecto = fp.id_fase_proyecto
+      LEFT JOIN fases_estandar fe ON fp.id_fase_estandar = fe.id_fase_estandar
       WHERE pp.id_programacion = ?`, [result.insertId])
+
     res.status(201).json(row)
   } catch (err) {
     console.error('[programacion.create]', err)
@@ -48,10 +56,22 @@ export const create = async (req, res) => {
 
 export const updateEstado = async (req, res) => {
   const { estado, tiempo_real } = req.body
+  const { id } = req.params
   try {
     await pool.query(
       `UPDATE programacion_planta SET estado=?, tiempo_real=? WHERE id_programacion=?`,
-      [estado, tiempo_real || null, req.params.id])
+      [estado, tiempo_real || null, id])
+
+    if (estado === 'completado') {
+      const [[prog]] = await pool.query(
+        'SELECT id_fase_proyecto FROM programacion_planta WHERE id_programacion=?', [id])
+      if (prog?.id_fase_proyecto) {
+        await pool.query(
+          'UPDATE fases_proyecto SET estado=?, porcentaje_avance=100 WHERE id_fase_proyecto=?',
+          ['completada', prog.id_fase_proyecto])
+      }
+    }
+
     res.json({ message: 'Estado actualizado' })
   } catch (err) {
     console.error('[programacion.updateEstado]', err)
