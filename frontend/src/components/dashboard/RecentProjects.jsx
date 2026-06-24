@@ -1,3 +1,6 @@
+import { useNavigate, Link } from 'react-router-dom'
+import { ExternalLink } from 'lucide-react'
+
 const estadoBadge = {
   en_curso:   'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
   pendiente:  'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
@@ -19,13 +22,18 @@ const prioridadBadge = {
 }
 
 const RecentProjects = ({ projects }) => {
+  const navigate = useNavigate()
+
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
         <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">Proyectos recientes</h2>
-        <button className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors">
+        <Link
+          to="/proyectos"
+          className="text-xs text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+        >
           Ver todos →
-        </button>
+        </Link>
       </div>
 
       <div className="overflow-x-auto">
@@ -37,13 +45,21 @@ const RecentProjects = ({ projects }) => {
               <th className="px-6 py-3">Prioridad</th>
               <th className="px-6 py-3">Estado</th>
               <th className="px-6 py-3">Avance</th>
+              <th className="px-3 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
             {projects.map((p) => (
-              <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                <td className="px-6 py-4 font-medium text-slate-800 dark:text-slate-200 max-w-[200px] truncate">
-                  {p.nombre}
+              <tr
+                key={p.id}
+                onClick={() => navigate(`/proyectos/${p.id}`)}
+                className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group"
+                title={`Ver detalle: ${p.nombre}`}
+              >
+                <td className="px-6 py-4 font-medium text-slate-800 dark:text-slate-200 max-w-[200px]">
+                  <span className="truncate block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    {p.nombre}
+                  </span>
                 </td>
                 <td className="px-6 py-4 text-slate-500 dark:text-slate-400 hidden md:table-cell">
                   {p.cliente}
@@ -68,6 +84,12 @@ const RecentProjects = ({ projects }) => {
                     </div>
                     <span className="text-xs text-slate-500 dark:text-slate-400 w-8 text-right">{p.avance}%</span>
                   </div>
+                </td>
+                <td className="px-3 py-4">
+                  <ExternalLink
+                    size={13}
+                    className="text-slate-300 dark:text-slate-600 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors"
+                  />
                 </td>
               </tr>
             ))}

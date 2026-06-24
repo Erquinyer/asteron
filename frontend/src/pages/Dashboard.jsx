@@ -57,24 +57,28 @@ const Dashboard = () => {
       value: stats.proyectos.total,
       total: Math.max(stats.proyectos.total, 1),
       suffix: `${stats.proyectos.destacado} prioridad alta`,
+      to: '/proyectos',
     },
     {
       id: 2, label: 'Pedidos en sistema', icon: 'clipboard', color: 'amber',
       value: stats.pedidos.total,
       total: Math.max(stats.pedidos.total, 1),
       suffix: `${stats.pedidos.destacado} pendientes`,
+      to: '/pedidos',
     },
     {
       id: 3, label: 'Equipos activos', icon: 'cog', color: 'green',
       value: stats.maquinaria.destacado,
       total: Math.max(stats.maquinaria.total, 1),
       suffix: `de ${stats.maquinaria.total} equipos`,
+      to: '/maquinaria',
     },
     {
       id: 4, label: 'Usuarios activos', icon: 'users', color: 'purple',
       value: stats.usuarios.destacado,
       total: Math.max(stats.usuarios.total, 1),
       suffix: `de ${stats.usuarios.total} personas`,
+      to: '/usuarios',
     },
   ]
 
