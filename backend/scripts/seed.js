@@ -17,8 +17,9 @@ const seed = async () => {
     ('Ejecutivo Comercial',        'Gestión de clientes, cotizaciones y pedidos'),
     ('Jefe de Almacén',            'Control de inventarios y materiales'),
     ('Administrativo',             'Gestión contable y administrativa'),
-    ('Operario',                   'Ejecución de tareas en planta')`)
-  console.log('✅ Roles (8 roles reales de Macromet)')
+    ('Operario',                   'Ejecución de tareas en planta'),
+    ('Administrador Sistema',      'Administrador del sistema con acceso total y gestión de permisos')`)
+  console.log('✅ Roles (9 roles: 8 Macromet + Administrador Sistema)')
 
   // ── PERMISOS Y RBAC ───────────────────────────────
   await pool.query(`DELETE FROM roles_permisos`)
@@ -50,7 +51,9 @@ const seed = async () => {
   await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 7, id_permiso FROM permisos WHERE nombre IN ('dashboard','pedidos','clientes','usuarios')`)
   // Operario (8)
   await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 8, id_permiso FROM permisos WHERE nombre IN ('dashboard','programacion')`)
-  console.log('✅ Permisos RBAC (8 módulos × 8 roles)')
+  // Administrador Sistema (9) — acceso total (igual que Gerente General pero rol distinto)
+  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 9, id_permiso FROM permisos`)
+  console.log('✅ Permisos RBAC (8 módulos × 9 roles)')
 
   // ── USUARIOS reales de Macromet ───────────────────
   const hashSuperAdmin = await bcrypt.hash('admin2026', 10)
@@ -61,7 +64,7 @@ const seed = async () => {
   await pool.query(`ALTER TABLE usuarios AUTO_INCREMENT = 1`)
   await pool.query(`
     INSERT INTO usuarios (codigo_empleado, nombre, correo, password_hash, id_rol, estado) VALUES
-    ('EMP-000', 'Administrador Sistema', 'admin@macromet.com.co',      ?, 1, 1),
+    ('EMP-000', 'Administrador Sistema', 'admin@macromet.com.co',      ?, 9, 1),
     ('EMP-001', 'Alejandro Acuña',       'alejandro@macromet.com.co',  ?, 1, 1),
     ('EMP-002', 'Felipe Acuña',          'felipe@macromet.com.co',     ?, 2, 1),
     ('EMP-003', 'Angie Abril',           'angie@macromet.com.co',      ?, 3, 1),

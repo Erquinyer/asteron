@@ -1,100 +1,130 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import {
-  LayoutDashboard,
-  FolderKanban,
-  ClipboardList,
-  Wrench,
-  CalendarDays,
-  Users,
-  Building2,
-  ClipboardCheck,
-  LogOut,
-  X,
+  LayoutDashboard, FolderKanban, ClipboardList, Wrench,
+  CalendarDays, Users, Building2, ClipboardCheck,
+  ShieldCheck, ChevronLeft, ChevronRight, X,
 } from 'lucide-react'
-import { logout, getUser } from '../../utils/auth'
+import { getUser } from '../../utils/auth'
 import { canAccess } from '../../config/permissions'
 
 const ALL_NAV_ITEMS = [
-  { to: '/dashboard',       label: 'Dashboard',       icon: LayoutDashboard, module: 'dashboard'      },
-  { to: '/proyectos',       label: 'Proyectos',       icon: FolderKanban,    module: 'proyectos'      },
-  { to: '/pedidos',         label: 'Pedidos',         icon: ClipboardList,   module: 'pedidos'        },
-  { to: '/clientes',        label: 'Clientes',        icon: Building2,       module: 'clientes'       },
-  { to: '/maquinaria',      label: 'Maquinaria',      icon: Wrench,          module: 'maquinaria'     },
-  { to: '/mantenimientos',  label: 'Mantenimientos',  icon: ClipboardCheck,  module: 'mantenimientos' },
-  { to: '/programacion',    label: 'Programación',    icon: CalendarDays,    module: 'programacion'   },
-  { to: '/usuarios',        label: 'Usuarios',        icon: Users,           module: 'usuarios'       },
+  { to: '/dashboard',      label: 'Dashboard',        icon: LayoutDashboard, module: 'dashboard'      },
+  { to: '/proyectos',      label: 'Proyectos',        icon: FolderKanban,    module: 'proyectos'      },
+  { to: '/pedidos',        label: 'Pedidos',          icon: ClipboardList,   module: 'pedidos'        },
+  { to: '/clientes',       label: 'Clientes',         icon: Building2,       module: 'clientes'       },
+  { to: '/maquinaria',     label: 'Maquinaria',       icon: Wrench,          module: 'maquinaria'     },
+  { to: '/mantenimientos', label: 'Mantenimientos',   icon: ClipboardCheck,  module: 'mantenimientos' },
+  { to: '/programacion',   label: 'Programación',     icon: CalendarDays,    module: 'programacion'   },
+  { to: '/usuarios',       label: 'Usuarios',         icon: Users,           module: 'usuarios'       },
+  { to: '/admin',          label: 'Administración',   icon: ShieldCheck,     module: 'admin'          },
 ]
 
-const Sidebar = ({ open, onClose }) => {
-  const navigate = useNavigate()
+const Sidebar = ({ open, onClose, collapsed, onToggleCollapse }) => {
   const user = getUser()
   const navItems = ALL_NAV_ITEMS.filter(item => canAccess(user?.rol, item.module))
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
-  }
-
   return (
     <>
-      {/* Overlay en móvil */}
+      {/* Overlay móvil */}
       {open && (
-        <div
-          className="fixed inset-0 bg-black/40 z-20 lg:hidden"
-          onClick={onClose}
-        />
+        <div className="fixed inset-0 bg-black/40 z-20 lg:hidden" onClick={onClose} />
       )}
 
       <aside
         className={`
-          fixed top-0 left-0 z-30 h-full w-64
+          fixed top-0 left-0 z-30 h-full flex flex-col
           bg-white dark:bg-slate-800
           border-r border-slate-200 dark:border-slate-700
-          flex flex-col transition-transform duration-300
+          transition-all duration-300 ease-in-out
           lg:static lg:translate-x-0
           ${open ? 'translate-x-0' : '-translate-x-full'}
+          ${collapsed ? 'w-16' : 'w-64'}
         `}
       >
-        {/* Logo */}
-        <div className="flex items-center justify-between px-5 py-5 border-b border-slate-100 dark:border-slate-700">
-          <img src="/logo.svg" alt="Asteron" className="h-8 w-auto object-contain dark:brightness-0 dark:invert" />
+        {/* Logo con animación de crossfade */}
+        <div className="relative flex items-center justify-center shrink-0 h-16 border-b border-slate-100 dark:border-slate-700">
+
+          {/* Logo completo — en flujo cuando expandido, absoluto cuando colapsado */}
+          <img
+            src="/logo.svg"
+            alt="Asteron"
+            className={`
+              h-8 w-auto object-contain
+              dark:brightness-0 dark:invert
+              transition-all duration-300 ease-in-out
+              ${collapsed
+                ? 'absolute opacity-0 scale-90 pointer-events-none'
+                : 'opacity-100 scale-100'
+              }
+            `}
+          />
+
+          {/* Ícono infinito — en flujo cuando colapsado, absoluto cuando expandido */}
+          <img
+            src="/logo-icon.png"
+            alt="Asteron"
+            className={`
+              h-8 w-8 object-contain
+              dark:brightness-0 dark:invert
+              transition-all duration-300 ease-in-out
+              ${collapsed
+                ? 'opacity-100 scale-100'
+                : 'absolute opacity-0 scale-75 pointer-events-none'
+              }
+            `}
+          />
+
+          {/* Botón cerrar — solo móvil, anclado a la derecha */}
           <button
             onClick={onClose}
-            className="lg:hidden p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400"
+            className="absolute right-3 lg:hidden p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
           >
             <X size={18} />
           </button>
         </div>
 
         {/* Navegación */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              onClick={onClose}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-                ${isActive
-                  ? 'bg-slate-800 dark:bg-slate-600 text-white'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white'
-                }`
-              }
-            >
-              <Icon size={18} />
-              {label}
-            </NavLink>
-          ))}
+        <nav className="flex-1 py-3 overflow-y-auto overflow-x-hidden">
+          <div className={`space-y-0.5 ${collapsed ? 'px-2' : 'px-3'}`}>
+            {navItems.map(({ to, label, icon: Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                onClick={onClose}
+                title={collapsed ? label : undefined}
+                className={({ isActive }) =>
+                  `flex items-center rounded-lg text-sm font-medium transition-colors
+                  ${collapsed ? 'justify-center px-0 py-3' : 'gap-3 px-3 py-2.5'}
+                  ${isActive
+                    ? 'bg-slate-800 dark:bg-slate-600 text-white'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white'
+                  }`
+                }
+              >
+                <Icon size={18} className="shrink-0" />
+                {!collapsed && <span className="truncate">{label}</span>}
+              </NavLink>
+            ))}
+          </div>
         </nav>
 
-        {/* Cerrar sesión */}
-        <div className="px-3 py-4 border-t border-slate-100 dark:border-slate-700">
+        {/* Botón colapsar — solo escritorio */}
+        <div className={`
+          hidden lg:flex shrink-0 border-t border-slate-100 dark:border-slate-700 py-3
+          ${collapsed ? 'justify-center px-2' : 'px-3'}
+        `}>
           <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            onClick={onToggleCollapse}
+            title={collapsed ? 'Expandir menú' : 'Colapsar menú'}
+            className="flex items-center justify-center w-full gap-2 px-3 py-2 rounded-lg text-sm
+              text-slate-500 dark:text-slate-400
+              hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-white
+              transition-colors"
           >
-            <LogOut size={18} />
-            Cerrar sesión
+            {collapsed
+              ? <ChevronRight size={16} />
+              : <><ChevronLeft size={16} /><span className="text-xs">Colapsar</span></>
+            }
           </button>
         </div>
       </aside>

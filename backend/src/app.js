@@ -14,6 +14,7 @@ import programacionRoutes     from './routes/programacion.routes.js'
 import perfilRoutes           from './routes/perfil.routes.js'
 import mantenimientosRoutes   from './routes/mantenimientos.routes.js'
 import notificacionesRoutes   from './routes/notificaciones.routes.js'
+import adminRoutes             from './routes/admin.routes.js'
 
 dotenv.config()
 
@@ -45,5 +46,6 @@ app.use('/api/programacion',    verifyToken, programacionRoutes)
 app.use('/api/perfil',          verifyToken, perfilRoutes)
 app.use('/api/mantenimientos',  verifyToken, mantenimientosRoutes)
 app.use('/api/notificaciones',  verifyToken, notificacionesRoutes)
+app.use('/api/admin',           verifyToken, adminRoutes)
 
 export default app

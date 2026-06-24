@@ -22,6 +22,7 @@ import Mantenimientos  from './pages/Mantenimientos'
 import Programacion    from './pages/Programacion'
 import Usuarios        from './pages/Usuarios'
 import Perfil          from './pages/Perfil'
+import AdminPanel      from './pages/AdminPanel'
 
 function App() {
   return (
@@ -54,6 +55,9 @@ function App() {
             {/* Accesible para todos los roles autenticados */}
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/perfil"    element={<Perfil />} />
+            <Route path="/admin"     element={
+              <RoleRoute module="admin"><AdminPanel /></RoleRoute>
+            } />
 
             {/* Rutas con control de acceso por rol */}
             <Route path="/proyectos" element={

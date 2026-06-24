@@ -45,19 +45,31 @@ export const login = async (req, res) => {
       [user.id_usuario]
     )
 
-    // 6. Generar token JWT
+    // 6. Obtener módulos habilitados para el rol del usuario
+    const [modulosRows] = await pool.query(
+      `SELECT p.nombre AS modulo
+       FROM permisos p
+       JOIN roles_permisos rp ON p.id_permiso = rp.id_permiso
+       WHERE rp.id_rol = ?`,
+      [user.id_rol]
+    )
+    const modulos = modulosRows.map(r => r.modulo)
+
+    // 7. Generar token JWT
     const token = jwt.sign(
       { id: user.id_usuario, correo: user.correo, rol: user.rol },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
     )
 
-    // 7. Responder con los datos del usuario y el token
+    // 8. Responder con datos del usuario, módulos y token
     return res.json({
       user: {
+        id_usuario: user.id_usuario,
         nombre: user.nombre,
         correo: user.correo,
         rol:    user.rol,
+        modulos,
         token,
       },
     })

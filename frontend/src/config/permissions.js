@@ -1,8 +1,11 @@
-// Define qué módulos puede ver cada rol.
-// La clave debe coincidir exactamente con el nombre del rol en la BD.
-// 'perfil' es accesible para todos los roles autenticados sin declararlo aquí.
+import { getUser } from '../utils/auth'
 
+// Static fallback — used when no dynamic modulos are stored in session
 export const ROLE_PERMISSIONS = {
+  'Administrador Sistema': [
+    'dashboard', 'proyectos', 'pedidos', 'clientes',
+    'maquinaria', 'mantenimientos', 'programacion', 'usuarios',
+  ],
   'Gerente General': [
     'dashboard', 'proyectos', 'pedidos', 'clientes',
     'maquinaria', 'mantenimientos', 'programacion', 'usuarios',
@@ -30,8 +33,17 @@ export const ROLE_PERMISSIONS = {
   ],
 }
 
-// Devuelve true si el rol dado tiene permiso sobre el módulo indicado
+// Returns true if the current user's session allows access to the given module.
+// 'admin' is a virtual module only for Administrador Sistema (not stored in DB).
+// Otherwise prefers dynamic modulos from login (DB) over the static map.
 export const canAccess = (rol, module) => {
-  const allowed = ROLE_PERMISSIONS[rol] ?? []
-  return allowed.includes(module)
+  if (module === 'admin') return rol === 'Administrador Sistema'
+  const user = getUser()
+  if (user?.modulos && Array.isArray(user.modulos)) {
+    return user.modulos.includes(module)
+  }
+  return (ROLE_PERMISSIONS[rol] ?? []).includes(module)
 }
+
+// True only for the system administrator role
+export const isAdmin = (rol) => rol === 'Administrador Sistema'

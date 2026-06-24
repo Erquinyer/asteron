@@ -4,11 +4,9 @@ import Sidebar from '../components/layout/Sidebar'
 import TopBar from '../components/layout/TopBar'
 import { getUser } from '../utils/auth'
 
-// Contenedor principal de todas las páginas protegidas.
-// Renderiza el sidebar, la topbar, y el <Outlet /> donde
-// React Router inyecta la página activa según la URL.
 const AppLayout = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen]           = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const user = getUser()
 
   return (
@@ -16,9 +14,11 @@ const AppLayout = () => {
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(c => !c)}
       />
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <TopBar
           user={user}
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
