@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Shield, Users, Check, Lock, AlertCircle, ChevronDown, Settings } from 'lucide-react'
-import { getPermisos, updateRolPermisos, getAcciones, updateRolAcciones, getUsuariosAdmin, updateUsuarioRol } from '../api/admin.service'
+import { Shield, Users, Check, Lock, AlertCircle, ChevronDown } from 'lucide-react'
+import { getAcciones, updateRolPermisos, updateRolAcciones, getUsuariosAdmin, updateUsuarioRol } from '../api/admin.service'
 import { getRoles } from '../api/usuarios.service'
 import Spinner from '../components/ui/Spinner'
 import toast from 'react-hot-toast'
@@ -12,28 +12,43 @@ const MODULE_LABELS = {
   clientes:       'Clientes',
   maquinaria:     'Maquinaria',
   mantenimientos: 'Mantenimientos',
-  programacion:   'Programación',
+  programacion:   'Programación de Planta',
   usuarios:       'Usuarios',
 }
 
-const COLORS = [
-  'bg-blue-500','bg-purple-500','bg-green-500','bg-amber-500',
-  'bg-pink-500','bg-indigo-500','bg-teal-500','bg-orange-500','bg-slate-500',
-]
+const MODULE_ORDER = ['dashboard','proyectos','pedidos','clientes','maquinaria','mantenimientos','programacion','usuarios']
+
+const MODULO_ACCIONES = {
+  dashboard:      [],
+  proyectos:      ['crear','editar','eliminar'],
+  pedidos:        ['crear','editar','eliminar'],
+  clientes:       ['crear','editar','eliminar'],
+  maquinaria:     ['crear','editar','eliminar'],
+  mantenimientos: ['crear','eliminar'],
+  programacion:   ['crear','editar','eliminar'],
+  usuarios:       ['crear','editar','eliminar'],
+}
+
+const ACCION_LABELS  = { crear: 'Crear', editar: 'Editar', eliminar: 'Eliminar' }
+const ACCION_COLORS  = { crear: 'bg-blue-500 border-blue-500 hover:bg-blue-600', editar: 'bg-amber-500 border-amber-500 hover:bg-amber-600', eliminar: 'bg-red-500 border-red-500 hover:bg-red-600' }
+const ACCION_HEADERS = { crear: 'text-blue-600 dark:text-blue-400', editar: 'text-amber-600 dark:text-amber-400', eliminar: 'text-red-600 dark:text-red-400' }
+
+const COLORS = ['bg-blue-500','bg-purple-500','bg-green-500','bg-amber-500','bg-pink-500','bg-indigo-500','bg-teal-500','bg-orange-500','bg-slate-500']
 const initials = n => n?.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase() || '?'
 
-// ─────────────────────────────────────────────
-// Tab: Matriz de Permisos
-// ─────────────────────────────────────────────
-function MatrizPermisos() {
-  const [data,    setData]    = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [saving,  setSaving]  = useState({}) // { [id_rol]: true|false }
+// ─────────────────────────────────────────────────────────────
+// Tab: Permisos unificados — Módulos → Roles → Acciones
+// ─────────────────────────────────────────────────────────────
+function PermisosUnificados() {
+  const [data,     setData]     = useState(null)
+  const [loading,  setLoading]  = useState(true)
+  const [expanded, setExpanded] = useState({ programacion: true })
+  const [saving,   setSaving]   = useState({})
 
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      const { data: d } = await getPermisos()
+      const { data: d } = await getAcciones()
       setData(d)
     } catch {
       toast.error('Error al cargar permisos')
@@ -44,165 +59,264 @@ function MatrizPermisos() {
 
   useEffect(() => { load() }, [load])
 
-  const toggle = async (rol, modulo) => {
+  const toggleExpand = (m) => setExpanded(e => ({ ...e, [m]: !e[m] }))
+
+  // Toggle module access for a role
+  const toggleAcceso = async (rol, modulo) => {
     if (rol.nombre === 'Administrador Sistema') return
-
     const tiene  = rol.modulos.includes(modulo)
-    const nuevos = tiene
-      ? rol.modulos.filter(m => m !== modulo)
-      : [...rol.modulos, modulo]
+    const nuevos = tiene ? rol.modulos.filter(m => m !== modulo) : [...rol.modulos, modulo]
 
-    // Optimistic update
+    // Optimistic update — also wipe actions when removing access
     setData(prev => ({
       ...prev,
       roles: prev.roles.map(r =>
-        r.id_rol === rol.id_rol ? { ...r, modulos: nuevos } : r),
+        r.id_rol === rol.id_rol
+          ? { ...r, modulos: nuevos, acciones: tiene ? { ...r.acciones, [modulo]: [] } : r.acciones }
+          : r),
     }))
-
-    setSaving(s => ({ ...s, [rol.id_rol]: true }))
+    const key = `acc-${rol.id_rol}-${modulo}`
+    setSaving(s => ({ ...s, [key]: true }))
     try {
       await updateRolPermisos(rol.id_rol, nuevos)
-      toast.success(`${tiene ? 'Permiso removido' : 'Permiso otorgado'}`)
+      if (tiene) await updateRolAcciones(rol.id_rol, modulo, [])
+      toast.success(tiene ? 'Acceso removido' : 'Acceso habilitado')
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error al guardar')
-      load() // revert on error
+      load()
     } finally {
-      setSaving(s => ({ ...s, [rol.id_rol]: false }))
+      setSaving(s => ({ ...s, [key]: false }))
     }
   }
 
-  if (loading) return <Spinner text="Cargando matriz de permisos..." />
-  if (!data)   return null
+  // Toggle a specific action for a role within a module
+  const toggleAccion = async (rol, modulo, accion) => {
+    if (rol.nombre === 'Administrador Sistema') return
+    const accActuales = rol.acciones?.[modulo] ?? []
+    const tiene  = accActuales.includes(accion)
+    const nuevas = tiene ? accActuales.filter(a => a !== accion) : [...accActuales, accion]
 
-  const modulos = data.modulos
+    setData(prev => ({
+      ...prev,
+      roles: prev.roles.map(r =>
+        r.id_rol === rol.id_rol
+          ? { ...r, acciones: { ...r.acciones, [modulo]: nuevas } }
+          : r),
+    }))
+    const key = `accion-${rol.id_rol}-${modulo}-${accion}`
+    setSaving(s => ({ ...s, [key]: true }))
+    try {
+      await updateRolAcciones(rol.id_rol, modulo, nuevas)
+      toast.success(tiene ? 'Permiso removido' : 'Permiso habilitado')
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error al guardar')
+      load()
+    } finally {
+      setSaving(s => ({ ...s, [key]: false }))
+    }
+  }
+
+  if (loading) return <Spinner text="Cargando permisos..." />
+  if (!data)   return null
 
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-base font-semibold text-slate-800 dark:text-white">
-            Permisos por Rol
-          </h2>
+          <h2 className="text-base font-semibold text-slate-800 dark:text-white">Permisos por Módulo</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Haz clic en una celda para activar o desactivar el acceso. Los cambios se aplican de inmediato.
+            Expande un módulo para ver y configurar el acceso y las acciones de cada rol. Los cambios aplican en el próximo inicio de sesión.
           </p>
         </div>
-        <span className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-700/50 rounded-lg px-3 py-1.5">
-          <Lock size={12} /> Administrador Sistema es inmutable
+        <span className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-700/50 rounded-lg px-3 py-1.5 shrink-0">
+          <Lock size={12}/> Administrador Sistema es inmutable
         </span>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700">
-              <th className="text-left px-4 py-3 font-medium text-slate-600 dark:text-slate-300 min-w-[200px]">
-                Rol
-              </th>
-              {modulos.map(m => (
-                <th key={m} className="px-3 py-3 text-center font-medium text-slate-600 dark:text-slate-300 min-w-[110px]">
-                  <span className="text-xs">{MODULE_LABELS[m] ?? m}</span>
-                </th>
-              ))}
-              <th className="px-3 py-3 text-center font-medium text-slate-500 dark:text-slate-400 min-w-[80px] text-xs">
-                Módulos
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.roles.map((rol, i) => {
-              const isAdminRol = rol.nombre === 'Administrador Sistema'
-              const isSaving   = saving[rol.id_rol]
-              return (
-                <tr
-                  key={rol.id_rol}
-                  className={`border-b border-slate-100 dark:border-slate-700/60 last:border-0 transition-colors
-                    ${isAdminRol
-                      ? 'bg-blue-50/60 dark:bg-blue-950/20'
-                      : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'
-                    }`}
-                >
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2.5">
-                      {isSaving && (
-                        <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
-                      )}
-                      <div>
-                        <p className={`font-medium ${isAdminRol ? 'text-blue-700 dark:text-blue-400' : 'text-slate-800 dark:text-white'}`}>
-                          {rol.nombre}
-                          {isAdminRol && <Lock size={11} className="inline ml-1.5 opacity-60" />}
-                        </p>
-                        <p className="text-xs text-slate-400 dark:text-slate-500 truncate max-w-[180px]">
-                          {rol.descripcion}
-                        </p>
-                      </div>
+      <div className="space-y-2">
+        {MODULE_ORDER.map(modulo => {
+          const acciones   = MODULO_ACCIONES[modulo] ?? []
+          const isExpanded = expanded[modulo]
+          const conAcceso  = data.roles.filter(r => r.modulos.includes(modulo)).length
+          const totalRoles = data.roles.length
+
+          return (
+            <div key={modulo} className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+              {/* ── Module accordion header ── */}
+              <button
+                onClick={() => toggleExpand(modulo)}
+                className="w-full flex items-center justify-between px-5 py-4 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-semibold text-slate-800 dark:text-white">
+                    {MODULE_LABELS[modulo] ?? modulo}
+                  </span>
+                  {acciones.length > 0 ? (
+                    <div className="flex gap-1">
+                      {acciones.map(a => (
+                        <span key={a} className={`text-xs px-1.5 py-0.5 rounded font-medium ${ACCION_HEADERS[a]} bg-slate-100 dark:bg-slate-700`}>
+                          {ACCION_LABELS[a]}
+                        </span>
+                      ))}
                     </div>
-                  </td>
-                  {modulos.map(m => {
-                    const tiene = rol.modulos.includes(m)
-                    return (
-                      <td key={m} className="px-3 py-3 text-center">
-                        {isAdminRol ? (
-                          <span className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 mx-auto">
-                            <Check size={13} strokeWidth={2.5} />
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => toggle(rol, m)}
-                            disabled={isSaving}
-                            className={`
-                              inline-flex items-center justify-center h-7 w-7 rounded-lg
-                              border-2 transition-all mx-auto
-                              disabled:opacity-50 disabled:cursor-not-allowed
-                              ${tiene
-                                ? 'bg-green-500 border-green-500 text-white hover:bg-green-600 hover:border-green-600'
-                                : 'border-slate-300 dark:border-slate-600 text-transparent hover:border-slate-400 dark:hover:border-slate-500'
-                              }
-                            `}
-                          >
-                            <Check size={13} strokeWidth={2.5} />
-                          </button>
-                        )}
-                      </td>
-                    )
-                  })}
-                  <td className="px-3 py-3 text-center">
-                    <span className={`
-                      inline-block px-2 py-0.5 rounded-full text-xs font-semibold
-                      ${rol.modulos.length === modulos.length
-                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
-                        : rol.modulos.length === 0
-                          ? 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
-                          : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
-                      }
-                    `}>
-                      {rol.modulos.length}/{modulos.length}
-                    </span>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+                  ) : (
+                    <span className="text-xs text-slate-400 dark:text-slate-500">Solo lectura</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                    conAcceso === totalRoles
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                      : conAcceso === 0
+                        ? 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
+                        : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
+                  }`}>
+                    {conAcceso}/{totalRoles} roles
+                  </span>
+                  <ChevronDown size={16}
+                    className={`text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}/>
+                </div>
+              </button>
+
+              {/* ── Expanded: roles × access + actions ── */}
+              {isExpanded && (
+                <div className="border-t border-slate-200 dark:border-slate-700 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700">
+                        <th className="text-left px-5 py-2.5 text-xs font-medium text-slate-500 dark:text-slate-400 min-w-[200px]">
+                          Rol
+                        </th>
+                        <th className="px-4 py-2.5 text-center text-xs font-semibold text-slate-600 dark:text-slate-300 min-w-[90px]">
+                          Acceso
+                        </th>
+                        {acciones.map(a => (
+                          <th key={a} className={`px-4 py-2.5 text-center text-xs font-semibold min-w-[90px] ${ACCION_HEADERS[a]}`}>
+                            {ACCION_LABELS[a]}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.roles.map(rol => {
+                        const isAdmin     = rol.nombre === 'Administrador Sistema'
+                        const tieneAcceso = rol.modulos.includes(modulo)
+                        const accRol      = rol.acciones?.[modulo] ?? []
+                        const anyBusy     = Object.keys(saving).some(k => k.startsWith(`acc-${rol.id_rol}-${modulo}`) || k.startsWith(`accion-${rol.id_rol}-${modulo}`))
+
+                        return (
+                          <tr key={rol.id_rol}
+                            className={`border-b border-slate-50 dark:border-slate-700/40 last:border-0 transition-colors
+                              ${isAdmin
+                                ? 'bg-blue-50/40 dark:bg-blue-950/10'
+                                : tieneAcceso
+                                  ? 'hover:bg-slate-50 dark:hover:bg-slate-800/30'
+                                  : 'opacity-50'
+                              }`}>
+
+                            {/* Role name */}
+                            <td className="px-5 py-3">
+                              <div className="flex items-center gap-2">
+                                {anyBusy && <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse shrink-0"/>}
+                                <div>
+                                  <p className={`text-xs font-semibold ${isAdmin ? 'text-blue-700 dark:text-blue-400' : 'text-slate-700 dark:text-slate-200'}`}>
+                                    {rol.nombre}
+                                    {isAdmin && <Lock size={10} className="inline ml-1.5 opacity-60"/>}
+                                  </p>
+                                  <p className="text-xs text-slate-400 dark:text-slate-500 truncate max-w-[180px] mt-0.5">
+                                    {rol.descripcion}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Access toggle */}
+                            <td className="px-4 py-3 text-center">
+                              {isAdmin ? (
+                                <span className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 mx-auto">
+                                  <Check size={13} strokeWidth={2.5}/>
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => toggleAcceso(rol, modulo)}
+                                  disabled={!!saving[`acc-${rol.id_rol}-${modulo}`]}
+                                  title={tieneAcceso ? 'Quitar acceso' : 'Dar acceso'}
+                                  className={`
+                                    inline-flex items-center justify-center h-7 w-7 rounded-lg border-2
+                                    transition-all mx-auto disabled:opacity-50 disabled:cursor-not-allowed
+                                    ${tieneAcceso
+                                      ? 'bg-slate-700 border-slate-700 dark:bg-slate-500 dark:border-slate-500 text-white hover:bg-slate-600 hover:border-slate-600'
+                                      : 'border-slate-300 dark:border-slate-600 text-transparent hover:border-slate-400 dark:hover:border-slate-500'
+                                    }
+                                  `}>
+                                  <Check size={13} strokeWidth={2.5}/>
+                                </button>
+                              )}
+                            </td>
+
+                            {/* Action checkboxes */}
+                            {acciones.map(accion => {
+                              const tieneAccion = accRol.includes(accion)
+                              const isBusy      = !!saving[`accion-${rol.id_rol}-${modulo}-${accion}`]
+                              return (
+                                <td key={accion} className="px-4 py-3 text-center">
+                                  {isAdmin ? (
+                                    <span className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 mx-auto">
+                                      <Check size={13} strokeWidth={2.5}/>
+                                    </span>
+                                  ) : !tieneAcceso ? (
+                                    <span className="inline-block h-7 w-7 rounded-lg border-2 border-slate-100 dark:border-slate-700/40 mx-auto"/>
+                                  ) : (
+                                    <button
+                                      onClick={() => toggleAccion(rol, modulo, accion)}
+                                      disabled={isBusy}
+                                      title={tieneAccion ? `Quitar ${accion}` : `Permitir ${accion}`}
+                                      className={`
+                                        inline-flex items-center justify-center h-7 w-7 rounded-lg border-2
+                                        transition-all mx-auto disabled:opacity-50 disabled:cursor-not-allowed
+                                        ${tieneAccion
+                                          ? `${ACCION_COLORS[accion]} text-white`
+                                          : 'border-slate-300 dark:border-slate-600 text-transparent hover:border-slate-400 dark:hover:border-slate-500'
+                                        }
+                                      `}>
+                                      <Check size={13} strokeWidth={2.5}/>
+                                    </button>
+                                  )}
+                                </td>
+                              )
+                            })}
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
-      {/* Leyenda */}
-      <div className="flex items-center gap-6 text-xs text-slate-500 dark:text-slate-400">
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-slate-400 pt-1">
         <span className="flex items-center gap-1.5">
-          <span className="inline-flex h-4 w-4 rounded bg-green-500 items-center justify-center text-white">
-            <Check size={10} />
-          </span>
-          Acceso habilitado
+          <span className="inline-flex h-4 w-4 rounded bg-slate-700 dark:bg-slate-500 items-center justify-center text-white"><Check size={9}/></span>
+          Acceso al módulo
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-4 w-4 rounded border-2 border-slate-300 dark:border-slate-600" />
-          Sin acceso
+          <span className="inline-flex h-4 w-4 rounded bg-blue-500 items-center justify-center text-white"><Check size={9}/></span>
+          Crear
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-flex h-4 w-4 rounded bg-blue-100 dark:bg-blue-900/40 items-center justify-center text-blue-600">
-            <Check size={10} />
-          </span>
-          Fijo (no editable)
+          <span className="inline-flex h-4 w-4 rounded bg-amber-500 items-center justify-center text-white"><Check size={9}/></span>
+          Editar
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-flex h-4 w-4 rounded bg-red-500 items-center justify-center text-white"><Check size={9}/></span>
+          Eliminar
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-4 w-4 rounded border-2 border-slate-300 dark:border-slate-600"/>
+          Sin permiso
         </span>
       </div>
     </div>
@@ -256,11 +370,9 @@ function UsuariosRoles() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-slate-800 dark:text-white">
-            Asignación de Roles
-          </h2>
+          <h2 className="text-base font-semibold text-slate-800 dark:text-white">Asignación de Roles</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Cambia el rol de cada usuario. El cambio de permisos aplica en el próximo inicio de sesión.
+            Cambia el rol de cada usuario. Los nuevos permisos aplican en el próximo inicio de sesión.
           </p>
         </div>
         <input
@@ -281,7 +393,7 @@ function UsuariosRoles() {
               <th className="text-left px-4 py-3 font-medium text-slate-600 dark:text-slate-300 hidden sm:table-cell">Correo</th>
               <th className="text-left px-4 py-3 font-medium text-slate-600 dark:text-slate-300 hidden md:table-cell">Código</th>
               <th className="text-left px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Rol</th>
-              <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Estado</th>
+              <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300 text-center">Estado</th>
             </tr>
           </thead>
           <tbody>
@@ -289,29 +401,25 @@ function UsuariosRoles() {
               const isAdminUser = u.codigo_empleado === 'EMP-000'
               const isSaving    = saving[u.id_usuario]
               return (
-                <tr
-                  key={u.id_usuario}
+                <tr key={u.id_usuario}
                   className={`border-b border-slate-100 dark:border-slate-700/60 last:border-0 transition-colors
-                    ${isAdminUser ? 'bg-blue-50/40 dark:bg-blue-950/10' : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'}`}
-                >
+                    ${isAdminUser ? 'bg-blue-50/40 dark:bg-blue-950/10' : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'}`}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <div className={`${COLORS[i % COLORS.length]} h-8 w-8 rounded-full flex items-center justify-center text-white text-xs font-semibold shrink-0`}>
                         {initials(u.nombre)}
                       </div>
-                      <span className="font-medium text-slate-800 dark:text-white">{u.nombre}</span>
+                      <span className="font-medium text-slate-800 dark:text-white text-sm">{u.nombre}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-slate-500 dark:text-slate-400 hidden sm:table-cell text-xs">
-                    {u.correo}
-                  </td>
+                  <td className="px-4 py-3 text-slate-500 dark:text-slate-400 hidden sm:table-cell text-xs">{u.correo}</td>
                   <td className="px-4 py-3 hidden md:table-cell">
                     <span className="font-mono text-xs text-blue-600 dark:text-blue-400">{u.codigo_empleado}</span>
                   </td>
                   <td className="px-4 py-3">
                     {isAdminUser ? (
                       <span className="flex items-center gap-1.5 text-blue-700 dark:text-blue-400 text-sm font-medium">
-                        <Lock size={13} /> {u.rol}
+                        <Lock size={13}/> {u.rol}
                       </span>
                     ) : (
                       <div className="relative">
@@ -323,15 +431,14 @@ function UsuariosRoles() {
                             px-3 py-1.5 pr-7 text-sm bg-white dark:bg-slate-800
                             text-slate-700 dark:text-slate-200
                             focus:outline-none focus:ring-2 focus:ring-blue-500
-                            disabled:opacity-50 disabled:cursor-not-allowed w-full max-w-[220px]"
-                        >
+                            disabled:opacity-50 disabled:cursor-not-allowed w-full max-w-[220px]">
                           <option value="">Sin rol</option>
                           {roles.map(r => (
                             <option key={r.id_rol} value={r.id_rol}>{r.nombre}</option>
                           ))}
                         </select>
-                        <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                        {isSaving && <span className="absolute -right-5 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-blue-500 animate-pulse" />}
+                        <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+                        {isSaving && <span className="absolute -right-5 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-blue-500 animate-pulse"/>}
                       </div>
                     )}
                   </td>
@@ -341,7 +448,7 @@ function UsuariosRoles() {
                         ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
                         : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
                       }`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${u.estado ? 'bg-green-500' : 'bg-slate-400'}`} />
+                      <span className={`h-1.5 w-1.5 rounded-full ${u.estado ? 'bg-green-500' : 'bg-slate-400'}`}/>
                       {u.estado ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
@@ -359,252 +466,51 @@ function UsuariosRoles() {
 }
 
 // ─────────────────────────────────────────────
-// Tab: Acciones por Módulo
-// ─────────────────────────────────────────────
-const MODULO_ACCIONES = {
-  proyectos:      ['crear', 'editar', 'eliminar'],
-  pedidos:        ['crear', 'editar', 'eliminar'],
-  clientes:       ['crear', 'editar', 'eliminar'],
-  maquinaria:     ['crear', 'editar', 'eliminar'],
-  mantenimientos: ['crear', 'eliminar'],
-  programacion:   ['crear', 'editar', 'eliminar'],
-  usuarios:       ['crear', 'editar', 'eliminar'],
-}
-
-const ACCION_LABELS = { crear: 'Crear', editar: 'Editar', eliminar: 'Eliminar' }
-
-function AccionesModulo() {
-  const [data,     setData]     = useState(null)
-  const [loading,  setLoading]  = useState(true)
-  const [modulo,   setModulo]   = useState('programacion')
-  const [saving,   setSaving]   = useState({})
-
-  const load = useCallback(async () => {
-    try {
-      setLoading(true)
-      const { data: d } = await getAcciones()
-      setData(d)
-    } catch {
-      toast.error('Error al cargar acciones')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => { load() }, [load])
-
-  const toggle = async (rol, accion) => {
-    if (rol.nombre === 'Administrador Sistema') return
-    const accActuales = rol.acciones?.[modulo] ?? []
-    const tiene = accActuales.includes(accion)
-    const nuevas = tiene ? accActuales.filter(a => a !== accion) : [...accActuales, accion]
-
-    setData(prev => ({
-      ...prev,
-      roles: prev.roles.map(r =>
-        r.id_rol === rol.id_rol
-          ? { ...r, acciones: { ...r.acciones, [modulo]: nuevas } }
-          : r),
-    }))
-    setSaving(s => ({ ...s, [`${rol.id_rol}-${accion}`]: true }))
-    try {
-      await updateRolAcciones(rol.id_rol, modulo, nuevas)
-      toast.success(tiene ? 'Acción removida' : 'Acción habilitada')
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Error al guardar')
-      load()
-    } finally {
-      setSaving(s => ({ ...s, [`${rol.id_rol}-${accion}`]: false }))
-    }
-  }
-
-  if (loading) return <Spinner text="Cargando acciones..." />
-  if (!data)   return null
-
-  const acciones = MODULO_ACCIONES[modulo] ?? []
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-base font-semibold text-slate-800 dark:text-white">Acciones por Módulo</h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          Configura qué operaciones puede realizar cada rol dentro de un módulo. Los cambios aplican en el próximo inicio de sesión.
-        </p>
-      </div>
-
-      {/* Module selector */}
-      <div className="flex flex-wrap gap-2">
-        {Object.keys(MODULO_ACCIONES).map(m => (
-          <button key={m} onClick={() => setModulo(m)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              modulo === m
-                ? 'bg-blue-600 text-white'
-                : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
-            }`}>
-            {MODULE_LABELS[m] ?? m}
-          </button>
-        ))}
-      </div>
-
-      {acciones.length === 0 ? (
-        <p className="text-sm text-slate-400 dark:text-slate-500 py-4">
-          Este módulo no tiene acciones configurables (solo acceso de lectura).
-        </p>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700">
-                <th className="text-left px-4 py-3 font-medium text-slate-600 dark:text-slate-300 min-w-[200px]">Rol</th>
-                <th className="px-3 py-3 text-center text-xs text-slate-500 dark:text-slate-400 min-w-[80px]">Acceso módulo</th>
-                {acciones.map(a => (
-                  <th key={a} className="px-3 py-3 text-center font-medium text-slate-600 dark:text-slate-300 min-w-[100px]">
-                    <span className="text-xs">{ACCION_LABELS[a]}</span>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {data.roles.map(rol => {
-                const isAdminRol   = rol.nombre === 'Administrador Sistema'
-                const tieneModulo  = rol.modulos.includes(modulo)
-                const accRol       = rol.acciones?.[modulo] ?? []
-
-                return (
-                  <tr key={rol.id_rol}
-                    className={`border-b border-slate-100 dark:border-slate-700/60 last:border-0 transition-colors
-                      ${isAdminRol
-                        ? 'bg-blue-50/60 dark:bg-blue-950/20'
-                        : tieneModulo
-                          ? 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'
-                          : 'opacity-40'
-                      }`}
-                  >
-                    <td className="px-4 py-3">
-                      <p className={`font-medium text-sm ${isAdminRol ? 'text-blue-700 dark:text-blue-400' : 'text-slate-800 dark:text-white'}`}>
-                        {rol.nombre}
-                        {isAdminRol && <Lock size={11} className="inline ml-1.5 opacity-60"/>}
-                      </p>
-                      <p className="text-xs text-slate-400 dark:text-slate-500 truncate max-w-[180px]">{rol.descripcion}</p>
-                    </td>
-                    <td className="px-3 py-3 text-center">
-                      {tieneModulo
-                        ? <span className="inline-flex h-5 w-5 rounded-full bg-green-500 items-center justify-center mx-auto"><Check size={11} className="text-white" strokeWidth={3}/></span>
-                        : <span className="text-xs text-slate-400 dark:text-slate-500">Sin acceso</span>
-                      }
-                    </td>
-                    {acciones.map(accion => {
-                      const tiene   = accRol.includes(accion)
-                      const isSaving = saving[`${rol.id_rol}-${accion}`]
-                      return (
-                        <td key={accion} className="px-3 py-3 text-center">
-                          {isAdminRol ? (
-                            <span className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 mx-auto">
-                              <Check size={13} strokeWidth={2.5}/>
-                            </span>
-                          ) : !tieneModulo ? (
-                            <span className="inline-block h-7 w-7 rounded-lg border-2 border-slate-200 dark:border-slate-700 mx-auto"/>
-                          ) : (
-                            <button
-                              onClick={() => toggle(rol, accion)}
-                              disabled={isSaving}
-                              className={`
-                                inline-flex items-center justify-center h-7 w-7 rounded-lg border-2
-                                transition-all mx-auto disabled:opacity-50 disabled:cursor-not-allowed
-                                ${tiene
-                                  ? 'bg-green-500 border-green-500 text-white hover:bg-green-600 hover:border-green-600'
-                                  : 'border-slate-300 dark:border-slate-600 text-transparent hover:border-slate-400 dark:hover:border-slate-500'
-                                }
-                              `}>
-                              <Check size={13} strokeWidth={2.5}/>
-                            </button>
-                          )}
-                        </td>
-                      )
-                    })}
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <div className="flex items-center gap-6 text-xs text-slate-500 dark:text-slate-400">
-        <span className="flex items-center gap-1.5">
-          <span className="inline-flex h-4 w-4 rounded bg-green-500 items-center justify-center text-white"><Check size={10}/></span>
-          Acción habilitada
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-4 w-4 rounded border-2 border-slate-300 dark:border-slate-600"/>
-          Sin permiso
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-4 w-4 rounded border-2 border-slate-200 dark:border-slate-700 opacity-40"/>
-          Sin acceso al módulo
-        </span>
-      </div>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────
 // Página principal
 // ─────────────────────────────────────────────
 const TABS = [
-  { id: 'permisos', label: 'Acceso a Módulos',   icon: Shield   },
-  { id: 'acciones', label: 'Acciones por Módulo', icon: Settings },
-  { id: 'usuarios', label: 'Usuarios y Roles',    icon: Users    },
+  { id: 'permisos', label: 'Permisos por Módulo', icon: Shield },
+  { id: 'usuarios', label: 'Usuarios y Roles',    icon: Users  },
 ]
 
 export default function AdminPanel() {
   const [tab, setTab] = useState('permisos')
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-
-      {/* Header */}
+    <div className="space-y-6 max-w-6xl mx-auto">
       <div className="flex items-center gap-3">
         <div className="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
-          <Shield size={18} className="text-white" />
+          <Shield size={18} className="text-white"/>
         </div>
         <div>
           <h1 className="text-xl font-semibold text-slate-800 dark:text-white">Panel de Administración</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Gestión de permisos, roles y accesos del sistema
-          </p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Gestión de permisos, roles y accesos del sistema</p>
         </div>
         <div className="ml-auto flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-lg px-3 py-1.5">
-          <AlertCircle size={13} />
+          <AlertCircle size={13}/>
           Acceso exclusivo · Administrador Sistema
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-fit">
         {TABS.map(t => {
           const Icon = t.icon
           return (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
+            <button key={t.id} onClick={() => setTab(t.id)}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all
                 ${tab === t.id
                   ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm'
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                }`}
-            >
-              <Icon size={15} />
+                }`}>
+              <Icon size={15}/>
               {t.label}
             </button>
           )
         })}
       </div>
 
-      {/* Content */}
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-        {tab === 'permisos' && <MatrizPermisos />}
-        {tab === 'acciones' && <AccionesModulo />}
+        {tab === 'permisos' && <PermisosUnificados />}
         {tab === 'usuarios' && <UsuariosRoles />}
       </div>
     </div>
