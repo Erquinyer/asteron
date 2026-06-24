@@ -57,7 +57,7 @@ const Sidebar = ({ open, onClose }) => {
       >
         {/* Logo */}
         <div className="flex items-center justify-between px-5 py-5 border-b border-slate-100 dark:border-slate-700">
-          <img src="/logo.svg" alt="Asteron" className="h-20 w-auto object-contain dark:brightness-0 dark:invert" />
+          <img src="/logo.svg" alt="Asteron" className="h-8 w-auto object-contain dark:brightness-0 dark:invert" />
           <button
             onClick={onClose}
             className="lg:hidden p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400"
