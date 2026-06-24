@@ -57,6 +57,16 @@ export const create = async (req, res) => {
       [nombre, objetivo || null, prioridad || 'media', fecha_inicio || null,
        fecha_fin_estimada || null, id_pedido || null, id_usuario_responsable || null, req.user.id])
 
+    // Aplicar automáticamente todas las fases estándar al nuevo proyecto
+    const [fases] = await pool.query(
+      'SELECT id_fase_estandar FROM fases_estandar ORDER BY orden')
+    if (fases.length > 0) {
+      const values = fases.map(f => [result.insertId, f.id_fase_estandar, 'pendiente', 0])
+      await pool.query(
+        'INSERT INTO fases_proyecto (id_proyecto, id_fase_estandar, estado, porcentaje_avance) VALUES ?',
+        [values])
+    }
+
     const [rows] = await pool.query(`${BASE_QUERY} HAVING p.id_proyecto = ?`, [result.insertId])
     res.status(201).json(rows[0])
   } catch (err) {

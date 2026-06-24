@@ -195,8 +195,8 @@ CREATE TABLE proyectos (
 
 CREATE TABLE fases_proyecto (
   id_fase_proyecto  INT           NOT NULL AUTO_INCREMENT,
-  id_proyecto       INT           DEFAULT NULL,
-  id_fase_estandar  INT           DEFAULT NULL,
+  id_proyecto       INT           NOT NULL,
+  id_fase_estandar  INT           NOT NULL,
   fecha_inicio      DATE          DEFAULT NULL,
   fecha_fin         DATE          DEFAULT NULL,
   estado            ENUM('pendiente','en_curso','completada','bloqueada') NOT NULL DEFAULT 'pendiente',
@@ -204,9 +204,9 @@ CREATE TABLE fases_proyecto (
   created_at        DATETIME      DEFAULT CURRENT_TIMESTAMP,
   updated_at        DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id_fase_proyecto),
-  CONSTRAINT chk_porcentaje  CHECK (porcentaje_avance BETWEEN 0 AND 100),
-  CONSTRAINT fk_fase_proyecto  FOREIGN KEY (id_proyecto)      REFERENCES proyectos(id_proyecto)              ON DELETE CASCADE  ON UPDATE CASCADE,
-  CONSTRAINT fk_fase_estandar  FOREIGN KEY (id_fase_estandar) REFERENCES fases_estandar(id_fase_estandar)    ON DELETE SET NULL ON UPDATE CASCADE
+  CONSTRAINT chk_porcentaje   CHECK (porcentaje_avance BETWEEN 0 AND 100),
+  CONSTRAINT fk_fase_proyecto  FOREIGN KEY (id_proyecto)      REFERENCES proyectos(id_proyecto)           ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_fase_estandar  FOREIGN KEY (id_fase_estandar) REFERENCES fases_estandar(id_fase_estandar) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Trazabilidad: registra cada cambio de estado en una fase

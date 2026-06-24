@@ -83,4 +83,21 @@ INSERT IGNORE INTO roles_permisos (id_rol, id_permiso)
 INSERT IGNORE INTO roles_permisos (id_rol, id_permiso)
   SELECT 8, id_permiso FROM permisos WHERE nombre IN ('dashboard','programacion');
 
+-- 5. Fases de proyecto: id_fase_estandar e id_proyecto pasan a NOT NULL
+--    (primero eliminar fases huérfanas sin estándar si existieran)
+DELETE FROM fases_proyecto WHERE id_fase_estandar IS NULL OR id_proyecto IS NULL;
+ALTER TABLE fases_proyecto
+  MODIFY COLUMN id_proyecto      INT NOT NULL,
+  MODIFY COLUMN id_fase_estandar INT NOT NULL;
+
+-- 6. Para proyectos existentes sin fases, aplicar todas las fases estándar
+INSERT INTO fases_proyecto (id_proyecto, id_fase_estandar, estado, porcentaje_avance)
+  SELECT p.id_proyecto, fe.id_fase_estandar, 'pendiente', 0
+  FROM proyectos p
+  JOIN fases_estandar fe
+  WHERE NOT EXISTS (
+    SELECT 1 FROM fases_proyecto fp
+    WHERE fp.id_proyecto = p.id_proyecto
+  );
+
 SELECT 'Migración v2.1 aplicada correctamente' AS resultado;
