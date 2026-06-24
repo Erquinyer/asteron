@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Search, Plus, Pencil, Trash2, Wrench, Cpu, Zap, X } from 'lucide-react'
 import { useFetch }    from '../hooks/useFetch'
 import { getMaquinaria, createMaquina, updateMaquina, deleteMaquina } from '../api/maquinaria.service'
+import { canDo }       from '../utils/auth'
 import Spinner    from '../components/ui/Spinner'
 import EmptyState from '../components/ui/EmptyState'
 import Pagination from '../components/ui/Pagination'
@@ -177,10 +178,12 @@ export default function Maquinaria() {
             {data?.length || 0} equipos · {activas} activos · {mantto} en mantenimiento
           </p>
         </div>
-        <button onClick={() => setModal('new')}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
-          <Plus size={16}/> Nuevo equipo
-        </button>
+        {canDo('maquinaria', 'crear') && (
+          <button onClick={() => setModal('new')}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+            <Plus size={16}/> Nuevo equipo
+          </button>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -247,14 +250,18 @@ export default function Maquinaria() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-1">
-                            <button onClick={() => setModal(m)}
-                              className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-600 transition-colors">
-                              <Pencil size={14}/>
-                            </button>
-                            <button onClick={() => handleDelete(m)}
-                              className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-600 transition-colors">
-                              <Trash2 size={14}/>
-                            </button>
+                            {canDo('maquinaria', 'editar') && (
+                              <button onClick={() => setModal(m)}
+                                className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-600 transition-colors">
+                                <Pencil size={14}/>
+                              </button>
+                            )}
+                            {canDo('maquinaria', 'eliminar') && (
+                              <button onClick={() => handleDelete(m)}
+                                className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-600 transition-colors">
+                                <Trash2 size={14}/>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

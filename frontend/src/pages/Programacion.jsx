@@ -5,6 +5,7 @@ import { getProgramacion, createProgramacion, updateEstadoTurno, deleteProgramac
 import { getUsuarios }       from '../api/usuarios.service'
 import { getMaquinaria }     from '../api/maquinaria.service'
 import { getProyectos, getProyecto } from '../api/proyectos.service'
+import { canDo }             from '../utils/auth'
 import Spinner    from '../components/ui/Spinner'
 import EmptyState from '../components/ui/EmptyState'
 import toast      from 'react-hot-toast'
@@ -195,10 +196,12 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onDelete }) {
           <div className="px-6 pb-6">
             {item.estado !== 'completado' && item.estado !== 'cancelado' ? (
               <div className="flex gap-3">
-                <button onClick={() => { onDelete(item); onClose() }}
-                  className="p-2.5 border border-red-200 dark:border-red-800 text-red-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors">
-                  <Trash2 size={16}/>
-                </button>
+                {canDo('programacion', 'eliminar') && (
+                  <button onClick={() => { onDelete(item); onClose() }}
+                    className="p-2.5 border border-red-200 dark:border-red-800 text-red-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors">
+                    <Trash2 size={16}/>
+                  </button>
+                )}
                 {item.estado === 'programado' && (
                   <button onClick={handleIniciar} disabled={loadingAction}
                     className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg py-2.5 text-sm font-semibold">
@@ -437,10 +440,12 @@ export default function Programacion() {
             {(data || []).length} actividades · {stats.en_proceso} en proceso · {stats.programado} programadas · {stats.completado} completadas
           </p>
         </div>
-        <button onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-sm">
-          <Plus size={16}/> Nueva actividad
-        </button>
+        {canDo('programacion', 'crear') && (
+          <button onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-sm">
+            <Plus size={16}/> Nueva actividad
+          </button>
+        )}
       </div>
 
       {/* Date navigator */}

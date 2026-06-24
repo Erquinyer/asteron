@@ -3,6 +3,7 @@ import { Plus, Search, Trash2, Wrench, X, AlertTriangle, CheckCircle } from 'luc
 import { useFetch }          from '../hooks/useFetch'
 import { getMantenimientos, createMantenimiento, deleteMantenimiento } from '../api/mantenimientos.service'
 import { getMaquinaria }     from '../api/maquinaria.service'
+import { canDo }             from '../utils/auth'
 import Spinner    from '../components/ui/Spinner'
 import EmptyState from '../components/ui/EmptyState'
 import toast      from 'react-hot-toast'
@@ -135,10 +136,12 @@ export default function Mantenimientos() {
           <h1 className="text-xl font-semibold text-slate-800 dark:text-white">Mantenimientos</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">{data?.length || 0} registros en historial</p>
         </div>
-        <button onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
-          <Plus size={16}/> Registrar mantenimiento
-        </button>
+        {canDo('mantenimientos', 'crear') && (
+          <button onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+            <Plus size={16}/> Registrar mantenimiento
+          </button>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -200,10 +203,12 @@ export default function Mantenimientos() {
                           {new Date(m.fecha).toLocaleDateString('es-CO')}
                         </td>
                         <td className="px-6 py-4">
-                          <button onClick={() => handleDelete(m)}
-                            className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-600 transition-colors">
-                            <Trash2 size={14}/>
-                          </button>
+                          {canDo('mantenimientos', 'eliminar') && (
+                            <button onClick={() => handleDelete(m)}
+                              className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-600 transition-colors">
+                              <Trash2 size={14}/>
+                            </button>
+                          )}
                         </td>
                       </tr>
                     )

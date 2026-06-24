@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Search, Plus, Pencil, UserCheck, UserX, X, Eye, EyeOff } from 'lucide-react'
 import { useFetch }    from '../hooks/useFetch'
 import { getUsuarios, getRoles, createUsuario, updateUsuario, toggleUsuario } from '../api/usuarios.service'
+import { canDo }       from '../utils/auth'
 import Spinner    from '../components/ui/Spinner'
 import EmptyState from '../components/ui/EmptyState'
 import Pagination from '../components/ui/Pagination'
@@ -168,10 +169,12 @@ export default function Usuarios() {
             {usuarios?.length || 0} personas · {activos} activas · {inactivos} inactivas
           </p>
         </div>
-        <button onClick={() => setModal('new')}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
-          <Plus size={16}/> Nuevo usuario
-        </button>
+        {canDo('usuarios', 'crear') && (
+          <button onClick={() => setModal('new')}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+            <Plus size={16}/> Nuevo usuario
+          </button>
+        )}
       </div>
 
       <div className="relative max-w-sm">
@@ -196,10 +199,12 @@ export default function Usuarios() {
                     {initials(u.nombre)}
                   </div>
                   <div className="flex gap-1">
-                    <button onClick={() => setModal(u)}
-                      className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-600 transition-colors" title="Editar">
-                      <Pencil size={13}/>
-                    </button>
+                    {canDo('usuarios', 'editar') && (
+                      <button onClick={() => setModal(u)}
+                        className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-600 transition-colors" title="Editar">
+                        <Pencil size={13}/>
+                      </button>
+                    )}
                     <button onClick={() => handleToggle(u)}
                       className={`p-1.5 rounded transition-colors ${
                         u.estado

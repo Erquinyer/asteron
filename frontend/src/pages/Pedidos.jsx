@@ -3,6 +3,7 @@ import { Search, Plus, Pencil, Trash2, Package, X, PlusCircle, MinusCircle } fro
 import { useFetch }   from '../hooks/useFetch'
 import { getPedidos, createPedido, updatePedido, deletePedido } from '../api/pedidos.service'
 import { getClientes } from '../api/clientes.service'
+import { canDo }       from '../utils/auth'
 import Spinner    from '../components/ui/Spinner'
 import EmptyState from '../components/ui/EmptyState'
 import toast      from 'react-hot-toast'
@@ -176,10 +177,12 @@ export default function Pedidos() {
             {data?.length || 0} pedidos · {counts.en_proceso} en proceso · {counts.pendiente} pendientes
           </p>
         </div>
-        <button onClick={() => setModal('new')}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
-          <Plus size={16}/> Nuevo pedido
-        </button>
+        {canDo('pedidos', 'crear') && (
+          <button onClick={() => setModal('new')}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+            <Plus size={16}/> Nuevo pedido
+          </button>
+        )}
       </div>
 
       <div className="relative max-w-sm">
@@ -232,14 +235,18 @@ export default function Pedidos() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-1">
-                            <button onClick={() => setModal(p)}
-                              className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-600 transition-colors">
-                              <Pencil size={14}/>
-                            </button>
-                            <button onClick={() => handleDelete(p)}
-                              className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-600 transition-colors">
-                              <Trash2 size={14}/>
-                            </button>
+                            {canDo('pedidos', 'editar') && (
+                              <button onClick={() => setModal(p)}
+                                className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-600 transition-colors">
+                                <Pencil size={14}/>
+                              </button>
+                            )}
+                            {canDo('pedidos', 'eliminar') && (
+                              <button onClick={() => handleDelete(p)}
+                                className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-600 transition-colors">
+                                <Trash2 size={14}/>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

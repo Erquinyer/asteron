@@ -78,6 +78,69 @@ export const getUsuariosAdmin = async (_req, res) => {
   }
 }
 
+// GET /api/admin/acciones
+// Returns roles with their module-access and action-level permissions
+export const getAcciones = async (_req, res) => {
+  try {
+    const [roles]    = await pool.query('SELECT id_rol, nombre, descripcion FROM roles ORDER BY id_rol')
+    const [modAccess] = await pool.query(`
+      SELECT rp.id_rol, p.nombre AS modulo
+      FROM roles_permisos rp
+      JOIN permisos p ON p.id_permiso = rp.id_permiso`)
+    const [accionRows] = await pool.query(
+      'SELECT id_rol, modulo, accion FROM acciones_modulo ORDER BY id_rol, modulo, accion')
+
+    const modByRol = {}
+    for (const { id_rol, modulo } of modAccess) {
+      if (!modByRol[id_rol]) modByRol[id_rol] = []
+      modByRol[id_rol].push(modulo)
+    }
+    const accByRol = {}
+    for (const { id_rol, modulo, accion } of accionRows) {
+      if (!accByRol[id_rol]) accByRol[id_rol] = {}
+      if (!accByRol[id_rol][modulo]) accByRol[id_rol][modulo] = []
+      accByRol[id_rol][modulo].push(accion)
+    }
+
+    res.json({
+      roles: roles.map(r => ({
+        ...r,
+        modulos:  modByRol[r.id_rol]  ?? [],
+        acciones: accByRol[r.id_rol]  ?? {},
+      })),
+    })
+  } catch (err) {
+    console.error('[admin.getAcciones]', err)
+    res.status(500).json({ message: 'Error al obtener acciones' })
+  }
+}
+
+// PUT /api/admin/roles/:id/acciones
+// Body: { modulo: 'programacion', acciones: ['crear', 'editar'] }
+export const updateRolAcciones = async (req, res) => {
+  const { id } = req.params
+  const { modulo, acciones = [] } = req.body
+  if (!modulo) return res.status(400).json({ message: 'modulo es requerido' })
+
+  const [[rol]] = await pool.query('SELECT nombre FROM roles WHERE id_rol = ?', [id])
+  if (!rol) return res.status(404).json({ message: 'Rol no encontrado' })
+  if (rol.nombre === 'Administrador Sistema') {
+    return res.status(403).json({ message: 'No se pueden modificar acciones del Administrador Sistema' })
+  }
+
+  try {
+    await pool.query('DELETE FROM acciones_modulo WHERE id_rol = ? AND modulo = ?', [id, modulo])
+    if (acciones.length > 0) {
+      const values = acciones.map(a => [Number(id), modulo, a])
+      await pool.query('INSERT INTO acciones_modulo (id_rol, modulo, accion) VALUES ?', [values])
+    }
+    res.json({ message: 'Acciones actualizadas', modulo, acciones })
+  } catch (err) {
+    console.error('[admin.updateRolAcciones]', err)
+    res.status(500).json({ message: 'Error al actualizar acciones' })
+  }
+}
+
 // PATCH /api/admin/usuarios/:id/rol
 // Body: { id_rol: 3 }
 export const updateUsuarioRol = async (req, res) => {

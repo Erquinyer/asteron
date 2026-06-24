@@ -5,6 +5,7 @@ import { useFetch }      from '../hooks/useFetch'
 import { getProyectos, createProyecto, updateProyecto, deleteProyecto } from '../api/proyectos.service'
 import { getPedidos }    from '../api/pedidos.service'
 import { getUsuarios }   from '../api/usuarios.service'
+import { canDo }         from '../utils/auth'
 import Spinner    from '../components/ui/Spinner'
 import EmptyState from '../components/ui/EmptyState'
 import toast      from 'react-hot-toast'
@@ -176,10 +177,12 @@ export default function Proyectos() {
           <h1 className="text-xl font-semibold text-slate-800 dark:text-white">Proyectos</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">{proyectos?.length || 0} proyectos en sistema</p>
         </div>
-        <button onClick={() => setModal('new')}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
-          <Plus size={16} /> Nuevo proyecto
-        </button>
+        {canDo('proyectos', 'crear') && (
+          <button onClick={() => setModal('new')}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+            <Plus size={16} /> Nuevo proyecto
+          </button>
+        )}
       </div>
 
       <div className="relative max-w-sm">
@@ -247,14 +250,18 @@ export default function Proyectos() {
                             className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors" title="Ver detalle">
                             <Eye size={14} />
                           </button>
-                          <button onClick={() => setModal(p)}
-                            className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-600 transition-colors" title="Editar">
-                            <Pencil size={14} />
-                          </button>
-                          <button onClick={() => handleDelete(p)}
-                            className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-600 transition-colors" title="Eliminar">
-                            <Trash2 size={14} />
-                          </button>
+                          {canDo('proyectos', 'editar') && (
+                            <button onClick={() => setModal(p)}
+                              className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-600 transition-colors" title="Editar">
+                              <Pencil size={14} />
+                            </button>
+                          )}
+                          {canDo('proyectos', 'eliminar') && (
+                            <button onClick={() => handleDelete(p)}
+                              className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-600 transition-colors" title="Eliminar">
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

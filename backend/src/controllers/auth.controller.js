@@ -55,6 +55,17 @@ export const login = async (req, res) => {
     )
     const modulos = modulosRows.map(r => r.modulo)
 
+    // 6b. Obtener acciones permitidas por módulo
+    const [accionesRows] = await pool.query(
+      'SELECT modulo, accion FROM acciones_modulo WHERE id_rol = ?',
+      [user.id_rol]
+    )
+    const acciones = {}
+    for (const { modulo, accion } of accionesRows) {
+      if (!acciones[modulo]) acciones[modulo] = []
+      acciones[modulo].push(accion)
+    }
+
     // 7. Generar token JWT
     const token = jwt.sign(
       { id: user.id_usuario, correo: user.correo, rol: user.rol },
@@ -62,7 +73,7 @@ export const login = async (req, res) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
     )
 
-    // 8. Responder con datos del usuario, módulos y token
+    // 8. Responder con datos del usuario, módulos, acciones y token
     return res.json({
       user: {
         id_usuario: user.id_usuario,
@@ -70,6 +81,7 @@ export const login = async (req, res) => {
         correo: user.correo,
         rol:    user.rol,
         modulos,
+        acciones,
         token,
       },
     })

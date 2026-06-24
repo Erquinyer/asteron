@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Search, Plus, Pencil, Trash2, Building2, ShoppingBag, X } from 'lucide-react'
 import { useFetch }    from '../hooks/useFetch'
 import { getClientes, createCliente, updateCliente, deleteCliente } from '../api/clientes.service'
+import { canDo }       from '../utils/auth'
 import Spinner    from '../components/ui/Spinner'
 import EmptyState from '../components/ui/EmptyState'
 import Pagination from '../components/ui/Pagination'
@@ -116,10 +117,12 @@ export default function Clientes() {
           <h1 className="text-xl font-semibold text-slate-800 dark:text-white">Clientes</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">{data?.length || 0} clientes registrados</p>
         </div>
-        <button onClick={() => setModal('new')}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
-          <Plus size={16}/> Nuevo cliente
-        </button>
+        {canDo('clientes', 'crear') && (
+          <button onClick={() => setModal('new')}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+            <Plus size={16}/> Nuevo cliente
+          </button>
+        )}
       </div>
 
       <div className="relative max-w-sm">
@@ -141,16 +144,22 @@ export default function Clientes() {
                   <div className={`${COLORS[i % COLORS.length]} h-11 w-11 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0`}>
                     {initials(c.nombre)}
                   </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => setModal(c)}
-                      className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-600">
-                      <Pencil size={13}/>
-                    </button>
-                    <button onClick={() => handleDelete(c)}
-                      className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-600">
-                      <Trash2 size={13}/>
-                    </button>
-                  </div>
+                  {(canDo('clientes', 'editar') || canDo('clientes', 'eliminar')) && (
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {canDo('clientes', 'editar') && (
+                        <button onClick={() => setModal(c)}
+                          className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-600">
+                          <Pencil size={13}/>
+                        </button>
+                      )}
+                      {canDo('clientes', 'eliminar') && (
+                        <button onClick={() => handleDelete(c)}
+                          className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-600">
+                          <Trash2 size={13}/>
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div>
