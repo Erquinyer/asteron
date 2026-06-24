@@ -1,0 +1,36 @@
+# ── Dependencias ──────────────────────────────────────
+node_modules/
+
+# ── Variables de entorno (NUNCA subir al repo) ────────
+.env
+.env.local
+.env.*.local
+
+# ── Build / salida ────────────────────────────────────
+dist/
+dist-ssr/
+build/
+
+# ── Logs ──────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# ── Sistema operativo ─────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Editores ──────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.sw?
+
+# ── Archivos grandes / binarios externos ──────────────
+*.xlsx
+*.xls
+
+# ── Claude Code (configuración local del IDE AI) ──────
+.claude/
+memory/
