@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, FolderKanban, ClipboardList, Wrench,
-  CalendarDays, Users, Building2, ClipboardCheck,
+  CalendarDays, Building2, ClipboardCheck,
   ShieldCheck, ChevronLeft, ChevronRight, X,
 } from 'lucide-react'
 import { getUser } from '../../utils/auth'
@@ -15,7 +15,6 @@ const ALL_NAV_ITEMS = [
   { to: '/maquinaria',     label: 'Maquinaria',       icon: Wrench,          module: 'maquinaria'     },
   { to: '/mantenimientos', label: 'Mantenimientos',   icon: ClipboardCheck,  module: 'mantenimientos' },
   { to: '/programacion',   label: 'Programación',     icon: CalendarDays,    module: 'programacion'   },
-  { to: '/usuarios',       label: 'Usuarios',         icon: Users,           module: 'usuarios'       },
   { to: '/admin',          label: 'Administración',   icon: ShieldCheck,     module: 'admin'          },
 ]
 

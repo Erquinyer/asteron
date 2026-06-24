@@ -141,6 +141,85 @@ export const updateRolAcciones = async (req, res) => {
   }
 }
 
+// GET /api/admin/roles — list all roles with user count
+export const getRoles = async (_req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT r.id_rol, r.nombre, r.descripcion,
+             COUNT(u.id_usuario) AS total_usuarios
+      FROM roles r
+      LEFT JOIN usuarios u ON u.id_rol = r.id_rol
+      GROUP BY r.id_rol
+      ORDER BY r.id_rol`)
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ message: 'Error al obtener roles' })
+  }
+}
+
+// POST /api/admin/roles — create role
+export const createRol = async (req, res) => {
+  const { nombre, descripcion = '' } = req.body
+  if (!nombre?.trim()) return res.status(400).json({ message: 'El nombre es requerido' })
+  try {
+    const [result] = await pool.query(
+      'INSERT INTO roles (nombre, descripcion) VALUES (?,?)',
+      [nombre.trim(), descripcion.trim()])
+    const [[rol]] = await pool.query(
+      'SELECT id_rol, nombre, descripcion FROM roles WHERE id_rol = ?', [result.insertId])
+    res.status(201).json({ ...rol, total_usuarios: 0 })
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'Ya existe un rol con ese nombre' })
+    res.status(500).json({ message: 'Error al crear rol' })
+  }
+}
+
+// PUT /api/admin/roles/:id — update role name/description
+export const updateRol = async (req, res) => {
+  const { id } = req.params
+  const { nombre, descripcion } = req.body
+  if (!nombre?.trim()) return res.status(400).json({ message: 'El nombre es requerido' })
+
+  const [[rol]] = await pool.query('SELECT nombre FROM roles WHERE id_rol = ?', [id])
+  if (!rol) return res.status(404).json({ message: 'Rol no encontrado' })
+  if (rol.nombre === 'Administrador Sistema') {
+    return res.status(403).json({ message: 'No se puede modificar el Administrador Sistema' })
+  }
+  try {
+    await pool.query('UPDATE roles SET nombre=?, descripcion=? WHERE id_rol=?',
+      [nombre.trim(), descripcion?.trim() ?? '', id])
+    const [[updated]] = await pool.query(
+      `SELECT r.id_rol, r.nombre, r.descripcion, COUNT(u.id_usuario) AS total_usuarios
+       FROM roles r LEFT JOIN usuarios u ON u.id_rol = r.id_rol
+       WHERE r.id_rol = ? GROUP BY r.id_rol`, [id])
+    res.json(updated)
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'Ya existe un rol con ese nombre' })
+    res.status(500).json({ message: 'Error al actualizar rol' })
+  }
+}
+
+// DELETE /api/admin/roles/:id — delete role (only if no users assigned)
+export const deleteRol = async (req, res) => {
+  const { id } = req.params
+  const [[rol]] = await pool.query('SELECT nombre FROM roles WHERE id_rol = ?', [id])
+  if (!rol) return res.status(404).json({ message: 'Rol no encontrado' })
+  if (rol.nombre === 'Administrador Sistema') {
+    return res.status(403).json({ message: 'No se puede eliminar el Administrador Sistema' })
+  }
+  const [[{ cnt }]] = await pool.query(
+    'SELECT COUNT(*) AS cnt FROM usuarios WHERE id_rol = ?', [id])
+  if (cnt > 0) {
+    return res.status(409).json({ message: `No se puede eliminar: ${cnt} usuario(s) tienen este rol` })
+  }
+  try {
+    await pool.query('DELETE FROM roles WHERE id_rol = ?', [id])
+    res.json({ message: 'Rol eliminado' })
+  } catch (err) {
+    res.status(500).json({ message: 'Error al eliminar rol' })
+  }
+}
+
 // PATCH /api/admin/usuarios/:id/rol
 // Body: { id_rol: 3 }
 export const updateUsuarioRol = async (req, res) => {
