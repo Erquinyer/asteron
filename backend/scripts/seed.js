@@ -20,6 +20,38 @@ const seed = async () => {
     ('Operario',                   'Ejecución de tareas en planta')`)
   console.log('✅ Roles (8 roles reales de Macromet)')
 
+  // ── PERMISOS Y RBAC ───────────────────────────────
+  await pool.query(`DELETE FROM roles_permisos`)
+  await pool.query(`DELETE FROM permisos`)
+  await pool.query(`ALTER TABLE permisos AUTO_INCREMENT = 1`)
+  await pool.query(`INSERT INTO permisos (nombre, descripcion) VALUES
+    ('dashboard',      'Acceso al panel principal con estadísticas'),
+    ('proyectos',      'Gestión de proyectos y sus fases'),
+    ('pedidos',        'Gestión de pedidos y detalle de pedido'),
+    ('clientes',       'Gestión de clientes'),
+    ('maquinaria',     'Gestión de inventario de maquinaria'),
+    ('mantenimientos', 'Registro y consulta de mantenimientos'),
+    ('programacion',   'Programación diaria de planta'),
+    ('usuarios',       'Administración de usuarios del sistema')`)
+
+  // Gerente General (1) — acceso total
+  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 1, id_permiso FROM permisos`)
+  // Consultor Estrategia (2)
+  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 2, id_permiso FROM permisos WHERE nombre IN ('dashboard','proyectos','pedidos','clientes')`)
+  // Coordinador de Producción (3)
+  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 3, id_permiso FROM permisos WHERE nombre IN ('dashboard','proyectos','pedidos','programacion')`)
+  // Coordinador de Planta (4)
+  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 4, id_permiso FROM permisos WHERE nombre IN ('dashboard','proyectos','maquinaria','mantenimientos','programacion')`)
+  // Ejecutivo Comercial (5)
+  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 5, id_permiso FROM permisos WHERE nombre IN ('dashboard','pedidos','clientes')`)
+  // Jefe de Almacén (6)
+  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 6, id_permiso FROM permisos WHERE nombre IN ('dashboard','maquinaria','mantenimientos')`)
+  // Administrativo (7)
+  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 7, id_permiso FROM permisos WHERE nombre IN ('dashboard','pedidos','clientes','usuarios')`)
+  // Operario (8)
+  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 8, id_permiso FROM permisos WHERE nombre IN ('dashboard','programacion')`)
+  console.log('✅ Permisos RBAC (8 módulos × 8 roles)')
+
   // ── USUARIOS reales de Macromet ───────────────────
   const hashAdmin = await bcrypt.hash('macromet2026', 10)
   const hashUser  = await bcrypt.hash('operario2026', 10)
