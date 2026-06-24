@@ -53,31 +53,33 @@ const seed = async () => {
   console.log('✅ Permisos RBAC (8 módulos × 8 roles)')
 
   // ── USUARIOS reales de Macromet ───────────────────
-  const hashAdmin = await bcrypt.hash('macromet2026', 10)
-  const hashUser  = await bcrypt.hash('operario2026', 10)
+  const hashSuperAdmin = await bcrypt.hash('admin2026', 10)
+  const hashAdmin      = await bcrypt.hash('macromet2026', 10)
+  const hashUser       = await bcrypt.hash('operario2026', 10)
 
   await pool.query(`DELETE FROM usuarios`)
   await pool.query(`ALTER TABLE usuarios AUTO_INCREMENT = 1`)
   await pool.query(`
     INSERT INTO usuarios (codigo_empleado, nombre, correo, password_hash, id_rol, estado) VALUES
-    ('EMP-001', 'Alejandro Acuña',    'alejandro@macromet.com.co', ?, 1, 1),
-    ('EMP-002', 'Felipe Acuña',       'felipe@macromet.com.co',    ?, 2, 1),
-    ('EMP-003', 'Angie Abril',        'angie@macromet.com.co',     ?, 3, 1),
-    ('EMP-004', 'Martín Forero',      'martin@macromet.com.co',    ?, 4, 1),
-    ('EMP-005', 'Diego Triana',       'diego.t@macromet.com.co',   ?, 5, 1),
-    ('EMP-006', 'Diego Acosta',       'diego.a@macromet.com.co',   ?, 6, 1),
-    ('EMP-007', 'Cristina Barreto',   'cristina@macromet.com.co',  ?, 7, 1),
-    ('EMP-008', 'Tatiana Acosta',     'tatiana@macromet.com.co',   ?, 7, 1),
-    ('EMP-009', 'Soldador 1',         'soldador1@macromet.com.co', ?, 8, 1),
-    ('EMP-010', 'Soldador 2',         'soldador2@macromet.com.co', ?, 8, 1),
-    ('EMP-011', 'Soldador 3',         'soldador3@macromet.com.co', ?, 8, 1),
-    ('EMP-012', 'Ayudante de Planta', 'ayudante@macromet.com.co',  ?, 8, 1)`,
-    [hashAdmin, hashAdmin, hashUser, hashUser, hashUser,
+    ('EMP-000', 'Administrador Sistema', 'admin@macromet.com.co',      ?, 1, 1),
+    ('EMP-001', 'Alejandro Acuña',       'alejandro@macromet.com.co',  ?, 1, 1),
+    ('EMP-002', 'Felipe Acuña',          'felipe@macromet.com.co',     ?, 2, 1),
+    ('EMP-003', 'Angie Abril',           'angie@macromet.com.co',      ?, 3, 1),
+    ('EMP-004', 'Martín Forero',         'martin@macromet.com.co',     ?, 4, 1),
+    ('EMP-005', 'Diego Triana',          'diego.t@macromet.com.co',    ?, 5, 1),
+    ('EMP-006', 'Diego Acosta',          'diego.a@macromet.com.co',    ?, 6, 1),
+    ('EMP-007', 'Cristina Barreto',      'cristina@macromet.com.co',   ?, 7, 1),
+    ('EMP-008', 'Tatiana Acosta',        'tatiana@macromet.com.co',    ?, 7, 1),
+    ('EMP-009', 'Soldador 1',            'soldador1@macromet.com.co',  ?, 8, 1),
+    ('EMP-010', 'Soldador 2',            'soldador2@macromet.com.co',  ?, 8, 1),
+    ('EMP-011', 'Soldador 3',            'soldador3@macromet.com.co',  ?, 8, 1),
+    ('EMP-012', 'Ayudante de Planta',    'ayudante@macromet.com.co',   ?, 8, 1)`,
+    [hashSuperAdmin, hashAdmin, hashAdmin, hashUser, hashUser, hashUser,
      hashUser, hashUser, hashUser, hashUser, hashUser, hashUser, hashUser])
 
   const [users] = await pool.query('SELECT id_usuario, nombre, correo FROM usuarios')
   const uid = Object.fromEntries(users.map(u => [u.correo, u.id_usuario]))
-  console.log('✅ Usuarios (12 personas reales del equipo Macromet)')
+  console.log('✅ Usuarios (13 usuarios: 1 admin sistema + 12 equipo Macromet)')
 
   // ── CLIENTES reales ────────────────────────────────
   await pool.query(`DELETE FROM contactos_cliente`)

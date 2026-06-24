@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
+import { DarkModeProvider } from './context/DarkModeContext'
 
 import Login          from './components/Login'
 import Landing        from './pages/Landing'
@@ -24,6 +25,7 @@ import Perfil          from './pages/Perfil'
 
 function App() {
   return (
+    <DarkModeProvider>
     <BrowserRouter>
       <Toaster
         position="top-right"
@@ -49,9 +51,6 @@ function App() {
         {/* Rutas protegidas */}
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-
-
             {/* Accesible para todos los roles autenticados */}
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/perfil"    element={<Perfil />} />
@@ -88,6 +87,7 @@ function App() {
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
+    </DarkModeProvider>
   )
 }
 

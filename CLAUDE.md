@@ -19,7 +19,7 @@ cd frontend && npm run dev
 ```
 
 **Test credentials:**
-- `admin@macromet.com.co` / `admin2026` (Gerente General)
+- `admin@macromet.com.co` / `admin2026` (Gerente General — Administrador Sistema)
 - `alejandro@macromet.com.co` / `macromet2026` (Gerente General)
 - `soldador1@macromet.com.co` / `operario2026` (Operario)
 
