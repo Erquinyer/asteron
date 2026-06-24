@@ -111,7 +111,7 @@ export default function Landing() {
       {/* ── Navbar ── */}
       <nav className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-white/8">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 h-16 flex items-center justify-between">
-          <img src="/logo.svg" alt="Asteron" className="h-9 w-auto brightness-0 invert" />
+          <img src="/logo.svg" alt="Asteron" className="h-20 w-auto brightness-0 invert" />
 
           <div className="hidden md:flex items-center gap-6 text-sm text-slate-400">
             <a href="#modulos"       className="hover:text-white transition-colors">Módulos</a>
@@ -323,7 +323,7 @@ export default function Landing() {
       {/* ── Footer ── */}
       <footer className="border-t border-white/8 bg-slate-950">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <img src="/logo.svg" alt="Asteron" className="h-7 w-auto brightness-0 invert opacity-60" />
+          <img src="/logo.svg" alt="Asteron" className="h-14 w-auto brightness-0 invert opacity-60" />
           <p className="text-xs text-slate-600 text-center">
             © {new Date().getFullYear()} Asteron · Desarrollado por aprendices SENA · Macromet S.A.S.
           </p>

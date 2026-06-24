@@ -74,7 +74,7 @@ const Login = () => {
 
         {/* Logo */}
         <div className="flex justify-center mb-7">
-          <img src="/logo.svg" alt="Asteron" className="h-12 w-auto brightness-0 invert" />
+          <img src="/logo.svg" alt="Asteron" className="h-28 w-auto brightness-0 invert" />
         </div>
 
         {/* Encabezado */}
