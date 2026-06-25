@@ -28,11 +28,38 @@ git --version
 
 ---
 
-## 1. Clonar el repositorio
+## 1. Clonar el repositorio y ubicarse en tu rama
+
+### 1.1 — Clonar
 
 ```bash
 git clone https://github.com/Erquinyer/asteron.git
 cd asteron
+```
+
+### 1.2 — Cambiar a tu rama personal
+
+Cada integrante del equipo tiene su propia rama. Usa el comando que te corresponde:
+
+```bash
+# Gabriel
+git checkout gabriel/develop
+
+# David
+git checkout david/develop
+
+# Nixon
+git checkout nixon/develop
+```
+
+> Si tu rama no aparece localmente, usa: `git checkout -b nombre/develop origin/nombre/develop`
+
+### 1.3 — Actualizar la rama antes de trabajar
+
+Antes de comenzar a trabajar cualquier día, sincroniza tu rama con los últimos cambios de `main`:
+
+```bash
+git pull origin main
 ```
 
 ---
@@ -41,7 +68,7 @@ cd asteron
 
 ### 2.1 — Crear la base de datos en MySQL
 
-Abre tu cliente MySQL (terminal, MySQL Workbench, DBeaver, etc.) y ejecuta:
+Abre tu cliente MySQL (MySQL Workbench, DBeaver, terminal, etc.) y ejecuta:
 
 ```sql
 CREATE DATABASE IF NOT EXISTS asteron CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -49,14 +76,56 @@ CREATE DATABASE IF NOT EXISTS asteron CHARACTER SET utf8mb4 COLLATE utf8mb4_unic
 
 ### 2.2 — Importar el esquema
 
-Desde la carpeta raíz del proyecto, ejecuta en tu terminal:
+Abre una terminal **en la carpeta raíz del proyecto** (`asteron/`) y ejecuta:
+
+---
+
+#### En Mac o Linux
 
 ```bash
 mysql -u root -p asteron < "Data Base/asteron_v2.sql"
 ```
 
-> Si tu usuario root **no tiene contraseña**, usa: `mysql -u root asteron < "Data Base/asteron_v2.sql"`  
-> Si usas un usuario diferente, reemplaza `root` por tu usuario.
+> Si tu root **no tiene contraseña**, omite el `-p`:
+> ```bash
+> mysql -u root asteron < "Data Base/asteron_v2.sql"
+> ```
+
+---
+
+#### En Windows — opción A: usando el Símbolo del sistema (CMD)
+
+1. Abre el **Símbolo del sistema** (busca `cmd` en el menú inicio).
+2. Navega hasta la carpeta del proyecto:
+   ```cmd
+   cd C:\ruta\donde\clonaste\asteron
+   ```
+3. Ejecuta el import:
+   ```cmd
+   mysql -u root -p asteron < "Data Base/asteron_v2.sql"
+   ```
+   > Si MySQL dice que no se reconoce el comando, agrega MySQL al PATH o usa la opción B.
+
+#### En Windows — opción B: usando MySQL Workbench (más fácil)
+
+1. Abre **MySQL Workbench** y conéctate a tu servidor local.
+2. En el menú superior ve a **Server → Data Import**.
+3. Selecciona **Import from Self-Contained File**.
+4. Haz clic en `...` y busca el archivo `Data Base/asteron_v2.sql` dentro de la carpeta del proyecto.
+5. En **Default Target Schema** escribe `asteron`.
+6. Haz clic en **Start Import**.
+
+#### En Windows — opción C: agregar MySQL al PATH (una sola vez)
+
+Si quieres usar la terminal normalmente, agrega MySQL al PATH del sistema:
+
+1. Busca la carpeta donde está instalado MySQL, normalmente:  
+   `C:\Program Files\MySQL\MySQL Server 8.0\bin`
+2. Abre el menú inicio → busca **Variables de entorno del sistema**.
+3. En **Variables del sistema**, selecciona `Path` → **Editar** → **Nuevo**.
+4. Pega la ruta de la carpeta `bin` de MySQL.
+5. Acepta, cierra y abre una nueva terminal.
+6. Ahora puedes usar el comando `mysql` normalmente.
 
 ---
 
@@ -64,21 +133,30 @@ mysql -u root -p asteron < "Data Base/asteron_v2.sql"
 
 ### 3.1 — Crear el archivo de variables de entorno
 
-Entra a la carpeta `backend` y copia el archivo de ejemplo:
+Entra a la carpeta `backend`:
 
 ```bash
 cd backend
+```
+
+**Mac / Linux:**
+```bash
 cp .env.example .env
 ```
 
-Luego abre el archivo `.env` con cualquier editor de texto y ajusta los valores según tu configuración local:
+**Windows (CMD):**
+```cmd
+copy .env.example .env
+```
+
+Luego abre el archivo `.env` con cualquier editor de texto (VS Code, Notepad++, Bloc de notas) y ajusta los valores:
 
 ```env
 PORT=3000
 
 DB_HOST=localhost
 DB_USER=root
-DB_PASSWORD=        ← pon tu contraseña de MySQL aquí (vacío si no tiene)
+DB_PASSWORD=        ← pon tu contraseña de MySQL (vacío si no tiene)
 DB_NAME=asteron
 
 JWT_SECRET=asteron_super_secret_2026
@@ -86,13 +164,13 @@ JWT_EXPIRES_IN=8h
 
 FRONTEND_URL=http://localhost:5173
 
-EMAIL_USER=         ← opcional, solo para recuperación de contraseña
+EMAIL_USER=         ← opcional
 EMAIL_PASS=         ← opcional
 ```
 
 ### 3.2 — Instalar dependencias del backend
 
-Estando dentro de `backend/`:
+Desde la carpeta `backend/`:
 
 ```bash
 npm install
@@ -100,7 +178,7 @@ npm install
 
 ### 3.3 — Ejecutar migraciones
 
-Estos scripts crean tablas adicionales y configuran permisos del sistema. Ejecútalos **una sola vez**:
+Estos scripts crean tablas adicionales y configuran permisos. Ejecútalos **una sola vez**:
 
 ```bash
 node scripts/migrate_admin_role.js
@@ -109,13 +187,13 @@ node scripts/migrate_acciones_modulo.js
 
 ### 3.4 — Cargar datos de prueba (seed)
 
-Este script carga los datos reales de Macromet: clientes, proyectos, maquinaria, usuarios, etc.
+Carga los datos reales de Macromet: clientes, proyectos, maquinaria, usuarios, etc.
 
 ```bash
 npm run seed
 ```
 
-> **Advertencia:** el seed borra y recrea todos los datos. Ejecútalo solo una vez en la configuración inicial, no en una base de datos con datos propios.
+> **Advertencia:** el seed borra y recrea todos los datos. Ejecútalo solo en la configuración inicial, nunca sobre una base de datos con datos propios.
 
 ### 3.5 — Iniciar el servidor backend
 
@@ -123,7 +201,7 @@ npm run seed
 npm run dev
 ```
 
-Deberías ver en consola:
+Deberías ver:
 ```
 🚀 Servidor corriendo en http://localhost:3000
 ✅ Conexión a MySQL exitosa
@@ -133,7 +211,7 @@ Deberías ver en consola:
 
 ## 4. Configurar el frontend
 
-Abre una **nueva terminal** (el backend debe seguir corriendo en la anterior) y desde la raíz del proyecto:
+Abre una **nueva terminal** (el backend debe seguir corriendo) y desde la raíz del proyecto:
 
 ```bash
 cd frontend
@@ -148,7 +226,7 @@ Deberías ver:
   ➜  Local:   http://localhost:5173/
 ```
 
-Abre esa URL en tu navegador.
+Abre `http://localhost:5173` en tu navegador.
 
 ---
 
@@ -162,6 +240,50 @@ Abre esa URL en tu navegador.
 
 ---
 
+## 6. Flujo de trabajo con Git
+
+### Guardar y subir tus cambios a tu rama
+
+Una vez que hayas hecho cambios en el código y quieras guardarlos en el repositorio:
+
+```bash
+# 1. Ver qué archivos cambiaste
+git status
+
+# 2. Agregar los archivos modificados
+git add .
+
+# 3. Crear un commit describiendo qué hiciste
+git commit -m "descripción corta de los cambios"
+
+# 4. Subir tus cambios a tu rama en GitHub
+git push origin nombre/develop
+```
+
+Reemplaza `nombre` por el tuyo: `gabriel`, `david` o `nixon`.
+
+### Traer cambios de main a tu rama
+
+Si alguien hizo cambios en `main` que necesitas en tu rama:
+
+```bash
+git pull origin main
+```
+
+Si hay conflictos, Git te indicará los archivos con conflicto para que los resuelvas manualmente.
+
+### Resumen del flujo diario
+
+```
+Al empezar:   git pull origin main          ← sincroniza con lo último
+Mientras:     haz tus cambios en el código
+Al terminar:  git add .
+              git commit -m "tu mensaje"
+              git push origin nombre/develop  ← sube tus cambios
+```
+
+---
+
 ## Estructura del proyecto
 
 ```
@@ -169,7 +291,7 @@ asteron/
 ├── Data Base/
 │   └── asteron_v2.sql          ← esquema completo de la base de datos
 ├── backend/
-│   ├── .env.example            ← plantilla de variables de entorno
+│   ├── .env.example            ← plantilla de variables de entorno (copia a .env)
 │   ├── src/
 │   │   ├── app.js              ← Express + rutas
 │   │   ├── controllers/        ← lógica por módulo
@@ -209,31 +331,41 @@ asteron/
 
 ## Solución de problemas frecuentes
 
+**`'mysql' no se reconoce como comando interno o externo` (Windows)**  
+→ MySQL no está en el PATH. Usa MySQL Workbench (opción B del paso 2.2) o agrega MySQL al PATH (opción C).
+
 **`Access denied for user 'root'@'localhost'`**  
 → Revisa que `DB_USER` y `DB_PASSWORD` en tu `.env` coincidan con tu configuración de MySQL.
 
 **`Unknown database 'asteron'`**  
-→ Asegúrate de haber creado la base de datos (paso 2.1) antes de importar el SQL.
+→ Crea primero la base de datos (paso 2.1) antes de importar el SQL.
 
-**El frontend dice "Error de conexión" o "Network Error"**  
-→ Verifica que el backend esté corriendo en el puerto 3000 antes de abrir el frontend.
+**El frontend muestra "Error de conexión" o "Network Error"**  
+→ El backend no está corriendo. Verifica que esté activo en el puerto 3000.
 
 **Puerto 3000 o 5173 ocupado**  
-→ Cambia el puerto en `backend/.env` (variable `PORT`) o en `frontend/vite.config.js`.
+→ Cambia `PORT` en `backend/.env` o el puerto en `frontend/vite.config.js`.
 
 **`Error: Cannot find module`**  
-→ Asegúrate de haber ejecutado `npm install` tanto en `backend/` como en `frontend/`.
+→ Ejecuta `npm install` dentro de `backend/` y dentro de `frontend/` por separado.
+
+**`git push` rechazado (rejected)**  
+→ Primero haz `git pull origin main` para traer los últimos cambios y luego vuelve a intentar el push.
 
 ---
 
 ## Comandos rápidos de referencia
 
 ```bash
-# Terminal 1 — backend
-cd backend && npm run dev
+# Arrancar el sistema completo (dos terminales)
+cd backend && npm run dev        # Terminal 1 — backend en puerto 3000
+cd frontend && npm run dev       # Terminal 2 — frontend en puerto 5173
 
-# Terminal 2 — frontend
-cd frontend && npm run dev
+# Flujo de trabajo Git diario
+git pull origin main             # sincronizar antes de trabajar
+git add .
+git commit -m "mensaje"
+git push origin nombre/develop   # subir cambios a tu rama
 
 # Resetear datos (solo si es necesario)
 cd backend && npm run seed
