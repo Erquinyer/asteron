@@ -242,44 +242,147 @@ Abre `http://localhost:5173` en tu navegador.
 
 ## 6. Flujo de trabajo con Git
 
-### Guardar y subir tus cambios a tu rama
+El repositorio maneja **tres niveles de ramas**:
 
-Una vez que hayas hecho cambios en el código y quieras guardarlos en el repositorio:
+```
+main                   ← rama de producción (código estable y revisado)
+  └── develop          ← rama de integración (se unen los cambios del equipo)
+        ├── gabriel/develop   ← rama personal de Gabriel
+        ├── david/develop     ← rama personal de David
+        └── nixon/develop     ← rama personal de Nixon
+```
+
+**Regla:** nunca trabajes directamente en `main` ni en `develop`. Siempre trabaja en tu rama personal y luego sube los cambios según el flujo indicado abajo.
+
+---
+
+### Paso 1 — Ubicarse en tu rama
+
+Después de clonar el repositorio, cambia a tu rama personal:
 
 ```bash
-# 1. Ver qué archivos cambiaste
+# Gabriel
+git checkout gabriel/develop
+
+# David
+git checkout david/develop
+
+# Nixon
+git checkout nixon/develop
+```
+
+Verifica en qué rama estás en cualquier momento con:
+
+```bash
+git branch
+```
+
+La rama activa aparece marcada con un asterisco `*`.
+
+---
+
+### Paso 2 — Trabajar y guardar cambios en tu rama
+
+Antes de empezar a trabajar cualquier día, asegúrate de tener los últimos cambios:
+
+```bash
+git pull origin develop
+```
+
+Haz tus cambios en el código. Cuando termines, guárdalos:
+
+```bash
+# Ver qué archivos modificaste
 git status
 
-# 2. Agregar los archivos modificados
+# Agregar todos los archivos cambiados
 git add .
 
-# 3. Crear un commit describiendo qué hiciste
+# Crear un commit con descripción de lo que hiciste
 git commit -m "descripción corta de los cambios"
 
-# 4. Subir tus cambios a tu rama en GitHub
+# Subir tus cambios a tu rama en GitHub
 git push origin nombre/develop
 ```
 
 Reemplaza `nombre` por el tuyo: `gabriel`, `david` o `nixon`.
 
-### Traer cambios de main a tu rama
+---
 
-Si alguien hizo cambios en `main` que necesitas en tu rama:
+### Paso 3 — Subir cambios de tu rama a `develop`
+
+Cuando tu funcionalidad esté lista y quieras integrarla con el trabajo del equipo:
 
 ```bash
+# 1. Asegúrate de estar en tu rama
+git checkout nombre/develop
+
+# 2. Cambia a la rama develop
+git checkout develop
+
+# 3. Trae los últimos cambios de develop
+git pull origin develop
+
+# 4. Fusiona tu rama en develop
+git merge nombre/develop
+
+# 5. Sube develop actualizado al repositorio
+git push origin develop
+```
+
+> Si hay conflictos en el paso 4, Git te mostrará los archivos afectados. Ábrelos, resuelve las diferencias marcadas con `<<<<<<`, `=======` y `>>>>>>>`, guarda los archivos y luego:
+> ```bash
+> git add .
+> git commit -m "resolver conflictos al fusionar nombre/develop en develop"
+> git push origin develop
+> ```
+
+---
+
+### Paso 4 — Subir cambios de `develop` a `main`
+
+Solo cuando el equipo haya revisado y aprobado los cambios en `develop`:
+
+```bash
+# 1. Cambia a la rama main
+git checkout main
+
+# 2. Trae los últimos cambios de main
 git pull origin main
+
+# 3. Fusiona develop en main
+git merge develop
+
+# 4. Sube main actualizado al repositorio
+git push origin main
 ```
 
-Si hay conflictos, Git te indicará los archivos con conflicto para que los resuelvas manualmente.
+---
 
-### Resumen del flujo diario
+### Resumen del flujo completo
 
 ```
-Al empezar:   git pull origin main          ← sincroniza con lo último
-Mientras:     haz tus cambios en el código
-Al terminar:  git add .
-              git commit -m "tu mensaje"
-              git push origin nombre/develop  ← sube tus cambios
+Clonar:         git clone https://github.com/Erquinyer/asteron.git
+Ubicarse:       git checkout nombre/develop
+
+--- ciclo diario ---
+Al empezar:     git pull origin develop
+Trabajar:       (editar archivos)
+Guardar:        git add .
+                git commit -m "mensaje"
+                git push origin nombre/develop
+
+--- cuando la tarea está lista ---
+Integrar:       git checkout develop
+                git pull origin develop
+                git merge nombre/develop
+                git push origin develop
+
+--- cuando develop está revisado y aprobado ---
+Producción:     git checkout main
+                git pull origin main
+                git merge develop
+                git push origin main
 ```
 
 ---
