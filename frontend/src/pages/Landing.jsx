@@ -4,34 +4,57 @@ import {
   Users, Building2, BarChart2, ShieldCheck,
   Code2, Database, Layers, ArrowRight,
   CheckCircle2, GitBranch, Zap, Clock,
+  TrendingUp, KeyRound, Workflow,
 } from 'lucide-react'
+import { Logo } from '../components/Logo'
+import { HeroSection } from '../components/landing/HeroSection'
 
 // ── Datos ──────────────────────────────────────────────────────────────
-const stats = [
-  { value: '9',    label: 'Módulos funcionales' },
-  { value: '8',    label: 'Roles de acceso'     },
-  { value: '13+',  label: 'Usuarios del sistema' },
-  { value: '100%', label: 'Web responsiva'       },
+const features = [
+  { icon: BarChart2,     label: 'Dashboard Analítico',    desc: 'Indicadores clave, gráficas de prioridad y maquinaria, alertas inteligentes en tiempo real.',       color: 'text-indigo-400', bg: 'bg-indigo-500/10'  },
+  { icon: FolderKanban,  label: 'Gestión de Proyectos',   desc: 'Seguimiento fase a fase con porcentaje de avance, prioridades y responsables asignados.',            color: 'text-violet-400', bg: 'bg-violet-500/10'  },
+  { icon: ClipboardList, label: 'Control de Pedidos',     desc: 'Administra órdenes de producción con su detalle, estado y relación directa con clientes.',           color: 'text-purple-400', bg: 'bg-purple-500/10'  },
+  { icon: Building2,     label: 'Clientes',               desc: 'Base de datos de clientes con múltiples contactos, NIT y código interno por empresa.',                color: 'text-cyan-400',   bg: 'bg-cyan-500/10'    },
+  { icon: Wrench,        label: 'Inventario Maquinaria',  desc: 'Registro completo de equipos por categoría, marca, serial, ubicación y estado operativo.',           color: 'text-amber-400',  bg: 'bg-amber-500/10'   },
+  { icon: CalendarDays,  label: 'Programación de Planta', desc: 'Agenda diaria de operarios y máquinas por proyecto con navegación por fecha y control de estado.',   color: 'text-emerald-400',bg: 'bg-emerald-500/10' },
+  { icon: Users,         label: 'Gestión de Usuarios',    desc: 'Administración del equipo con código de empleado, roles asignables y activación / desactivación.',    color: 'text-pink-400',   bg: 'bg-pink-500/10'    },
+  { icon: ShieldCheck,   label: 'Seguridad RBAC',         desc: 'Cada rol accede únicamente a los módulos de su cargo. Permisos definidos a nivel de ruta y acción.',  color: 'text-teal-400',   bg: 'bg-teal-500/10'    },
 ]
 
-const features = [
-  { icon: BarChart2,    label: 'Dashboard Analítico',     desc: 'Indicadores clave, gráficas de prioridad y maquinaria, alertas inteligentes en tiempo real.',       color: 'text-blue-400',   bg: 'bg-blue-500/10'   },
-  { icon: FolderKanban, label: 'Gestión de Proyectos',    desc: 'Seguimiento fase a fase con porcentaje de avance, prioridades y responsables asignados.',            color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
-  { icon: ClipboardList,label: 'Control de Pedidos',      desc: 'Administra órdenes de producción con su detalle, estado y relación directa con clientes.',           color: 'text-violet-400', bg: 'bg-violet-500/10' },
-  { icon: Building2,    label: 'Clientes',                desc: 'Base de datos de clientes con múltiples contactos, NIT y código interno por empresa.',                color: 'text-cyan-400',   bg: 'bg-cyan-500/10'   },
-  { icon: Wrench,       label: 'Inventario Maquinaria',   desc: 'Registro completo de equipos por categoría, marca, serial, ubicación y estado operativo.',           color: 'text-amber-400',  bg: 'bg-amber-500/10'  },
-  { icon: CalendarDays, label: 'Programación de Planta',  desc: 'Agenda diaria de operarios y máquinas por proyecto con navegación por fecha y control de estado.',   color: 'text-green-400',  bg: 'bg-green-500/10'  },
-  { icon: Users,        label: 'Gestión de Usuarios',     desc: 'Administración del equipo con código de empleado, roles asignables y activación/desactivación.',      color: 'text-pink-400',   bg: 'bg-pink-500/10'   },
-  { icon: ShieldCheck,  label: 'Seguridad RBAC',          desc: 'Cada rol accede únicamente a los módulos de su cargo. Permisos definidos a nivel de ruta y sidebar.', color: 'text-emerald-400',bg: 'bg-emerald-500/10'},
+const pillars = [
+  {
+    icon: Workflow,
+    color: 'text-indigo-400', bg: 'bg-indigo-500/10',
+    accent: 'via-indigo-500/30',
+    number: '01',
+    title: 'Trazabilidad de extremo a extremo',
+    desc: 'Desde que un cliente hace un pedido hasta que el último operario completa su turno, cada acción queda registrada, fechada y vinculada. Sin hojas de cálculo. Sin información perdida.',
+  },
+  {
+    icon: KeyRound,
+    color: 'text-violet-400', bg: 'bg-violet-500/10',
+    accent: 'via-violet-500/30',
+    number: '02',
+    title: 'Acceso por rol, no por persona',
+    desc: 'Configura permisos granulares por módulo y acción para cada cargo. El operario ve su agenda diaria; el coordinador gestiona proyectos; la gerencia accede al panorama completo.',
+  },
+  {
+    icon: TrendingUp,
+    color: 'text-emerald-400', bg: 'bg-emerald-500/10',
+    accent: 'via-emerald-500/30',
+    number: '03',
+    title: 'Decisiones con datos en tiempo real',
+    desc: 'El dashboard consolida el estado de toda la planta al instante: proyectos críticos, equipos en mantenimiento, pedidos sin proyecto asignado y programación del día.',
+  },
 ]
 
 const stack = [
-  { icon: Code2,     label: 'React 18 + Vite',   color: 'text-cyan-400'   },
-  { icon: Layers,    label: 'Tailwind CSS',        color: 'text-sky-400'    },
-  { icon: Database,  label: 'Node.js + MySQL',     color: 'text-green-400'  },
-  { icon: ShieldCheck,label:'JWT + RBAC',          color: 'text-purple-400' },
-  { icon: GitBranch, label: 'Git + GitHub',        color: 'text-orange-400' },
-  { icon: Zap,       label: 'Express REST API',    color: 'text-yellow-400' },
+  { icon: Code2,       label: 'React 18 + Vite', color: 'text-cyan-400'    },
+  { icon: Layers,      label: 'Tailwind CSS',     color: 'text-sky-400'     },
+  { icon: Database,    label: 'Node.js + MySQL',  color: 'text-emerald-400' },
+  { icon: ShieldCheck, label: 'JWT + RBAC',       color: 'text-violet-400'  },
+  { icon: GitBranch,   label: 'Git + GitHub',     color: 'text-orange-400'  },
+  { icon: Zap,         label: 'Express REST API', color: 'text-yellow-400'  },
 ]
 
 const updates = [
@@ -39,89 +62,75 @@ const updates = [
     version: 'v2.1',
     date: 'Junio 2026',
     tag: 'Más reciente',
-    tagColor: 'bg-green-500/15 text-green-400 border border-green-500/30',
+    tagStyle: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25',
+    dotStyle: 'bg-emerald-500 ring-[#080B14]',
     items: [
-      'Modo oscuro / claro con persistencia en localStorage',
-      'Control de acceso RBAC por roles en frontend y backend',
-      'Menú desplegable del usuario con cierre de sesión',
-      'Paginación en módulos de Usuarios, Clientes y Maquinaria',
-      'Código de empleado (EMP-XXX) visible en tarjetas de usuario',
-      'Auto-aplicación de fases estándar al crear un nuevo proyecto',
-      'Landing page informativa del sistema',
+      'Rediseño visual completo: sistema de tokens de diseño, Geist + CSS custom properties',
+      'Modo oscuro / claro con persistencia automática',
+      'Control de acceso RBAC granular por módulo y acción',
+      'Menú contextual del usuario con cierre de sesión seguro',
+      'Paginación en módulos de Clientes y Maquinaria',
+      'Auto-aplicación de fases estándar al crear un proyecto',
     ],
   },
   {
     version: 'v2.0',
     date: 'Mayo 2026',
     tag: 'Estable',
-    tagColor: 'bg-blue-500/15 text-blue-400 border border-blue-500/30',
+    tagStyle: 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/25',
+    dotStyle: 'bg-indigo-500 ring-[#080B14]',
     items: [
       'Rediseño completo del esquema de base de datos (asteron_v2)',
-      'Dashboard con gráficas Recharts (prioridad y estado maquinaria)',
-      'Sistema de notificaciones inteligentes en TopBar',
-      'Programación de Planta con navegación por fecha',
-      'Historial de mantenimientos por máquina',
-      'Perfil de usuario con cambio de contraseña',
+      'Dashboard con gráficas Recharts — prioridad y estado de maquinaria',
+      'Sistema de notificaciones inteligentes en barra superior',
+      'Programación de Planta con navegación por fecha y timer en vivo',
+      'Historial de mantenimientos por equipo',
+      'Perfil de usuario con cambio de contraseña seguro',
     ],
   },
   {
     version: 'v1.0',
     date: 'Abril 2026',
     tag: 'Inicial',
-    tagColor: 'bg-slate-500/15 text-slate-400 border border-slate-500/30',
+    tagStyle: 'bg-white/8 text-white/40 border border-white/10',
+    dotStyle: 'bg-white/30 ring-[#080B14]',
     items: [
       'Autenticación segura con JWT + bcryptjs',
       'Módulos base: Proyectos, Pedidos, Clientes, Maquinaria',
       'Gestión de Usuarios con roles y estados',
-      'Sidebar responsivo con rutas protegidas',
+      'Sidebar responsivo con rutas protegidas por rol',
       'Arquitectura REST API con Express + mysql2',
     ],
-  },
-]
-
-const team = [
-  {
-    name: 'Gabriel Alejandro Leal',
-    role: 'Fullstack & Arquitectura',
-    desc: 'Diseño del sistema, base de datos, API REST y estructura del proyecto.',
-    initials: 'GL',
-    gradient: 'from-blue-500 to-indigo-600',
-  },
-  {
-    name: 'Nixon Hernán Alejo',
-    role: 'Frontend & UI/UX',
-    desc: 'Diseño de interfaces, componentes React y experiencia de usuario.',
-    initials: 'NA',
-    gradient: 'from-violet-500 to-purple-600',
-  },
-  {
-    name: 'David Esteban Alejo',
-    role: 'Backend & Integración',
-    desc: 'Controladores, rutas, integración de módulos y scripts de base de datos.',
-    initials: 'DA',
-    gradient: 'from-emerald-500 to-teal-600',
   },
 ]
 
 // ── Componente ──────────────────────────────────────────────────────────
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-slate-950 text-white scroll-smooth">
+    <div className="min-h-screen bg-[#080B14] text-white scroll-smooth font-sans antialiased">
 
       {/* ── Navbar ── */}
-      <nav className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-white/8">
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 h-16 flex items-center justify-between">
-          <img src="/logo.svg" alt="Asteron" className="h-8 w-auto brightness-0 invert" />
+      <nav className="sticky top-0 z-50
+        bg-[#080B14]/80 backdrop-blur-md backdrop-saturate-150
+        border-b border-white/[0.07]"
+      >
+        <div className="max-w-7xl mx-auto px-6 lg:px-10 h-16
+          flex items-center justify-between"
+        >
+          <Logo variant="dark" size="md" />
 
-          <div className="hidden md:flex items-center gap-6 text-sm text-slate-400">
-            <a href="#modulos"       className="hover:text-white transition-colors">Módulos</a>
-            <a href="#actualizaciones" className="hover:text-white transition-colors">Actualizaciones</a>
-            <a href="#equipo"        className="hover:text-white transition-colors">Equipo</a>
+          <div className="hidden md:flex items-center gap-6
+            font-mono text-[12px] text-white/40"
+          >
+            <a href="#plataforma"      className="hover:text-white transition-colors">Plataforma</a>
+            <a href="#modulos"         className="hover:text-white transition-colors">Módulos</a>
+            <a href="#actualizaciones" className="hover:text-white transition-colors">Changelog</a>
           </div>
 
-          <Link
-            to="/login"
-            className="flex items-center gap-1.5 bg-white text-slate-900 hover:bg-slate-100 text-sm font-semibold px-4 py-2 rounded-lg transition"
+          <Link to="/login"
+            className="flex items-center gap-1.5 h-9 px-4
+              bg-white text-[#080B14] hover:bg-white/90
+              text-[13px] font-semibold rounded-[10px] transition-colors"
           >
             Iniciar sesión
             <ArrowRight size={14} />
@@ -130,141 +139,165 @@ export default function Landing() {
       </nav>
 
       {/* ── Hero ── */}
-      <section className="relative overflow-hidden">
-        {/* Glow de fondo */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-blue-600/10 rounded-full blur-3xl" />
-        </div>
+      <HeroSection />
 
-        <div className="relative max-w-7xl mx-auto px-6 lg:px-10 pt-24 pb-20 text-center">
-          <span className="inline-flex items-center gap-2 text-xs font-semibold tracking-widest text-blue-400 uppercase mb-6 border border-blue-500/30 bg-blue-500/10 px-4 py-1.5 rounded-full">
-            <Zap size={12} />
-            Sistema de gestión de producción · Macromet S.A.S
+      {/* ── Tres pilares ── */}
+      <section id="plataforma" className="max-w-7xl mx-auto px-6 lg:px-10 py-28">
+        <div className="text-center mb-16">
+          <span className="font-mono text-[11px] font-semibold tracking-[.14em]
+            text-indigo-400 uppercase"
+          >
+            Plataforma
           </span>
-
-          <h1 className="text-5xl lg:text-7xl font-bold leading-tight tracking-tight max-w-4xl mx-auto">
-            Gestión de planta{' '}
-            <span className="bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-              inteligente
-            </span>
-          </h1>
-
-          <p className="mt-6 text-slate-400 text-lg max-w-2xl mx-auto leading-relaxed">
-            Asteron centraliza proyectos, pedidos, maquinaria y programación de planta
-            en una sola plataforma diseñada para fabricantes de displays POP en Colombia.
+          <h2 className="mt-3 text-[32px] lg:text-[40px] font-bold tracking-tight">
+            Construido para la planta real
+          </h2>
+          <p className="mt-4 text-white/45 max-w-lg mx-auto text-[14px] leading-relaxed">
+            Asteron no es una herramienta genérica. Cada flujo, cada campo y cada
+            alerta responde a los procesos productivos de Macromet.
           </p>
-
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-            <Link
-              to="/login"
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-7 py-3.5 rounded-xl text-sm transition shadow-lg shadow-blue-600/25"
-            >
-              Acceder al sistema
-              <ArrowRight size={16} />
-            </Link>
-            <a
-              href="#modulos"
-              className="flex items-center gap-2 border border-white/15 hover:border-white/30 text-slate-300 hover:text-white font-medium px-7 py-3.5 rounded-xl text-sm transition"
-            >
-              Ver módulos
-            </a>
-          </div>
-
-          {/* Stack badges */}
-          <div className="mt-14 flex flex-wrap items-center justify-center gap-3">
-            {stack.map(({ icon: Icon, label, color }) => (
-              <span
-                key={label}
-                className="flex items-center gap-2 bg-white/5 border border-white/10 text-xs text-slate-300 px-3 py-1.5 rounded-full"
-              >
-                <Icon size={13} className={color} />
-                {label}
-              </span>
-            ))}
-          </div>
         </div>
-      </section>
 
-      {/* ── Stats ── */}
-      <section className="border-y border-white/8 bg-white/3">
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-10 grid grid-cols-2 lg:grid-cols-4 gap-8">
-          {stats.map(({ value, label }) => (
-            <div key={label} className="text-center">
-              <p className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-                {value}
-              </p>
-              <p className="mt-1 text-sm text-slate-400">{label}</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {pillars.map(({ icon: Icon, color, bg, accent, number, title, desc }) => (
+            <div key={title}
+              className="group relative bg-white/[0.04] border border-white/[0.08]
+                rounded-[20px] p-8 overflow-hidden
+                hover:bg-white/[0.07] hover:border-white/[0.15]
+                hover:-translate-y-0.5
+                hover:shadow-[0_24px_48px_-12px_rgba(79,70,229,.16)]
+                transition-all duration-200"
+            >
+              {/* Top glow line */}
+              <div className={`absolute top-0 left-0 right-0 h-px
+                bg-gradient-to-r from-transparent ${accent} to-transparent
+                opacity-0 group-hover:opacity-100 transition-opacity duration-200`}
+              />
+
+              <div className="flex items-center justify-between mb-6">
+                <div className={`w-12 h-12 rounded-[13px] ${bg}
+                  flex items-center justify-center`}
+                >
+                  <Icon size={22} className={color} />
+                </div>
+                <span className="font-mono text-[32px] font-bold text-white/[0.06]
+                  select-none leading-none"
+                >
+                  {number}
+                </span>
+              </div>
+
+              <h3 className="text-[16px] font-semibold text-white mb-3 leading-snug">
+                {title}
+              </h3>
+              <p className="text-[13px] text-white/40 leading-relaxed">{desc}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* ── Módulos ── */}
-      <section id="modulos" className="max-w-7xl mx-auto px-6 lg:px-10 py-24">
-        <div className="text-center mb-14">
-          <span className="text-xs font-semibold tracking-widest text-blue-400 uppercase">Funcionalidades</span>
-          <h2 className="mt-3 text-3xl lg:text-4xl font-bold">Todo lo que necesita tu operación</h2>
-          <p className="mt-4 text-slate-400 max-w-xl mx-auto text-sm leading-relaxed">
-            Cada módulo fue diseñado con los procesos reales de Macromet, con RBAC para que
-            cada cargo acceda solo a lo que le corresponde.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {features.map(({ icon: Icon, label, desc, color, bg }) => (
-            <div
-              key={label}
-              className="group bg-white/4 border border-white/8 rounded-2xl p-6 hover:bg-white/7 hover:border-white/15 transition-all duration-200"
+      <section id="modulos"
+        className="bg-white/[0.02] border-y border-white/[0.07]"
+      >
+        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-28">
+          <div className="text-center mb-16">
+            <span className="font-mono text-[11px] font-semibold tracking-[.14em]
+              text-indigo-400 uppercase"
             >
-              <div className={`w-11 h-11 rounded-xl ${bg} flex items-center justify-center mb-4`}>
-                <Icon size={22} className={color} />
+              Módulos
+            </span>
+            <h2 className="mt-3 text-[32px] lg:text-[40px] font-bold tracking-tight">
+              Todo lo que necesita tu operación
+            </h2>
+            <p className="mt-4 text-white/45 max-w-xl mx-auto text-[14px] leading-relaxed">
+              Cada módulo cubre un área concreta de la operación, con control de acceso
+              granular para que cada cargo vea solo lo que le corresponde.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {features.map(({ icon: Icon, label, desc, color, bg }) => (
+              <div key={label}
+                className="group relative bg-white/[0.04] border border-white/[0.08]
+                  rounded-[18px] p-6 overflow-hidden
+                  hover:bg-white/[0.07] hover:border-white/[0.15]
+                  hover:-translate-y-0.5
+                  hover:shadow-[0_20px_40px_-10px_rgba(79,70,229,.14)]
+                  transition-all duration-200 cursor-default"
+              >
+                <div className="absolute top-0 left-0 right-0 h-px
+                  bg-gradient-to-r from-transparent via-indigo-400/40 to-transparent
+                  opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                />
+                <div className={`w-10 h-10 rounded-[11px] ${bg}
+                  flex items-center justify-center mb-4`}
+                >
+                  <Icon size={20} className={color} />
+                </div>
+                <h3 className="text-[13.5px] font-semibold text-white mb-2">{label}</h3>
+                <p className="text-[12px] text-white/40 leading-relaxed">{desc}</p>
               </div>
-              <h3 className="text-sm font-semibold text-white mb-2">{label}</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">{desc}</p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* ── Actualizaciones ── */}
-      <section id="actualizaciones" className="bg-white/2 border-y border-white/8">
-        <div className="max-w-4xl mx-auto px-6 lg:px-10 py-24">
-          <div className="text-center mb-14">
-            <span className="text-xs font-semibold tracking-widest text-blue-400 uppercase">Changelog</span>
-            <h2 className="mt-3 text-3xl lg:text-4xl font-bold">Actualizaciones del sistema</h2>
-            <p className="mt-4 text-slate-400 text-sm">
-              Historial de versiones con las mejoras aplicadas en cada sprint de desarrollo.
+      {/* ── Changelog ── */}
+      <section id="actualizaciones">
+        <div className="max-w-3xl mx-auto px-6 lg:px-10 py-28">
+          <div className="text-center mb-16">
+            <span className="font-mono text-[11px] font-semibold tracking-[.14em]
+              text-indigo-400 uppercase"
+            >
+              Changelog
+            </span>
+            <h2 className="mt-3 text-[32px] lg:text-[40px] font-bold tracking-tight">
+              Historial de versiones
+            </h2>
+            <p className="mt-4 text-white/45 text-[14px]">
+              Mejoras continuas entregadas en cada ciclo de desarrollo de Asteron.
             </p>
           </div>
 
           <div className="relative">
-            {/* Línea vertical */}
-            <div className="absolute left-5 top-0 bottom-0 w-px bg-white/10 hidden sm:block" />
+            <div className="absolute left-[19px] top-2 bottom-2
+              w-px bg-gradient-to-b from-indigo-500/40 via-white/10 to-transparent
+              hidden sm:block"
+            />
 
             <div className="space-y-10">
-              {updates.map(({ version, date, tag, tagColor, items }) => (
+              {updates.map(({ version, date, tag, tagStyle, dotStyle, items }) => (
                 <div key={version} className="sm:pl-14 relative">
-                  {/* Dot */}
-                  <div className="absolute left-3.5 top-1.5 w-3 h-3 rounded-full bg-blue-500 ring-4 ring-slate-950 hidden sm:block" />
-
-                  {/* Header */}
+                  <div className={`absolute left-3.5 top-2 w-3 h-3 rounded-full
+                    ring-4 ${dotStyle} hidden sm:block`}
+                  />
                   <div className="flex flex-wrap items-center gap-3 mb-4">
-                    <span className="text-lg font-bold text-white">{version}</span>
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${tagColor}`}>
+                    <span className="text-[18px] font-bold text-white tracking-tight">
+                      {version}
+                    </span>
+                    <span className={`font-mono text-[11px] font-semibold
+                      px-2.5 py-1 rounded-full ${tagStyle}`}
+                    >
                       {tag}
                     </span>
-                    <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                    <span className="flex items-center gap-1.5
+                      font-mono text-[11px] text-white/30"
+                    >
                       <Clock size={11} />
                       {date}
                     </span>
                   </div>
-
-                  {/* Items */}
-                  <div className="bg-white/4 border border-white/8 rounded-2xl p-5 space-y-2.5">
+                  <div className="bg-white/[0.04] border border-white/[0.08]
+                    rounded-[16px] p-5 space-y-3"
+                  >
                     {items.map((item, i) => (
                       <div key={i} className="flex items-start gap-3">
-                        <CheckCircle2 size={14} className="text-blue-400 mt-0.5 shrink-0" />
-                        <span className="text-sm text-slate-300 leading-relaxed">{item}</span>
+                        <CheckCircle2 size={14}
+                          className="text-indigo-400/80 mt-0.5 shrink-0" />
+                        <span className="text-[13px] text-white/55 leading-relaxed">
+                          {item}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -275,64 +308,70 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── Equipo ── */}
-      <section id="equipo" className="max-w-7xl mx-auto px-6 lg:px-10 py-24">
-        <div className="text-center mb-14">
-          <span className="text-xs font-semibold tracking-widest text-blue-400 uppercase">Equipo</span>
-          <h2 className="mt-3 text-3xl lg:text-4xl font-bold">Aprendices SENA</h2>
-          <p className="mt-4 text-slate-400 text-sm max-w-md mx-auto">
-            Proyecto de grado desarrollado por el equipo de Análisis y Desarrollo de Software
-            del SENA para Macromet S.A.S.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-3xl mx-auto">
-          {team.map(({ name, role, desc, initials, gradient }) => (
-            <div
-              key={name}
-              className="bg-white/4 border border-white/8 rounded-2xl p-7 text-center hover:bg-white/7 hover:border-white/15 transition-all duration-200"
-            >
-              <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center mx-auto mb-4 text-white text-xl font-bold shadow-lg`}>
-                {initials}
-              </div>
-              <h3 className="font-semibold text-white text-sm">{name}</h3>
-              <p className="text-xs text-blue-400 font-medium mt-1">{role}</p>
-              <p className="text-xs text-slate-500 mt-3 leading-relaxed">{desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* ── CTA final ── */}
-      <section className="border-t border-white/8 bg-gradient-to-b from-slate-950 to-slate-900">
-        <div className="max-w-2xl mx-auto px-6 py-20 text-center">
-          <h2 className="text-3xl lg:text-4xl font-bold">¿Listo para gestionar tu planta?</h2>
-          <p className="mt-4 text-slate-400 text-sm">
-            Inicia sesión con las credenciales asignadas por el administrador del sistema.
+      <section className="relative border-t border-white/[0.07] overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2
+            w-[700px] h-[400px] bg-indigo-600/[0.11] rounded-full blur-[110px]"
+          />
+          <div
+            className="absolute inset-0 opacity-30"
+            style={{
+              backgroundImage: 'radial-gradient(circle, rgba(255,255,255,.05) 1px, transparent 1px)',
+              backgroundSize: '28px 28px',
+            }}
+          />
+        </div>
+        <div className="relative max-w-2xl mx-auto px-6 py-28 text-center">
+          <span className="inline-block font-mono text-[11px] font-semibold
+            tracking-[.14em] text-indigo-400 uppercase
+            mb-5 border border-indigo-500/25 bg-indigo-500/10 px-4 py-1.5 rounded-full"
+          >
+            Macromet S.A.S · Colombia
+          </span>
+          <h2 className="text-[32px] lg:text-[44px] font-bold tracking-[-0.02em]">
+            Tu operación, bajo control
+          </h2>
+          <p className="mt-5 text-white/45 text-[15px] max-w-md mx-auto leading-relaxed">
+            Inicia sesión con tus credenciales para acceder al sistema de gestión
+            de producción de Macromet.
           </p>
-          <Link
-            to="/login"
-            className="inline-flex items-center gap-2 mt-8 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-3.5 rounded-xl text-sm transition shadow-lg shadow-blue-600/20"
+          <Link to="/login"
+            className="inline-flex items-center gap-2 mt-9
+              bg-indigo-600 hover:bg-indigo-500 text-white
+              font-semibold px-9 py-4 rounded-[13px] text-[14px]
+              shadow-[0_8px_32px_-6px_rgba(79,70,229,.6)]
+              transition-all duration-150"
           >
             Acceder al sistema
-            <ArrowRight size={16} />
+            <ArrowRight size={15} />
           </Link>
         </div>
       </section>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-white/8 bg-slate-950">
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <img src="/logo.svg" alt="Asteron" className="h-6 w-auto brightness-0 invert opacity-60" />
-          <p className="text-xs text-slate-600 text-center">
-            © {new Date().getFullYear()} Asteron · Desarrollado por aprendices SENA · Macromet S.A.S.
+      <footer className="border-t border-white/[0.07] bg-[#050709]">
+        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-8
+          flex flex-col sm:flex-row items-center justify-between gap-4"
+        >
+          <div className="flex items-center gap-2 opacity-40">
+            <div className="w-5 h-5 rounded-[5px] bg-indigo-500/30
+              flex items-center justify-center"
+            >
+              <span className="font-bold text-[10px] text-indigo-400">A</span>
+            </div>
+            <span className="text-[13px] font-bold text-white tracking-tight">Asteron</span>
+          </div>
+          <p className="font-mono text-[11px] text-white/25 text-center">
+            © {new Date().getFullYear()} Asteron · Macromet S.A.S. · Bogotá, Colombia
           </p>
-          <Link to="/login" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
+          <Link to="/login"
+            className="font-mono text-[11px] text-white/25 hover:text-white/60 transition-colors"
+          >
             Iniciar sesión →
           </Link>
         </div>
       </footer>
-
     </div>
   )
 }

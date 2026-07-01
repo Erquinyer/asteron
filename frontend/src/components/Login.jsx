@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react'
 import { login } from '../utils/auth'
 import { loginRequest } from '../api/auth.service'
+import { Logo } from './Logo'
 
 const Login = () => {
   const navigate = useNavigate()
@@ -74,7 +75,7 @@ const Login = () => {
 
         {/* Logo */}
         <div className="flex justify-center mb-7">
-          <img src="/logo.svg" alt="Asteron" className="h-10 w-auto brightness-0 invert" />
+          <Logo variant="dark" stacked size="lg" />
         </div>
 
         {/* Encabezado */}

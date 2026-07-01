@@ -1,3 +1,129 @@
+/* ── Geist ─────────────────────────────────────────────────────────────── */
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Regular.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Medium.woff2') format('woff2');
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-SemiBold.woff2') format('woff2');
+  font-weight: 600; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Bold.woff2') format('woff2');
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/GeistMono-Regular.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/GeistMono-Medium.woff2') format('woff2');
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/GeistMono-SemiBold.woff2') format('woff2');
+  font-weight: 600; font-style: normal; font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── Design token surfaces ─────────────────────────────────────────────── */
+:root {
+  --bg:            #F6F7FB;
+  --surface:       #FFFFFF;
+  --surface-2:     #F1F3F9;
+  --sidebar:       #FFFFFF;
+  --border:        #E7E9F2;
+  --border-strong: #D6DAE8;
+  --text:          #161A2B;
+  --muted:         #5A6178;
+  --faint:         #9097AD;
+  --hover:         #F4F5FB;
+}
+
+.dark {
+  --bg:            #080B14;
+  --surface:       #10141F;
+  --surface-2:     #171C2B;
+  --sidebar:       #0B0E18;
+  --border:        #222839;
+  --border-strong: #363D54;
+  --text:          #ECEFF8;
+  --muted:         #98A0B8;
+  --faint:         #646C86;
+  --hover:         #171C2B;
+}
+
+/* ── Base ──────────────────────────────────────────────────────────────── */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Animaciones ───────────────────────────────────────────────────────── */
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .4; }
+}
+@keyframes ring {
+  0%   { transform: scale(1);   opacity: .7; }
+  100% { transform: scale(2.2); opacity: 0;  }
+}
+@keyframes ovIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes mdIn {
+  from { opacity: 0; transform: translateY(10px) scale(.98); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);   }
+}
+
+.animate-pulse-dot { animation: pulseDot 1.6s ease-in-out infinite; }
+.animate-ring      { animation: ring     1.6s ease-out     infinite; }
+.animate-ov-in     { animation: ovIn     .18s ease-out     forwards; }
+.animate-md-in     { animation: mdIn     .26s cubic-bezier(.2,.9,.3,1) forwards; }
+
+/* ── Hero landing ───────────────────────────────────────────────────────── */
+@keyframes floaty {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-10px); }
+}
+@keyframes glowP {
+  0%, 100% { opacity: .55; }
+  50%       { opacity: .9; }
+}
+@keyframes shimmer {
+  to { background-position: 200% center; }
+}
+
+/* Shimmer en la palabra "producción" del hero */
+.hero-shimmer {
+  background: linear-gradient(100deg, #EAF0FB 0%, #59B6F5 30%, #1C8CE8 50%, #59B6F5 70%, #EAF0FB 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-shimmer {
+    animation: none;
+    background: linear-gradient(100deg, #EAF0FB 0%, #59B6F5 50%, #EAF0FB 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}

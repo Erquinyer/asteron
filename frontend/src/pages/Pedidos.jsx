@@ -9,16 +9,22 @@ import EmptyState from '../components/ui/EmptyState'
 import toast      from 'react-hot-toast'
 
 const estadoConfig = {
-  pendiente:  { label: 'Pendiente',  style: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'  },
-  en_proceso: { label: 'En proceso', style: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'    },
-  entregado:  { label: 'Entregado',  style: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'  },
-  cancelado:  { label: 'Cancelado',  style: 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300'      },
+  pendiente:  { label: 'Pendiente',  badge: 'bg-warning/10 text-warning',  dot: 'bg-warning'  },
+  en_proceso: { label: 'En proceso', badge: 'bg-primary/10 text-primary',  dot: 'bg-primary'  },
+  entregado:  { label: 'Entregado',  badge: 'bg-success/10 text-success',  dot: 'bg-success'  },
+  cancelado:  { label: 'Cancelado',  badge: 'bg-error/10 text-error',      dot: 'bg-error'    },
 }
 
 const EMPTY_ITEM = { producto: '', cantidad: 1, punto_descargue: '', estado: 'pendiente' }
 
-const inputCls = "w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-const labelCls = "block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1"
+const inputCls = `w-full h-10 border border-border rounded-control px-3 text-[13px]
+  bg-surface2 text-ink placeholder:text-faint
+  focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-colors`
+const labelCls = 'block text-[11.5px] font-medium text-muted mb-1.5'
+
+const itemInputCls = `w-full border border-border rounded-control px-3 h-9 text-[12px]
+  bg-surface2 text-ink placeholder:text-faint
+  focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-colors`
 
 function PedidoModal({ pedido, clientes, onClose, onSaved }) {
   const [form, setForm] = useState(pedido ? {
@@ -31,10 +37,8 @@ function PedidoModal({ pedido, clientes, onClose, onSaved }) {
   const [saving, setSaving] = useState(false)
 
   const setField = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
-
-  const setItem = (i, field, value) =>
+  const setItem  = (i, field, value) =>
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, [field]: value } : it))
-
   const addItem    = () => setItems(prev => [...prev, { ...EMPTY_ITEM }])
   const removeItem = (i) => setItems(prev => prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev)
 
@@ -56,25 +60,58 @@ function PedidoModal({ pedido, clientes, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 overflow-y-auto">
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-2xl my-4">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700">
-          <h3 className="text-base font-semibold text-slate-800 dark:text-white">{pedido ? 'Editar pedido' : 'Nuevo pedido'}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><X size={18}/></button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center
+      bg-black/50 backdrop-blur-sm p-4 overflow-y-auto animate-ov-in"
+    >
+      <div className="bg-surface border border-border rounded-[18px] shadow-modal
+        w-full max-w-2xl my-4 overflow-hidden animate-md-in"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5
+          border-b border-border bg-gradient-to-b from-primary/5 to-surface sticky top-0"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-[11px] bg-primary/10
+              flex items-center justify-center shrink-0"
+            >
+              <Package size={18} className="text-primary" />
+            </div>
+            <div>
+              <h3 className="text-[16px] font-semibold text-ink">
+                {pedido ? 'Editar pedido' : 'Nuevo pedido'}
+              </h3>
+              <p className="text-[12px] text-muted">
+                {pedido ? `Pedido #${pedido.id_pedido}` : 'Registrar un nuevo pedido'}
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-[8px]
+              bg-surface2 text-faint hover:text-muted transition-colors"
+          >
+            <X size={16} />
+          </button>
         </div>
 
+        {/* Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Cliente *</label>
-              <select name="id_cliente" value={form.id_cliente} onChange={setField} required className={inputCls}>
+              <select name="id_cliente" value={form.id_cliente}
+                onChange={setField} required className={inputCls}
+              >
                 <option value="">Seleccionar cliente</option>
-                {clientes.map(c => <option key={c.id_cliente} value={c.id_cliente}>{c.nombre}</option>)}
+                {clientes.map(c => (
+                  <option key={c.id_cliente} value={c.id_cliente}>{c.nombre}</option>
+                ))}
               </select>
             </div>
             <div>
               <label className={labelCls}>Estado</label>
-              <select name="estado" value={form.estado} onChange={setField} className={inputCls}>
+              <select name="estado" value={form.estado}
+                onChange={setField} className={inputCls}
+              >
                 {Object.entries(estadoConfig).map(([k, v]) => (
                   <option key={k} value={k}>{v.label}</option>
                 ))}
@@ -86,54 +123,71 @@ function PedidoModal({ pedido, clientes, onClose, onSaved }) {
             <label className={labelCls}>Descripción del pedido</label>
             <textarea name="descripcion" value={form.descripcion} onChange={setField} rows={2}
               placeholder="Descripción general del pedido / proyecto a fabricar"
-              className={`${inputCls} resize-none`}/>
+              className={`${inputCls} h-auto py-2.5 resize-none`}
+            />
           </div>
 
           {!pedido && (
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Productos / Items</label>
+              <div className="flex items-center justify-between mb-2.5">
+                <p className={labelCls.replace('mb-1.5','mb-0')}>Productos / Items</p>
                 <button type="button" onClick={addItem}
-                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
-                  <PlusCircle size={14}/> Agregar item
+                  className="flex items-center gap-1.5 text-[12px] font-medium
+                    text-primary hover:text-primary-hover transition-colors"
+                >
+                  <PlusCircle size={14} /> Agregar item
                 </button>
               </div>
               <div className="space-y-2">
                 {items.map((item, i) => (
                   <div key={i} className="grid grid-cols-12 gap-2 items-center">
                     <input
-                      value={item.producto} onChange={e => setItem(i, 'producto', e.target.value)}
+                      value={item.producto}
+                      onChange={e => setItem(i, 'producto', e.target.value)}
                       placeholder="Producto / descripción"
-                      className="col-span-5 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-xs bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                      className={`col-span-5 ${itemInputCls}`}
+                    />
                     <input type="number" min={1}
-                      value={item.cantidad} onChange={e => setItem(i, 'cantidad', e.target.value)}
+                      value={item.cantidad}
+                      onChange={e => setItem(i, 'cantidad', e.target.value)}
                       placeholder="Cant."
-                      className="col-span-2 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-xs bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                      className={`col-span-2 ${itemInputCls}`}
+                    />
                     <input
-                      value={item.punto_descargue} onChange={e => setItem(i, 'punto_descargue', e.target.value)}
+                      value={item.punto_descargue}
+                      onChange={e => setItem(i, 'punto_descargue', e.target.value)}
                       placeholder="Punto entrega"
-                      className="col-span-4 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-xs bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                      className={`col-span-4 ${itemInputCls}`}
+                    />
                     <button type="button" onClick={() => removeItem(i)}
-                      className="col-span-1 flex justify-center text-slate-300 hover:text-red-500">
-                      <MinusCircle size={16}/>
+                      className="col-span-1 flex justify-center items-center
+                        text-faint hover:text-error transition-colors"
+                    >
+                      <MinusCircle size={15} />
                     </button>
                   </div>
                 ))}
               </div>
             </div>
           )}
-
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose}
-              className="flex-1 border border-slate-300 dark:border-slate-600 rounded-lg py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
-              Cancelar
-            </button>
-            <button type="submit" disabled={saving}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg py-2 text-sm font-medium">
-              {saving ? 'Guardando…' : pedido ? 'Guardar cambios' : 'Crear pedido'}
-            </button>
-          </div>
         </form>
+
+        {/* Footer */}
+        <div className="flex gap-3 px-6 py-4 border-t border-border bg-surface2">
+          <button type="button" onClick={onClose}
+            className="flex-1 h-10 border border-border rounded-control text-[13px]
+              text-muted hover:bg-hover hover:text-ink transition-colors"
+          >
+            Cancelar
+          </button>
+          <button onClick={handleSubmit} disabled={saving}
+            className="flex-1 h-10 bg-primary hover:bg-primary-hover
+              disabled:opacity-50 text-white rounded-control text-[13px]
+              font-semibold shadow-btn transition-colors"
+          >
+            {saving ? 'Guardando…' : pedido ? 'Guardar cambios' : 'Crear pedido'}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -156,8 +210,8 @@ export default function Pedidos() {
     }
   }
 
-  if (loading) return <Spinner text="Cargando pedidos..."/>
-  if (error)   return <EmptyState title="Error" description={error}/>
+  if (loading) return <Spinner text="Cargando pedidos..." />
+  if (error)   return <EmptyState title="Error" description={error} />
 
   const lista = (data || []).filter(p =>
     (p.cliente || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -169,95 +223,123 @@ export default function Pedidos() {
   )
 
   return (
-    <div className="space-y-5 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800 dark:text-white">Pedidos</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            {data?.length || 0} pedidos · {counts.en_proceso} en proceso · {counts.pendiente} pendientes
-          </p>
+    <div className="space-y-4 max-w-7xl mx-auto">
+      {/* Cabecera */}
+      <div>
+        <h1 className="text-[20px] font-semibold text-ink">Pedidos</h1>
+        <p className="font-mono text-[11px] text-faint mt-0.5 uppercase tracking-[.06em]">
+          {data?.length || 0} pedidos · {counts.en_proceso} en proceso · {counts.pendiente} pendientes
+        </p>
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar por cliente o descripción…"
+            className="w-full h-[38px] pl-9 pr-4 border border-border rounded-control
+              text-[13px] bg-surface2 text-ink placeholder:text-faint
+              focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary
+              transition-colors"
+          />
         </div>
+
+        <div className="flex-1" />
+
         {canDo('pedidos', 'crear') && (
           <button onClick={() => setModal('new')}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
-            <Plus size={16}/> Nuevo pedido
+            className="h-[38px] flex items-center gap-2 px-4
+              bg-primary hover:bg-primary-hover text-white
+              text-[13px] font-semibold rounded-control shadow-btn transition-colors"
+          >
+            <Plus size={15} /> Nuevo pedido
           </button>
         )}
       </div>
 
-      <div className="relative max-w-sm">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
-        <input value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Buscar por cliente o descripción…"
-          className="pl-9 pr-4 py-2 w-full border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-      </div>
-
-      {lista.length === 0
-        ? <EmptyState title="Sin pedidos" description="Crea el primer pedido con el botón de arriba."/>
-        : (
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-900/50 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide text-left">
-                    <th className="px-6 py-3">#</th>
-                    <th className="px-6 py-3">Cliente</th>
-                    <th className="px-6 py-3 hidden md:table-cell">Descripción</th>
-                    <th className="px-6 py-3">Estado</th>
-                    <th className="px-6 py-3 hidden lg:table-cell">Items</th>
-                    <th className="px-6 py-3 hidden lg:table-cell">Fecha</th>
-                    <th className="px-6 py-3"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                  {lista.map(p => {
-                    const cfg = estadoConfig[p.estado] || estadoConfig.pendiente
-                    return (
-                      <tr key={p.id_pedido} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                        <td className="px-6 py-4 font-mono text-xs text-slate-400 dark:text-slate-500">#{p.id_pedido}</td>
-                        <td className="px-6 py-4 font-medium text-slate-800 dark:text-white">{p.cliente}</td>
-                        <td className="px-6 py-4 text-slate-500 dark:text-slate-400 hidden md:table-cell max-w-[240px]">
-                          <p className="truncate">{p.descripcion || '—'}</p>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`px-2 py-1 rounded-md text-xs font-medium ${cfg.style}`}>
-                            {cfg.label}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-slate-500 dark:text-slate-400 hidden lg:table-cell">
-                          <div className="flex items-center gap-1">
-                            <Package size={13} className="text-slate-400"/>
-                            {p.total_items}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-slate-400 dark:text-slate-500 text-xs hidden lg:table-cell">
-                          {new Date(p.fecha_pedido).toLocaleDateString('es-CO')}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-1">
-                            {canDo('pedidos', 'editar') && (
-                              <button onClick={() => setModal(p)}
-                                className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-600 transition-colors">
-                                <Pencil size={14}/>
-                              </button>
-                            )}
-                            {canDo('pedidos', 'eliminar') && (
-                              <button onClick={() => handleDelete(p)}
-                                className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-600 transition-colors">
-                                <Trash2 size={14}/>
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+      {/* Tabla */}
+      {lista.length === 0 ? (
+        <EmptyState title="Sin pedidos" description="Crea el primer pedido con el botón de arriba." />
+      ) : (
+        <div className="bg-surface border border-border rounded-card overflow-hidden shadow-card dark:shadow-card-dk">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-surface2 border-b border-border">
+                  {['#', 'Cliente', 'Descripción', 'Estado', 'Items', 'Fecha', ''].map((h, i) => (
+                    <th key={i}
+                      className={`px-5 py-3 text-left font-mono text-[10.5px] font-semibold
+                        uppercase tracking-[.06em] text-faint
+                        ${i === 2 ? 'hidden md:table-cell' : ''}
+                        ${i === 4 || i === 5 ? 'hidden lg:table-cell' : ''}`}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {lista.map(p => {
+                  const cfg = estadoConfig[p.estado] || estadoConfig.pendiente
+                  return (
+                    <tr key={p.id_pedido}
+                      className="hover:bg-hover transition-colors"
+                    >
+                      <td className="px-5 py-3.5 font-mono text-[11px] text-faint">
+                        #{p.id_pedido}
+                      </td>
+                      <td className="px-5 py-3.5 text-[13.5px] font-medium text-ink">
+                        {p.cliente}
+                      </td>
+                      <td className="px-5 py-3.5 text-[13px] text-muted hidden md:table-cell max-w-[240px]">
+                        <p className="truncate">{p.descripcion || '—'}</p>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className={`inline-flex items-center gap-1.5 font-mono
+                          text-[11px] font-semibold px-2.5 py-[5px] rounded-badge ${cfg.badge}`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                          {cfg.label}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 hidden lg:table-cell">
+                        <div className="flex items-center gap-1.5 text-[13px] text-muted">
+                          <Package size={13} className="text-faint" />
+                          {p.total_items}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 font-mono text-[11.5px] text-faint hidden lg:table-cell">
+                        {new Date(p.fecha_pedido).toLocaleDateString('es-CO')}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-1">
+                          {canDo('pedidos', 'editar') && (
+                            <button onClick={() => setModal(p)}
+                              className="w-7 h-7 flex items-center justify-center rounded-badge
+                                text-faint hover:bg-primary/10 hover:text-primary transition-colors"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                          )}
+                          {canDo('pedidos', 'eliminar') && (
+                            <button onClick={() => handleDelete(p)}
+                              className="w-7 h-7 flex items-center justify-center rounded-badge
+                                text-faint hover:bg-error/10 hover:text-error transition-colors"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
-        )
-      }
+        </div>
+      )}
 
       {modal && (
         <PedidoModal

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Search, Eye, Pencil, Trash2, X } from 'lucide-react'
+import { Plus, Search, Eye, Pencil, Trash2, X, Filter } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useFetch }      from '../hooks/useFetch'
 import { getProyectos, createProyecto, updateProyecto, deleteProyecto } from '../api/proyectos.service'
@@ -10,30 +10,45 @@ import Spinner    from '../components/ui/Spinner'
 import EmptyState from '../components/ui/EmptyState'
 import toast      from 'react-hot-toast'
 
-const prioridadBadge = {
-  alta:  'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300',
-  media: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
-  baja:  'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const prioridadCfg = {
+  alta:  { dot: 'bg-error',   badge: 'bg-error/10 text-error',     label: 'Alta'  },
+  media: { dot: 'bg-warning', badge: 'bg-warning/10 text-warning', label: 'Media' },
+  baja:  { dot: 'bg-success', badge: 'bg-success/10 text-success', label: 'Baja'  },
 }
 
+const progressColor = (avance) => {
+  if (avance >= 80) return 'bg-success'
+  if (avance < 35)  return 'bg-warning'
+  return 'bg-primary'
+}
+
+const initials = (nombre) =>
+  (nombre || '?').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+
+// ── Estilos de formulario ─────────────────────────────────────────────────────
+const inputCls = `w-full h-10 border border-border rounded-control px-3 text-[13px]
+  bg-surface2 text-ink placeholder:text-faint
+  focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary
+  transition-colors`
+const labelCls = 'block text-[11.5px] font-medium text-muted mb-1.5'
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
 const EMPTY_FORM = {
   nombre: '', objetivo: '', prioridad: 'media',
   fecha_inicio: '', fecha_fin_estimada: '',
   id_pedido: '', id_usuario_responsable: '',
 }
 
-const inputCls = "w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-const labelCls = "block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1"
-
 function ProyectoModal({ proyecto, pedidos, usuarios, onClose, onSaved }) {
   const [form, setForm] = useState(proyecto ? {
-    nombre:                proyecto.nombre                || '',
-    objetivo:              proyecto.objetivo              || '',
-    prioridad:             proyecto.prioridad             || 'media',
-    fecha_inicio:          proyecto.fecha_inicio?.slice(0,10)          || '',
-    fecha_fin_estimada:    proyecto.fecha_fin_estimada?.slice(0,10)    || '',
-    id_pedido:             proyecto.id_pedido             || '',
-    id_usuario_responsable: proyecto.id_responsable       || '',
+    nombre:                 proyecto.nombre                || '',
+    objetivo:               proyecto.objetivo              || '',
+    prioridad:              proyecto.prioridad             || 'media',
+    fecha_inicio:           proyecto.fecha_inicio?.slice(0,10)          || '',
+    fecha_fin_estimada:     proyecto.fecha_fin_estimada?.slice(0,10)    || '',
+    id_pedido:              proyecto.id_pedido             || '',
+    id_usuario_responsable: proyecto.id_responsable        || '',
   } : EMPTY_FORM)
   const [saving, setSaving] = useState(false)
 
@@ -51,45 +66,66 @@ function ProyectoModal({ proyecto, pedidos, usuarios, onClose, onSaved }) {
         await createProyecto(form)
         toast.success('Proyecto creado')
       }
-      onSaved()
-      onClose()
+      onSaved(); onClose()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error al guardar')
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSaving(false) }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700">
-          <h3 className="text-base font-semibold text-slate-800 dark:text-white">
-            {proyecto ? 'Editar proyecto' : 'Nuevo proyecto'}
-          </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
-            <X size={18} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center
+      bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
+    >
+      <div className="bg-surface border border-border rounded-[18px] shadow-modal
+        w-full max-w-lg animate-md-in overflow-hidden"
+      >
+        {/* Cabecera */}
+        <div className="flex items-center justify-between px-6 py-5
+          border-b border-border
+          bg-gradient-to-b from-primary/5 to-surface"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-[11px] bg-primary/10 flex items-center justify-center">
+              <Plus size={18} className="text-primary" />
+            </div>
+            <div>
+              <h3 className="text-[16px] font-semibold text-ink">
+                {proyecto ? 'Editar proyecto' : 'Nuevo proyecto'}
+              </h3>
+              <p className="text-[12px] text-muted">
+                {proyecto ? 'Modifica los datos del proyecto.' : 'Registra una orden de producción.'}
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-[8px]
+              bg-surface2 text-faint hover:text-muted transition-colors"
+          >
+            <X size={16} />
           </button>
         </div>
 
+        {/* Cuerpo */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className={labelCls}>Nombre *</label>
+            <label className={labelCls}>Nombre del proyecto *</label>
             <input name="nombre" value={form.nombre} onChange={handleChange} required
-              className={inputCls} placeholder="Ej: Exhibidor Castrol Serie X" />
+              className={inputCls} placeholder="Ej: Display POP Bavaria Q3" />
           </div>
 
           <div>
             <label className={labelCls}>Objetivo</label>
             <textarea name="objetivo" value={form.objetivo} onChange={handleChange} rows={2}
-              className={`${inputCls} resize-none`}
-              placeholder="Descripción del objetivo del proyecto" />
+              className={`${inputCls} h-auto py-2.5 resize-none`}
+              placeholder="Descripción del objetivo" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Prioridad</label>
-              <select name="prioridad" value={form.prioridad} onChange={handleChange} className={inputCls}>
+              <select name="prioridad" value={form.prioridad} onChange={handleChange}
+                className={inputCls}
+              >
                 <option value="alta">Alta</option>
                 <option value="media">Media</option>
                 <option value="baja">Baja</option>
@@ -97,7 +133,9 @@ function ProyectoModal({ proyecto, pedidos, usuarios, onClose, onSaved }) {
             </div>
             <div>
               <label className={labelCls}>Responsable</label>
-              <select name="id_usuario_responsable" value={form.id_usuario_responsable} onChange={handleChange} className={inputCls}>
+              <select name="id_usuario_responsable" value={form.id_usuario_responsable}
+                onChange={handleChange} className={inputCls}
+              >
                 <option value="">Sin asignar</option>
                 {usuarios.map(u => (
                   <option key={u.id_usuario} value={u.id_usuario}>{u.nombre}</option>
@@ -109,45 +147,58 @@ function ProyectoModal({ proyecto, pedidos, usuarios, onClose, onSaved }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Fecha inicio</label>
-              <input type="date" name="fecha_inicio" value={form.fecha_inicio} onChange={handleChange} className={inputCls} />
+              <input type="date" name="fecha_inicio" value={form.fecha_inicio}
+                onChange={handleChange} className={inputCls} />
             </div>
             <div>
               <label className={labelCls}>Fecha límite</label>
-              <input type="date" name="fecha_fin_estimada" value={form.fecha_fin_estimada} onChange={handleChange} className={inputCls} />
+              <input type="date" name="fecha_fin_estimada" value={form.fecha_fin_estimada}
+                onChange={handleChange} className={inputCls} />
             </div>
           </div>
 
           <div>
             <label className={labelCls}>Pedido asociado</label>
-            <select name="id_pedido" value={form.id_pedido} onChange={handleChange} className={inputCls}>
+            <select name="id_pedido" value={form.id_pedido} onChange={handleChange}
+              className={inputCls}
+            >
               <option value="">Sin pedido</option>
               {pedidos.map(p => (
-                <option key={p.id_pedido} value={p.id_pedido}>#{p.id_pedido} · {p.cliente}</option>
+                <option key={p.id_pedido} value={p.id_pedido}>
+                  #{p.id_pedido} · {p.cliente}
+                </option>
               ))}
             </select>
           </div>
-
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose}
-              className="flex-1 border border-slate-300 dark:border-slate-600 rounded-lg py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
-              Cancelar
-            </button>
-            <button type="submit" disabled={saving}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg py-2 text-sm font-medium">
-              {saving ? 'Guardando…' : proyecto ? 'Guardar cambios' : 'Crear proyecto'}
-            </button>
-          </div>
         </form>
+
+        {/* Pie */}
+        <div className="flex gap-3 px-6 py-4 border-t border-border bg-surface2">
+          <button type="button" onClick={onClose}
+            className="flex-1 h-10 border border-border rounded-control text-[13px]
+              text-muted hover:bg-hover hover:text-ink transition-colors"
+          >
+            Cancelar
+          </button>
+          <button onClick={handleSubmit} disabled={saving}
+            className="flex-1 h-10 bg-primary hover:bg-primary-hover disabled:opacity-50
+              text-white rounded-control text-[13px] font-semibold shadow-btn
+              transition-colors"
+          >
+            {saving ? 'Guardando…' : proyecto ? 'Guardar cambios' : 'Crear proyecto'}
+          </button>
+        </div>
       </div>
     </div>
   )
 }
 
+// ── Página principal ──────────────────────────────────────────────────────────
 export default function Proyectos() {
   const navigate = useNavigate()
   const { data: proyectos, loading, error, refresh } = useFetch(getProyectos)
-  const { data: pedidos }   = useFetch(getPedidos)
-  const { data: usuarios }  = useFetch(getUsuarios)
+  const { data: pedidos }  = useFetch(getPedidos)
+  const { data: usuarios } = useFetch(getUsuarios)
   const [search, setSearch] = useState('')
   const [modal,  setModal]  = useState(null)
 
@@ -171,107 +222,199 @@ export default function Proyectos() {
   )
 
   return (
-    <div className="space-y-5 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800 dark:text-white">Proyectos</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">{proyectos?.length || 0} proyectos en sistema</p>
+    <div className="space-y-4 max-w-7xl mx-auto">
+
+      {/* ── Cabecera ── */}
+      <div>
+        <h1 className="text-[20px] font-semibold text-ink">Proyectos</h1>
+        <p className="font-mono text-[11px] text-faint mt-0.5 uppercase tracking-[.06em]">
+          {proyectos?.length || 0} proyectos en sistema
+        </p>
+      </div>
+
+      {/* ── Toolbar ── */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Buscador */}
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Filtrar proyectos…"
+            className="w-full h-[38px] pl-9 pr-4 bg-surface border border-border
+              rounded-control text-[13px] text-ink placeholder:text-faint
+              focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary
+              transition-colors"
+          />
         </div>
+
+        {/* Filtro placeholder */}
+        <button className="h-[38px] flex items-center gap-2 px-3 bg-surface border border-border
+          rounded-control text-[13px] text-muted hover:bg-hover hover:text-ink transition-colors"
+        >
+          <Filter size={14} />
+          Prioridad
+        </button>
+
+        <div className="flex-1" />
+
+        {/* Botón primario */}
         {canDo('proyectos', 'crear') && (
           <button onClick={() => setModal('new')}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
-            <Plus size={16} /> Nuevo proyecto
+            className="h-[38px] flex items-center gap-2 px-4 bg-primary hover:bg-primary-hover
+              text-white text-[13px] font-semibold rounded-control shadow-btn transition-colors"
+          >
+            <Plus size={15} />
+            Nuevo proyecto
           </button>
         )}
       </div>
 
-      <div className="relative max-w-sm">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Buscar por nombre o cliente…"
-          className="pl-9 pr-4 py-2 w-full border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-
-      {filtrados.length === 0
-        ? <EmptyState title="Sin proyectos" description="Crea el primer proyecto con el botón de arriba." />
-        : (
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-900/50 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide text-left">
-                    <th className="px-6 py-3">Proyecto</th>
-                    <th className="px-6 py-3 hidden md:table-cell">Cliente</th>
-                    <th className="px-6 py-3">Prioridad</th>
-                    <th className="px-6 py-3 hidden lg:table-cell">Responsable</th>
-                    <th className="px-6 py-3">Avance</th>
-                    <th className="px-6 py-3 hidden lg:table-cell">Entrega</th>
-                    <th className="px-6 py-3"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                  {filtrados.map(p => (
-                    <tr key={p.id_proyecto} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <p className="font-medium text-slate-800 dark:text-white max-w-[200px] truncate">{p.nombre}</p>
+      {/* ── Tabla ── */}
+      {filtrados.length === 0 ? (
+        <EmptyState title="Sin proyectos" description="Crea el primer proyecto con el botón de arriba." />
+      ) : (
+        <div className="bg-surface border border-border rounded-card shadow-card
+          dark:shadow-card-dk overflow-hidden"
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-surface2 border-b border-border">
+                  {['Proyecto', 'Cliente', 'Prioridad', 'Responsable', 'Avance', 'Entrega', ''].map((h, i) => (
+                    <th key={i}
+                      className={`px-[18px] py-[13px] text-left font-mono text-[10.5px]
+                        font-semibold uppercase tracking-[.08em] text-faint
+                        ${i >= 3 && i <= 5 ? 'hidden lg:table-cell' : ''}
+                        ${i === 1 ? 'hidden md:table-cell' : ''}
+                      `}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filtrados.map(p => {
+                  const pCfg = prioridadCfg[p.prioridad] || prioridadCfg.baja
+                  return (
+                    <tr key={p.id_proyecto}
+                      className="hover:bg-hover transition-colors duration-100"
+                    >
+                      {/* Proyecto */}
+                      <td className="px-[18px] py-[13px]">
+                        <p className="text-[13.5px] font-medium text-ink truncate max-w-[200px]">
+                          {p.nombre}
+                        </p>
                         {p.objetivo && (
-                          <p className="text-xs text-slate-400 dark:text-slate-500 truncate max-w-[200px]">{p.objetivo}</p>
+                          <p className="font-mono text-[10.5px] text-faint truncate max-w-[200px] mt-0.5">
+                            {p.objetivo}
+                          </p>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-slate-500 dark:text-slate-400 hidden md:table-cell">
-                        {p.cliente || <span className="text-slate-300 dark:text-slate-600 italic">Sin cliente</span>}
+
+                      {/* Cliente */}
+                      <td className="px-[18px] py-[13px] text-[13px] text-muted hidden md:table-cell">
+                        {p.cliente || <span className="text-faint italic">Sin cliente</span>}
                       </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded-md text-xs font-medium capitalize ${prioridadBadge[p.prioridad]}`}>
-                          {p.prioridad}
+
+                      {/* Prioridad */}
+                      <td className="px-[18px] py-[13px]">
+                        <span className={`inline-flex items-center gap-1.5 font-mono text-[11px]
+                          font-semibold px-[9px] py-[5px] rounded-badge ${pCfg.badge}`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${pCfg.dot}`} />
+                          {pCfg.label}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-slate-500 dark:text-slate-400 hidden lg:table-cell">
-                        {p.responsable || '—'}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 bg-slate-100 dark:bg-slate-700 rounded-full h-1.5 min-w-[60px]">
-                            <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${p.avance}%` }} />
+
+                      {/* Responsable */}
+                      <td className="px-[18px] py-[13px] hidden lg:table-cell">
+                        {p.responsable ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-[26px] h-[26px] rounded-badge shrink-0
+                              bg-primary/10 text-primary text-[10px] font-bold
+                              flex items-center justify-center"
+                            >
+                              {initials(p.responsable)}
+                            </div>
+                            <span className="text-[13px] text-muted truncate max-w-[90px]">
+                              {p.responsable.split(' ')[0]}
+                            </span>
                           </div>
-                          <span className="text-xs text-slate-500 dark:text-slate-400 w-8 text-right">{p.avance}%</span>
+                        ) : (
+                          <span className="text-faint text-[13px]">—</span>
+                        )}
+                      </td>
+
+                      {/* Avance */}
+                      <td className="px-[18px] py-[13px] hidden lg:table-cell">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 rounded-full bg-surface2 min-w-[60px]">
+                            <div
+                              className={`h-1.5 rounded-full transition-all duration-500
+                                ${progressColor(p.avance)}`}
+                              style={{ width: `${p.avance}%` }}
+                            />
+                          </div>
+                          <span className="font-mono text-[11px] text-muted w-8 text-right tabular-nums">
+                            {p.avance}%
+                          </span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-slate-400 dark:text-slate-500 text-xs hidden lg:table-cell">
-                        {p.fecha_fin_estimada
-                          ? new Date(p.fecha_fin_estimada).toLocaleDateString('es-CO')
-                          : '—'}
+
+                      {/* Entrega */}
+                      <td className="px-[18px] py-[13px] hidden lg:table-cell">
+                        <span className="font-mono text-[12px] text-muted">
+                          {p.fecha_fin_estimada
+                            ? new Date(p.fecha_fin_estimada).toLocaleDateString('es-CO', {
+                                day: '2-digit', month: 'short',
+                              })
+                            : '—'}
+                        </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => navigate(`/proyectos/${p.id_proyecto}`)}
-                            className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors" title="Ver detalle">
-                            <Eye size={14} />
+
+                      {/* Acciones */}
+                      <td className="px-[18px] py-[13px]">
+                        <div className="flex items-center gap-0.5">
+                          <button
+                            onClick={() => navigate(`/proyectos/${p.id_proyecto}`)}
+                            title="Ver detalle"
+                            className="w-7 h-7 flex items-center justify-center rounded-badge
+                              text-faint hover:bg-surface2 hover:text-primary transition-colors"
+                          >
+                            <Eye size={15} />
                           </button>
                           {canDo('proyectos', 'editar') && (
-                            <button onClick={() => setModal(p)}
-                              className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-600 transition-colors" title="Editar">
-                              <Pencil size={14} />
+                            <button
+                              onClick={() => setModal(p)}
+                              title="Editar"
+                              className="w-7 h-7 flex items-center justify-center rounded-badge
+                                text-faint hover:bg-surface2 hover:text-primary transition-colors"
+                            >
+                              <Pencil size={15} />
                             </button>
                           )}
                           {canDo('proyectos', 'eliminar') && (
-                            <button onClick={() => handleDelete(p)}
-                              className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-600 transition-colors" title="Eliminar">
-                              <Trash2 size={14} />
+                            <button
+                              onClick={() => handleDelete(p)}
+                              title="Eliminar"
+                              className="w-7 h-7 flex items-center justify-center rounded-badge
+                                text-faint hover:bg-error/10 hover:text-error transition-colors"
+                            >
+                              <Trash2 size={15} />
                             </button>
                           )}
                         </div>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
-        )
-      }
+        </div>
+      )}
 
       {modal && (
         <ProyectoModal

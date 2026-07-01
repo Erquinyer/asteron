@@ -20,26 +20,17 @@ const getGreeting = () => {
   return 'Buenas noches'
 }
 
-const PRIORIDAD_COLORS = { alta: '#ef4444', media: '#f59e0b', baja: '#94a3b8' }
-const ESTADO_MAQ_COLORS = {
-  activa:           '#22c55e',
-  en_mantenimiento: '#f59e0b',
-  sin_asignar:      '#3b82f6',
-  guardada:         '#a855f7',
-  inactiva:         '#94a3b8',
-  dado_de_baja:     '#ef4444',
+// Colores para el donut de proyectos por estado
+const ESTADO_PROY_COLORS = {
+  en_proceso: '#4F46E5',
+  completado: '#10B981',
+  pendiente:  '#06B6D4',
 }
-
-const ESTADO_MAQ_LABELS = {
-  activa:           'Activa',
-  en_mantenimiento: 'En mtto.',
-  sin_asignar:      'Sin asignar',
-  guardada:         'Guardada',
-  inactiva:         'Inactiva',
-  dado_de_baja:     'Dado de baja',
+const ESTADO_PROY_LABELS = {
+  en_proceso: 'En proceso',
+  completado: 'Completado',
+  pendiente:  'Programado',
 }
-
-const PRIORIDAD_LABELS = { alta: 'Alta', media: 'Media', baja: 'Baja' }
 
 const Dashboard = () => {
   const user = getUser()
@@ -53,32 +44,27 @@ const Dashboard = () => {
 
   const statCards = [
     {
-      id: 1, label: 'Proyectos activos', icon: 'folder', color: 'blue',
+      id: 1, label: 'Proyectos activos', icon: 'folder', accent: 'primary',
       value: stats.proyectos.total,
-      total: Math.max(stats.proyectos.total, 1),
       suffix: `${stats.proyectos.destacado} prioridad alta`,
       to: '/proyectos',
     },
     {
-      id: 2, label: 'Pedidos en sistema', icon: 'clipboard', color: 'amber',
+      id: 2, label: 'Pedidos en sistema', icon: 'cart', accent: 'secondary',
       value: stats.pedidos.total,
-      total: Math.max(stats.pedidos.total, 1),
       suffix: `${stats.pedidos.destacado} pendientes`,
       to: '/pedidos',
     },
     {
-      id: 3, label: 'Equipos activos', icon: 'cog', color: 'green',
+      id: 3, label: 'Equipos activos', icon: 'wrench', accent: 'success',
       value: stats.maquinaria.destacado,
-      total: Math.max(stats.maquinaria.total, 1),
       suffix: `de ${stats.maquinaria.total} equipos`,
       to: '/maquinaria',
     },
     {
-      id: 4, label: 'Usuarios activos', icon: 'users', color: 'purple',
+      id: 4, label: 'Usuarios activos', icon: 'users', accent: 'warning',
       value: stats.usuarios.destacado,
-      total: Math.max(stats.usuarios.total, 1),
       suffix: `de ${stats.usuarios.total} personas`,
-      to: '/usuarios',
     },
   ]
 
@@ -93,55 +79,169 @@ const Dashboard = () => {
     estado:   item.estado,
   }))
 
-  const barData = (charts.porPrioridad || []).map(d => ({
-    name:  PRIORIDAD_LABELS[d.name] || d.name,
+  const barData = charts.produccion7dias || []
+
+  const pieData = (charts.porEstadoProyecto || []).map(d => ({
+    name:  ESTADO_PROY_LABELS[d.name] || d.name,
     value: Number(d.value),
-    fill:  PRIORIDAD_COLORS[d.name] || '#94a3b8',
+    fill:  ESTADO_PROY_COLORS[d.name] || '#9097AD',
   }))
 
-  const pieData = (charts.porEstadoMaq || []).map(d => ({
-    name:  ESTADO_MAQ_LABELS[d.name] || d.name,
-    value: Number(d.value),
-    fill:  ESTADO_MAQ_COLORS[d.name] || '#94a3b8',
-  }))
+  const pieTotal = pieData.reduce((s, d) => s + d.value, 0)
 
-  const axisColor  = dark ? '#94a3b8' : '#64748b'
-  const tooltipBg  = dark ? '#1e293b' : '#ffffff'
-  const tooltipBorder = dark ? '#334155' : '#e2e8f0'
+  // Colores adaptativos para ejes y tooltips
+  const axisColor   = dark ? '#646C86' : '#9097AD'
+  const tooltipBg   = dark ? '#10141F' : '#FFFFFF'
+  const tooltipBrd  = dark ? '#222839' : '#E7E9F2'
+  const tooltipText = dark ? '#ECEFF8' : '#161A2B'
+  const tooltipSub  = dark ? '#98A0B8' : '#5A6178'
+  const inkColor    = dark ? '#ECEFF8' : '#161A2B'
+  const faintColor  = dark ? '#646C86' : '#9097AD'
 
   const ChartTooltip = ({ active, payload, unit }) => {
     if (!active || !payload?.length) return null
     return (
-      <div style={{ background: tooltipBg, border: `1px solid ${tooltipBorder}` }}
-        className="rounded-lg px-3 py-2 shadow text-xs">
-        <p className="font-medium text-slate-700 dark:text-slate-200">{payload[0].name ?? payload[0].payload?.name}</p>
-        <p className="text-slate-500 dark:text-slate-400">{payload[0].value} {unit}</p>
+      <div style={{
+        background: tooltipBg, border: `1px solid ${tooltipBrd}`,
+        borderRadius: '10px', padding: '8px 12px',
+        boxShadow: '0 8px 24px rgba(0,0,0,.12)',
+      }}>
+        <p style={{ fontSize: '12px', fontWeight: 600, color: tooltipText, marginBottom: 2 }}>
+          {payload[0].name ?? payload[0].payload?.name}
+        </p>
+        <p style={{ fontSize: '11px', color: tooltipSub, fontFamily: 'Geist Mono, monospace' }}>
+          {payload[0].value} {unit}
+        </p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-4 max-w-7xl mx-auto">
       {/* Saludo */}
       <div>
-        <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">
-          {getGreeting()}, {user?.nombre?.split(' ')[0]} 👋
+        <h2 className="text-[20px] font-semibold text-ink">
+          {getGreeting()}, {user?.nombre?.split(' ')[0]}
         </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          Aquí tienes el resumen del sistema Macromet.
+        <p className="font-mono text-[11.5px] text-faint mt-0.5 uppercase tracking-[.06em]">
+          Resumen del sistema · Macromet S.A.S.
         </p>
       </div>
 
-      {/* Tarjetas de estadísticas */}
+      {/* ── Stat cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map(stat => (
           <StatCard key={stat.id} {...stat} />
         ))}
       </div>
 
-      {/* Proyectos recientes + Planta hoy */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2">
+      {/* ── Gráficas ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-4">
+
+        {/* Barras — Carga de producción (7 días) */}
+        <div className="bg-surface border border-border rounded-card shadow-card
+          dark:shadow-card-dk p-[18px]"
+        >
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <h3 className="text-[15px] font-semibold text-ink">Carga de producción</h3>
+              <p className="font-mono text-[10px] text-faint tracking-[.08em] uppercase mt-0.5">
+                Horas-Máquina · Últimos 7 días
+              </p>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-primary" />
+                <span className="font-mono text-[10px] text-faint">Programado</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-primary/30" />
+                <span className="font-mono text-[10px] text-faint">Real</span>
+              </div>
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={190}>
+            <BarChart data={barData} barSize={20} barCategoryGap="35%"
+              margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
+              <XAxis
+                dataKey="name"
+                tick={{ fontSize: 11, fill: axisColor, fontFamily: 'Geist Mono, monospace' }}
+                axisLine={false} tickLine={false}
+              />
+              <YAxis
+                tick={{ fontSize: 11, fill: axisColor, fontFamily: 'Geist Mono, monospace' }}
+                axisLine={false} tickLine={false} width={24}
+              />
+              <Tooltip
+                cursor={{ fill: dark ? '#171C2B' : '#F4F5FB', radius: 6 }}
+                content={<ChartTooltip unit="h" />}
+              />
+              <Bar dataKey="programado" fill="#4F46E5"
+                radius={[5, 5, 0, 0]} isAnimationActive={false} />
+              <Bar dataKey="real"
+                fill={dark ? 'rgba(79,70,229,.35)' : 'rgba(79,70,229,.22)'}
+                radius={[5, 5, 0, 0]} isAnimationActive={false} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Donut — Proyectos por estado */}
+        <div className="bg-surface border border-border rounded-card shadow-card
+          dark:shadow-card-dk p-[18px]"
+        >
+          <h3 className="text-[15px] font-semibold text-ink">Proyectos por estado</h3>
+          <p className="font-mono text-[10px] text-faint tracking-[.08em] uppercase mt-0.5 mb-4">
+            Total {pieTotal} activos
+          </p>
+          <div className="flex items-center gap-3">
+            {/* Donut + label superpuesto (evita SVG Label de Recharts v3) */}
+            <div className="relative shrink-0" style={{ width: '55%', height: 190 }}>
+              <ResponsiveContainer width="100%" height={190}>
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    cx="50%" cy="50%"
+                    innerRadius={54} outerRadius={82}
+                    dataKey="value"
+                    paddingAngle={2}
+                    isAnimationActive={false}
+                  >
+                    {pieData.map((entry, i) => (
+                      <Cell key={i} fill={entry.fill} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<ChartTooltip unit="proyectos" />} />
+                </PieChart>
+              </ResponsiveContainer>
+              {/* Label central */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="text-center">
+                  <p className="text-[22px] font-bold text-ink leading-none tabular-nums">{pieTotal}</p>
+                  <p className="font-mono text-[9px] font-semibold text-faint tracking-[2px] uppercase mt-1">
+                    PROYECTOS
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Leyenda manual */}
+            <div className="flex-1 space-y-2 py-1">
+              {pieData.map((entry, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <div className="shrink-0 w-2.5 h-2.5 rounded-full"
+                    style={{ background: entry.fill }} />
+                  <span className="text-[12px] text-muted flex-1 truncate">{entry.name}</span>
+                  <span className="font-mono text-[11px] text-faint tabular-nums">{entry.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Proyectos recientes + Planta hoy ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr] gap-4">
+        <div>
           {recientes.length > 0
             ? <RecentProjects projects={recientes.map(p => ({ ...p, id: p.id_proyecto }))} />
             : <EmptyState title="Sin proyectos recientes" />}
@@ -151,63 +251,6 @@ const Dashboard = () => {
             ? <PlantToday schedule={plantaAdaptada} />
             : <EmptyState title="Sin programación hoy" />}
         </div>
-      </div>
-
-      {/* Gráficas */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-        {/* Barra — Proyectos por prioridad */}
-        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">Proyectos por prioridad</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={barData} barSize={40}>
-              <XAxis dataKey="name" tick={{ fontSize: 12, fill: axisColor }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: axisColor }} axisLine={false} tickLine={false} width={20} />
-              <Tooltip cursor={{ fill: dark ? '#334155' : '#f1f5f9' }}
-                content={<ChartTooltip unit="proyectos" />} />
-              <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                {barData.map((entry, i) => (
-                  <Cell key={i} fill={entry.fill} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Dona — Maquinaria por estado */}
-        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">Maquinaria por estado</h3>
-          <div className="flex items-center gap-4">
-            <ResponsiveContainer width="55%" height={200}>
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%" cy="50%"
-                  innerRadius={55} outerRadius={85}
-                  dataKey="value"
-                  paddingAngle={2}
-                >
-                  {pieData.map((entry, i) => (
-                    <Cell key={i} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Tooltip content={<ChartTooltip unit="equipos" />} />
-              </PieChart>
-            </ResponsiveContainer>
-
-            {/* Leyenda manual */}
-            <div className="flex-1 space-y-2">
-              {pieData.map((entry, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: entry.fill }} />
-                  <span className="text-xs text-slate-600 dark:text-slate-300">{entry.name}</span>
-                  <span className="text-xs text-slate-400 ml-auto">{entry.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
       </div>
     </div>
   )

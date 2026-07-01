@@ -39,25 +39,75 @@ export const getStats = async (_req, res) => {
       WHERE pp.fecha = CURDATE()
       ORDER BY FIELD(pp.estado,'en_proceso','programado','completado','cancelado')`)
 
-    // Datos para gráficas
-    const [porPrioridad] = await pool.query(
-      `SELECT prioridad AS name, COUNT(*) AS value FROM proyectos GROUP BY prioridad`)
-    const [porEstadoMaq] = await pool.query(
-      `SELECT estado AS name, COUNT(*) AS value FROM maquinaria GROUP BY estado`)
+    // Carga de producción: horas estimadas vs. reales por día (últimos 7 días)
+    const [produccionRaw] = await pool.query(`
+      SELECT
+        DATE_FORMAT(pp.fecha, '%Y-%m-%d')            AS fecha_str,
+        ROUND(SUM(pp.tiempo_estimado) / 60, 1)       AS programado,
+        ROUND(SUM(COALESCE(pp.tiempo_real, 0)) / 60, 1) AS real_h
+      FROM programacion_planta pp
+      WHERE pp.fecha >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+        AND pp.fecha <= CURDATE()
+      GROUP BY pp.fecha
+      ORDER BY pp.fecha`)
+
+    const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+    const produccion7dias = []
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date()
+      d.setDate(d.getDate() - i)
+      const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      const found = produccionRaw.find(r => r.fecha_str === ymd)
+      produccion7dias.push({
+        name:       DAYS[d.getDay()],
+        programado: found ? Number(found.programado) : 0,
+        real:       found ? Number(found.real_h)     : 0,
+      })
+    }
+
+    // Proyectos por estado (computado desde fases)
+    const [porEstadoProyecto] = await pool.query(`
+      SELECT estado AS name, COUNT(*) AS value FROM (
+        SELECT p.id_proyecto,
+          CASE
+            WHEN SUM(fp.estado = 'en_curso')   > 0                                            THEN 'en_proceso'
+            WHEN COUNT(fp.id_fase_proyecto)    > 0
+              AND SUM(fp.estado = 'completada') = COUNT(fp.id_fase_proyecto)                  THEN 'completado'
+            ELSE 'pendiente'
+          END AS estado
+        FROM proyectos p
+        LEFT JOIN fases_proyecto fp ON fp.id_proyecto = p.id_proyecto
+        GROUP BY p.id_proyecto
+      ) subq
+      GROUP BY estado`)
 
     res.json({
       stats: {
-        proyectos: { total: Number(proy.total), destacado: Number(proy.alta),  label: 'prioridad alta' },
-        pedidos:   { total: Number(ped.total),  destacado: Number(ped.pendientes), label: 'pendientes' },
-        maquinaria:{ total: Number(maq.total),  destacado: Number(maq.activas), label: 'activas' },
-        usuarios:  { total: Number(usr.total),  destacado: Number(usr.activos), label: 'activos' },
+        proyectos: { total: Number(proy.total), destacado: Number(proy.alta),       label: 'prioridad alta' },
+        pedidos:   { total: Number(ped.total),  destacado: Number(ped.pendientes),  label: 'pendientes'     },
+        maquinaria:{ total: Number(maq.total),  destacado: Number(maq.activas),     label: 'activas'        },
+        usuarios:  { total: Number(usr.total),  destacado: Number(usr.activos),     label: 'activos'        },
       },
       recientes,
       planta,
-      charts: { porPrioridad, porEstadoMaq },
+      charts: { produccion7dias, porEstadoProyecto },
     })
   } catch (err) {
     console.error('[dashboard.getStats]', err)
     res.status(500).json({ message: 'Error al obtener estadísticas' })
+  }
+}
+
+export const getCounts = async (_req, res) => {
+  try {
+    const [[r]] = await pool.query(`
+      SELECT
+        (SELECT COUNT(*) FROM proyectos)                          AS proyectos,
+        (SELECT COUNT(*) FROM pedidos WHERE estado = 'pendiente') AS pedidos
+    `)
+    res.json({ proyectos: Number(r.proyectos), pedidos: Number(r.pedidos) })
+  } catch (err) {
+    console.error('[dashboard.getCounts]', err)
+    res.status(500).json({ message: 'Error' })
   }
 }
