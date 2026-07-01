@@ -27,9 +27,6 @@ Thumbs.db
 *.suo
 *.sw?
 
-# ── Archivos grandes / binarios externos ──────────────
-*.xlsx
-*.xls
 
 # ── Claude Code (configuración local del IDE AI) ──────
 .claude/
