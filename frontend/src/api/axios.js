@@ -22,13 +22,17 @@ api.interceptors.request.use((config) => {
 
 // ── Interceptor de RESPONSE ─────────────────────────────────────────
 // Se ejecuta DESPUÉS de cada respuesta.
-// Si el servidor devuelve 401 (token expirado/inválido) → cierra la sesión.
+// Si el servidor devuelve 401 Y hay sesión activa (token expirado) → cierra la sesión.
+// Si no hay sesión es porque estamos en el login: dejamos que el catch del componente maneje el error.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      logout()
-      window.location.href = '/login'
+      const session = JSON.parse(localStorage.getItem('asteron_auth') || 'null')
+      if (session?.token) {
+        logout()
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(error)
   }

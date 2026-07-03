@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Eye, EyeOff } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { login } from '../utils/auth'
 import { loginRequest } from '../api/auth.service'
 import { Logo } from './Logo'
@@ -28,7 +28,6 @@ const Login = () => {
     const { name, value } = e.target
     setForm({ ...form, [name]: value })
     if (errors[name]) setErrors({ ...errors, [name]: '' })
-    if (serverError)  setServerError('')
   }
 
   const handleSubmit = async (e) => {
@@ -37,7 +36,6 @@ const Login = () => {
     if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return }
 
     setErrors({})
-    setServerError('')
     setLoading(true)
 
     try {
@@ -86,8 +84,11 @@ const Login = () => {
 
         {/* Error del servidor */}
         {serverError && (
-          <div className="mb-5 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
-            {serverError}
+          <div className="mb-5 flex items-start gap-2.5 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30">
+            <AlertCircle size={15} className="text-red-400 shrink-0 mt-0.5" />
+            <p className="text-red-400 text-sm">
+              Valide el usuario y la contraseña ingresados.
+            </p>
           </div>
         )}
 
