@@ -1,8 +1,11 @@
 import express from 'express'
 import cors    from 'cors'
 import dotenv  from 'dotenv'
+import swaggerUi from 'swagger-ui-express'
 
+import { swaggerSpec }        from './config/swagger.js'
 import { verifyToken }        from './middlewares/auth.middleware.js'
+import { notFoundHandler, errorHandler } from './middlewares/errorHandler.middleware.js'
 import authRoutes             from './routes/auth.routes.js'
 import dashboardRoutes        from './routes/dashboard.routes.js'
 import proyectosRoutes        from './routes/proyectos.routes.js'
@@ -31,9 +34,15 @@ app.use(cors({
 }))
 app.use(express.json())
 
+// ── Documentación automática (equivalente a /docs de FastAPI) ─
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customSiteTitle: 'Asteron API — Documentación',
+}))
+app.get('/api/docs.json', (_req, res) => res.json(swaggerSpec))
+
 // ── Rutas públicas ────────────────────────────────────
 app.use('/api/auth',   authRoutes)
-app.get('/api/health', (_req, res) => res.json({ status: 'ok', sistema: 'Asteron' }))
+app.get('/api/health', (_req, res) => res.json({ success: true, message: 'ok', data: { sistema: 'Asteron' } }))
 
 // ── Rutas protegidas (requieren JWT) ──────────────────
 app.use('/api/dashboard',       verifyToken, dashboardRoutes)
@@ -47,5 +56,9 @@ app.use('/api/perfil',          verifyToken, perfilRoutes)
 app.use('/api/mantenimientos',  verifyToken, mantenimientosRoutes)
 app.use('/api/notificaciones',  verifyToken, notificacionesRoutes)
 app.use('/api/admin',           verifyToken, adminRoutes)
+
+// ── 404 + manejo centralizado de errores (SIEMPRE al final) ──
+app.use(notFoundHandler)
+app.use(errorHandler)
 
 export default app

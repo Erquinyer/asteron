@@ -1,4 +1,6 @@
 import pool from '../config/db.js'
+import { ok, fail } from '../utils/apiResponse.js'
+import { asyncHandler } from '../middlewares/asyncHandler.js'
 
 const BASE = `
   SELECT p.*, c.nombre AS cliente,
@@ -7,33 +9,22 @@ const BASE = `
   LEFT JOIN clientes       c  ON p.id_cliente = c.id_cliente
   LEFT JOIN detalle_pedido dp ON dp.id_pedido  = p.id_pedido`
 
-export const getAll = async (_req, res) => {
-  try {
-    const [rows] = await pool.query(`${BASE} GROUP BY p.id_pedido ORDER BY p.created_at DESC`)
-    res.json(rows)
-  } catch (err) {
-    console.error('[pedidos.getAll]', err)
-    res.status(500).json({ message: 'Error al obtener pedidos' })
-  }
-}
+export const getAll = asyncHandler(async (_req, res) => {
+  const [rows] = await pool.query(`${BASE} GROUP BY p.id_pedido ORDER BY p.created_at DESC`)
+  ok(res, rows, 'Pedidos obtenidos correctamente')
+})
 
-export const getOne = async (req, res) => {
-  try {
-    const [[pedido]] = await pool.query(
-      `${BASE} WHERE p.id_pedido = ? GROUP BY p.id_pedido`, [req.params.id])
-    if (!pedido) return res.status(404).json({ message: 'Pedido no encontrado' })
-    const [items] = await pool.query(
-      'SELECT * FROM detalle_pedido WHERE id_pedido = ? ORDER BY id_detalle', [req.params.id])
-    res.json({ ...pedido, items })
-  } catch (err) {
-    console.error('[pedidos.getOne]', err)
-    res.status(500).json({ message: 'Error al obtener pedido' })
-  }
-}
+export const getOne = asyncHandler(async (req, res) => {
+  const [[pedido]] = await pool.query(`${BASE} WHERE p.id_pedido = ? GROUP BY p.id_pedido`, [req.params.id])
+  if (!pedido) return fail(res, 'Pedido no encontrado', 404)
+  const [items] = await pool.query(
+    'SELECT * FROM detalle_pedido WHERE id_pedido = ? ORDER BY id_detalle', [req.params.id])
+  ok(res, { ...pedido, items }, 'Pedido obtenido correctamente')
+})
 
-export const create = async (req, res) => {
+// req.body ya viene validado por pedidoCreateSchema
+export const create = asyncHandler(async (req, res) => {
   const { id_cliente, descripcion, estado, items = [] } = req.body
-  if (!id_cliente) return res.status(400).json({ message: 'El cliente es requerido' })
   const conn = await pool.getConnection()
   try {
     await conn.beginTransaction()
@@ -50,36 +41,28 @@ export const create = async (req, res) => {
     }
     await conn.commit()
     const [[pedido]] = await pool.query(`${BASE} WHERE p.id_pedido = ? GROUP BY p.id_pedido`, [id])
-    res.status(201).json(pedido)
+    ok(res, pedido, 'Pedido creado correctamente', 201)
   } catch (err) {
     await conn.rollback()
-    console.error('[pedidos.create]', err)
-    res.status(500).json({ message: 'Error al crear pedido' })
-  } finally { conn.release() }
-}
+    throw err
+  } finally {
+    conn.release()
+  }
+})
 
-export const update = async (req, res) => {
+// req.body ya viene validado por pedidoUpdateSchema
+export const update = asyncHandler(async (req, res) => {
   const { id_cliente, descripcion, estado } = req.body
-  try {
-    const [result] = await pool.query(
-      `UPDATE pedidos SET id_cliente=?, descripcion=?, estado=? WHERE id_pedido=?`,
-      [id_cliente, descripcion || null, estado, req.params.id])
-    if (result.affectedRows === 0) return res.status(404).json({ message: 'Pedido no encontrado' })
-    const [[pedido]] = await pool.query(`${BASE} WHERE p.id_pedido = ? GROUP BY p.id_pedido`, [req.params.id])
-    res.json(pedido)
-  } catch (err) {
-    console.error('[pedidos.update]', err)
-    res.status(500).json({ message: 'Error al actualizar pedido' })
-  }
-}
+  const [result] = await pool.query(
+    `UPDATE pedidos SET id_cliente=?, descripcion=?, estado=? WHERE id_pedido=?`,
+    [id_cliente, descripcion || null, estado, req.params.id])
+  if (result.affectedRows === 0) return fail(res, 'Pedido no encontrado', 404)
+  const [[pedido]] = await pool.query(`${BASE} WHERE p.id_pedido = ? GROUP BY p.id_pedido`, [req.params.id])
+  ok(res, pedido, 'Pedido actualizado correctamente')
+})
 
-export const remove = async (req, res) => {
-  try {
-    const [result] = await pool.query('DELETE FROM pedidos WHERE id_pedido=?', [req.params.id])
-    if (result.affectedRows === 0) return res.status(404).json({ message: 'Pedido no encontrado' })
-    res.json({ message: 'Pedido eliminado' })
-  } catch (err) {
-    console.error('[pedidos.remove]', err)
-    res.status(500).json({ message: 'Error al eliminar pedido' })
-  }
-}
+export const remove = asyncHandler(async (req, res) => {
+  const [result] = await pool.query('DELETE FROM pedidos WHERE id_pedido=?', [req.params.id])
+  if (result.affectedRows === 0) return fail(res, 'Pedido no encontrado', 404)
+  ok(res, null, 'Pedido eliminado correctamente')
+})
