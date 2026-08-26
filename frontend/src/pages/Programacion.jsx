@@ -4,7 +4,7 @@ import {
   Play, Check, CheckCircle, Calendar, Wrench,
 } from 'lucide-react'
 import { useFetch }          from '../hooks/useFetch'
-import { getProgramacion, createProgramacion, updateEstadoTurno, deleteProgramacion } from '../api/programacion.service'
+import { getProgramacion, createProgramacion, updateEstadoTurno, updateAvanceTurno, deleteProgramacion } from '../api/programacion.service'
 import { getUsuarios }       from '../api/usuarios.service'
 import { getMaquinaria }     from '../api/maquinaria.service'
 import { getProyectos, getProyecto } from '../api/proyectos.service'
@@ -177,6 +177,25 @@ function ActivityCard({ item, onClick, onIniciar, onCompletar, onDelete }) {
           </div>
         </div>
 
+        {/* ── Avance (solo si está en proceso) ── */}
+        {isLive && (
+          <div className="mt-3">
+            <div className="flex items-center justify-between mb-1">
+              <span className="font-mono text-[9px] font-semibold uppercase tracking-[.08em] text-faint">
+                Avance
+              </span>
+              <span className="font-mono text-[10.5px] font-semibold text-primary tabular-nums">
+                {item.porcentaje_avance}%
+              </span>
+            </div>
+            <div className="h-1.5 rounded-full bg-surface2 overflow-hidden">
+              <div className="h-1.5 rounded-full bg-primary transition-all duration-500"
+                style={{ width: `${item.porcentaje_avance}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* ── Divider ── */}
         <div className="my-3 border-t border-border" />
 
@@ -271,7 +290,7 @@ function ConfirmModal({ item, onConfirm, onCancel }) {
         </p>
         {item.fase_nombre && (
           <p className="text-[12px] text-primary mt-2 font-medium">
-            La fase "{item.fase_nombre}" también quedará completada.
+            El avance de la fase "{item.fase_nombre}" se recalculará automáticamente.
           </p>
         )}
         <div className="flex gap-3 mt-6">
@@ -294,13 +313,22 @@ function ConfirmModal({ item, onConfirm, onCancel }) {
 }
 
 // ── Modal de detalle de actividad ─────────────────────────────────────────────
-function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onDelete }) {
+function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onDelete, onAvance }) {
   const [showConfirm,   setShowConfirm]   = useState(false)
   const [loadingAction, setLoadingAction] = useState(false)
+  const [avance,        setAvance]        = useState(item.porcentaje_avance ?? 0)
+  const [savingAvance,  setSavingAvance]  = useState(false)
   const cfg       = estadoConfig[item.estado] || estadoConfig.programado
   const isLive    = item.estado === 'en_proceso'
   const elapsed   = useTimer(item.updated_at, isLive)
   const isDone    = item.estado === 'completado' || item.estado === 'cancelado'
+  const avanceDirty = avance !== (item.porcentaje_avance ?? 0)
+
+  const handleGuardarAvance = async () => {
+    setSavingAvance(true)
+    await onAvance(item, avance)
+    setSavingAvance(false)
+  }
 
   const handleIniciar = async () => {
     setLoadingAction(true)
@@ -403,6 +431,33 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onDelete }) {
               </div>
             </div>
 
+            {isLive && (
+              <div className="bg-surface2 rounded-[11px] p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-mono text-[9px] font-semibold uppercase
+                    tracking-[.08em] text-faint">Avance de la actividad</p>
+                  <span className="font-mono text-[15px] font-bold text-primary tabular-nums">
+                    {avance}%
+                  </span>
+                </div>
+                <input
+                  type="range" min={0} max={99} value={avance}
+                  onChange={e => setAvance(Number(e.target.value))}
+                  className="w-full accent-primary cursor-pointer"
+                />
+                {avanceDirty && (
+                  <button
+                    onClick={handleGuardarAvance} disabled={savingAvance}
+                    className="mt-3 w-full h-9 flex items-center justify-center gap-2
+                      bg-primary hover:bg-primary-hover disabled:opacity-50 text-white
+                      rounded-control text-[12.5px] font-semibold transition-colors"
+                  >
+                    {savingAvance ? 'Guardando…' : 'Guardar avance'}
+                  </button>
+                )}
+              </div>
+            )}
+
             {item.observaciones && (
               <div>
                 <p className="font-mono text-[9px] font-semibold uppercase
@@ -421,7 +476,7 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onDelete }) {
                 <CheckCircle size={15} className="text-success mt-0.5 shrink-0" />
                 <p className="text-[13px] text-success">
                   Actividad completada.
-                  {item.fase_nombre && ` La fase "${item.fase_nombre}" fue marcada como completada.`}
+                  {item.fase_nombre && ` El avance de la fase "${item.fase_nombre}" se recalculó automáticamente.`}
                 </p>
               </div>
             )}
@@ -615,7 +670,7 @@ function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClose, onSaved }) 
                 ))}
               </select>
               <p className="font-mono text-[10px] text-faint mt-1">
-                Al completar, la fase seleccionada también se marcará como completada.
+                El avance de la fase se recalcula automáticamente a partir de sus turnos.
               </p>
             </div>
           )}
@@ -685,11 +740,17 @@ export default function Programacion() {
   const handleCompletar = async (item, tiempoReal) => {
     try {
       await updateEstadoTurno(item.id_programacion, { estado: 'completado', tiempo_real: tiempoReal })
-      toast.success(item.fase_nombre
-        ? `Actividad completada y fase "${item.fase_nombre}" marcada`
-        : 'Actividad marcada como completada')
+      toast.success('Actividad marcada como completada')
       refresh()
     } catch { toast.error('Error al completar') }
+  }
+
+  const handleAvance = async (item, porcentaje) => {
+    try {
+      await updateAvanceTurno(item.id_programacion, porcentaje)
+      toast.success('Avance actualizado')
+      refresh()
+    } catch { toast.error('Error al actualizar el avance') }
   }
 
   const handleDelete = async (item) => {
@@ -853,6 +914,7 @@ export default function Programacion() {
           onIniciar={handleIniciar}
           onCompletar={handleCompletar}
           onDelete={handleDelete}
+          onAvance={handleAvance}
         />
       )}
     </div>
