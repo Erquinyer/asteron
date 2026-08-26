@@ -1,5 +1,40 @@
 import pool from '../config/db.js'
 
+// Recalcula estado + porcentaje_avance de una fase a partir de sus turnos vinculados
+// (no cancelados). Se llama después de cualquier cambio en programacion_planta que
+// toque una fase: crear, iniciar, ajustar avance, completar, cancelar o eliminar.
+export const recomputeFase = async (id_fase_proyecto) => {
+  if (!id_fase_proyecto) return
+
+  const [turnos] = await pool.query(
+    `SELECT estado, porcentaje_avance FROM programacion_planta
+     WHERE id_fase_proyecto = ? AND estado != 'cancelado'`,
+    [id_fase_proyecto])
+
+  // Sin turnos activos vinculados: la fase queda bajo control manual (ProyectoDetalle)
+  if (turnos.length === 0) return
+
+  const avance = Math.round(
+    turnos.reduce((sum, t) => sum + t.porcentaje_avance, 0) / turnos.length)
+  const estado = turnos.every(t => t.estado === 'completado') ? 'completada'
+    : turnos.every(t => t.estado === 'programado') ? 'pendiente'
+    : 'en_curso'
+
+  const [[fase]] = await pool.query(
+    'SELECT estado, porcentaje_avance FROM fases_proyecto WHERE id_fase_proyecto = ?',
+    [id_fase_proyecto])
+  if (!fase || (fase.estado === estado && fase.porcentaje_avance === avance)) return
+
+  await pool.query(
+    'UPDATE fases_proyecto SET estado=?, porcentaje_avance=? WHERE id_fase_proyecto=?',
+    [estado, avance, id_fase_proyecto])
+
+  await pool.query(
+    `INSERT INTO historial_fases (id_fase_proyecto, estado_anterior, estado_nuevo, porcentaje, observacion)
+     VALUES (?,?,?,?,?)`,
+    [id_fase_proyecto, fase.estado, estado, avance, 'Actualizado automáticamente desde Programación de planta'])
+}
+
 export const getAll = async (req, res) => {
   const fecha = req.query.fecha || new Date().toISOString().split('T')[0]
   try {
@@ -31,10 +66,12 @@ export const create = async (req, res) => {
   }
   try {
     const [result] = await pool.query(
-      `INSERT INTO programacion_planta (fecha, id_operario, id_maquina, id_proyecto, id_fase_proyecto, tiempo_estimado, estado, observaciones)
-       VALUES (?,?,?,?,?,?,?,?)`,
+      `INSERT INTO programacion_planta (fecha, id_operario, id_maquina, id_proyecto, id_fase_proyecto, tiempo_estimado, estado, porcentaje_avance, observaciones)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
       [fecha, id_operario, id_maquina, id_proyecto || null,
-       id_fase_proyecto || null, tiempo_estimado || 480, 'programado', observaciones || null])
+       id_fase_proyecto || null, tiempo_estimado || 480, 'programado', 0, observaciones || null])
+
+    if (id_fase_proyecto) await recomputeFase(id_fase_proyecto)
 
     const [[row]] = await pool.query(`
       SELECT pp.*, u.nombre AS operario, m.nombre AS maquina, m.codigo AS maquina_codigo,
@@ -58,19 +95,20 @@ export const updateEstado = async (req, res) => {
   const { estado, tiempo_real } = req.body
   const { id } = req.params
   try {
-    await pool.query(
-      `UPDATE programacion_planta SET estado=?, tiempo_real=? WHERE id_programacion=?`,
-      [estado, tiempo_real || null, id])
+    const [[prog]] = await pool.query(
+      'SELECT id_fase_proyecto FROM programacion_planta WHERE id_programacion=?', [id])
+    if (!prog) return res.status(404).json({ message: 'Registro no encontrado' })
 
-    if (estado === 'completado') {
-      const [[prog]] = await pool.query(
-        'SELECT id_fase_proyecto FROM programacion_planta WHERE id_programacion=?', [id])
-      if (prog?.id_fase_proyecto) {
-        await pool.query(
-          'UPDATE fases_proyecto SET estado=?, porcentaje_avance=100 WHERE id_fase_proyecto=?',
-          ['completada', prog.id_fase_proyecto])
-      }
-    }
+    const porcentaje_avance = estado === 'completado' ? 100 : undefined
+    await pool.query(
+      porcentaje_avance !== undefined
+        ? `UPDATE programacion_planta SET estado=?, tiempo_real=?, porcentaje_avance=? WHERE id_programacion=?`
+        : `UPDATE programacion_planta SET estado=?, tiempo_real=? WHERE id_programacion=?`,
+      porcentaje_avance !== undefined
+        ? [estado, tiempo_real || null, porcentaje_avance, id]
+        : [estado, tiempo_real || null, id])
+
+    if (prog.id_fase_proyecto) await recomputeFase(prog.id_fase_proyecto)
 
     res.json({ message: 'Estado actualizado' })
   } catch (err) {
@@ -79,11 +117,43 @@ export const updateEstado = async (req, res) => {
   }
 }
 
+// PATCH /:id/avance — solo mientras el turno está en_proceso; 100% se reserva para "Completar"
+export const updateAvance = async (req, res) => {
+  const { id } = req.params
+  const porcentaje_avance = Math.max(0, Math.min(99, Number(req.body.porcentaje_avance) || 0))
+
+  try {
+    const [[prog]] = await pool.query(
+      'SELECT estado, id_fase_proyecto FROM programacion_planta WHERE id_programacion=?', [id])
+    if (!prog) return res.status(404).json({ message: 'Registro no encontrado' })
+    if (prog.estado !== 'en_proceso') {
+      return res.status(400).json({ message: 'Solo se puede ajustar el avance de una actividad en proceso' })
+    }
+
+    await pool.query(
+      'UPDATE programacion_planta SET porcentaje_avance=? WHERE id_programacion=?',
+      [porcentaje_avance, id])
+
+    if (prog.id_fase_proyecto) await recomputeFase(prog.id_fase_proyecto)
+
+    res.json({ message: 'Avance actualizado', porcentaje_avance })
+  } catch (err) {
+    console.error('[programacion.updateAvance]', err)
+    res.status(500).json({ message: 'Error al actualizar avance' })
+  }
+}
+
 export const remove = async (req, res) => {
   try {
+    const [[prog]] = await pool.query(
+      'SELECT id_fase_proyecto FROM programacion_planta WHERE id_programacion=?', [req.params.id])
+
     const [result] = await pool.query(
       'DELETE FROM programacion_planta WHERE id_programacion=?', [req.params.id])
     if (result.affectedRows === 0) return res.status(404).json({ message: 'Registro no encontrado' })
+
+    if (prog?.id_fase_proyecto) await recomputeFase(prog.id_fase_proyecto)
+
     res.json({ message: 'Registro eliminado' })
   } catch (err) {
     console.error('[programacion.remove]', err)

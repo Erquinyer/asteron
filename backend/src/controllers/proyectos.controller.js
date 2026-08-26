@@ -33,7 +33,9 @@ export const getOne = async (req, res) => {
     if (!rows[0]) return res.status(404).json({ message: 'Proyecto no encontrado' })
 
     const [fases] = await pool.query(`
-      SELECT fp.*, fe.nombre AS fase_nombre, fe.orden
+      SELECT fp.*, fe.nombre AS fase_nombre, fe.orden,
+             (SELECT COUNT(*) FROM programacion_planta pp
+              WHERE pp.id_fase_proyecto = fp.id_fase_proyecto AND pp.estado != 'cancelado') AS turnos_vinculados
       FROM fases_proyecto fp
       JOIN fases_estandar fe ON fp.id_fase_estandar = fe.id_fase_estandar
       WHERE fp.id_proyecto = ?
@@ -97,6 +99,16 @@ export const update = async (req, res) => {
 export const updateFase = async (req, res) => {
   const { estado, porcentaje_avance } = req.body
   try {
+    const [[{ turnos_vinculados }]] = await pool.query(
+      `SELECT COUNT(*) AS turnos_vinculados FROM programacion_planta
+       WHERE id_fase_proyecto = ? AND estado != 'cancelado'`,
+      [req.params.faseId])
+    if (turnos_vinculados > 0) {
+      return res.status(409).json({
+        message: 'Esta fase se actualiza automáticamente desde Programación de planta',
+      })
+    }
+
     await pool.query(
       `UPDATE fases_proyecto SET estado=?, porcentaje_avance=? WHERE id_fase_proyecto=? AND id_proyecto=?`,
       [estado, porcentaje_avance ?? 0, req.params.faseId, req.params.id])

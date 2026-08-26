@@ -257,6 +257,7 @@ CREATE TABLE programacion_planta (
   id_fase_proyecto  INT  DEFAULT NULL  COMMENT 'Fase del proyecto en ejecución en esta programación',
   tiempo_estimado   INT  DEFAULT NULL  COMMENT 'En minutos',
   tiempo_real       INT  DEFAULT NULL  COMMENT 'En minutos',
+  porcentaje_avance TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '% de avance de la actividad (100 al completar)',
   estado            ENUM('programado','en_proceso','completado','cancelado') NOT NULL DEFAULT 'programado',
   observaciones     TEXT,
   created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
