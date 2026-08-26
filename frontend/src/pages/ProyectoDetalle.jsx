@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Calendar, User, Flag,
   CheckCircle2, Clock3, Circle, Save,
@@ -266,7 +266,8 @@ export default function ProyectoDetalle() {
             {fases.map((fase, idx) => {
               const edit     = getEdit(fase)
               const cfg      = faseCfg[edit.estado] || faseCfg.pendiente
-              const dirty    = isDirty(fase)
+              const locked   = fase.turnos_vinculados > 0
+              const dirty    = !locked && isDirty(fase)
               const isSaving = saving === fase.id_fase_proyecto
               const IconComp = cfg.Icon
 
@@ -300,14 +301,16 @@ export default function ProyectoDetalle() {
                     {/* Select de estado */}
                     <select
                       value={edit.estado}
+                      disabled={locked}
                       onChange={e =>
                         setEdit(fase.id_fase_proyecto, 'estado', e.target.value)
                       }
                       className={`font-mono text-[11px] font-semibold
                         rounded-badge px-2.5 py-[5px]
-                        border-0 cursor-pointer appearance-none text-center
+                        border-0 appearance-none text-center
                         focus:outline-none focus:ring-2 focus:ring-primary/25
-                        transition-colors ${cfg.selectStyle}`}
+                        transition-colors ${cfg.selectStyle}
+                        ${locked ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
                     >
                       {ESTADOS_FASE.map(s => (
                         <option key={s} value={s}>{estadoLabel[s]}</option>
@@ -328,6 +331,7 @@ export default function ProyectoDetalle() {
                       <input
                         type="number" min={0} max={100}
                         value={edit.porcentaje_avance}
+                        disabled={locked}
                         onChange={e =>
                           setEdit(
                             fase.id_fase_proyecto,
@@ -338,7 +342,8 @@ export default function ProyectoDetalle() {
                         className="w-[42px] h-[26px] font-mono text-[12px] text-right
                           bg-surface border border-border rounded-[6px] px-1.5
                           text-ink focus:outline-none focus:ring-2 focus:ring-primary/25
-                          focus:border-primary transition-colors
+                          focus:border-primary transition-colors disabled:opacity-60
+                          disabled:cursor-not-allowed
                           [appearance:textfield]
                           [&::-webkit-outer-spin-button]:appearance-none
                           [&::-webkit-inner-spin-button]:appearance-none"
@@ -368,6 +373,15 @@ export default function ProyectoDetalle() {
                       {fmtFecha(fase.fecha_inicio)}
                       <span className="mx-1.5 text-faint/40">→</span>
                       {fmtFecha(fase.fecha_fin)}
+                    </p>
+                  )}
+
+                  {/* Nota: fase bajo control automático de Programación */}
+                  {locked && (
+                    <p className="font-mono text-[10px] text-faint mt-1.5 ml-[68px] flex items-center gap-1.5">
+                      Se actualiza automáticamente desde Programación de planta
+                      {' '}({fase.turnos_vinculados} turno{fase.turnos_vinculados !== 1 ? 's' : ''} vinculado{fase.turnos_vinculados !== 1 ? 's' : ''})
+                      <Link to="/programacion" className="text-primary hover:underline">Ver →</Link>
                     </p>
                   )}
                 </div>
