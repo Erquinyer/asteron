@@ -10,7 +10,8 @@ import {
 } from '../api/admin.service'
 import Spinner from '../components/ui/Spinner'
 import toast from 'react-hot-toast'
-import { usePermisosDraft, ROL_INMUTABLE } from '../hooks/usePermisosDraft'
+import { usePermisosDraft, ROL_INMUTABLE, MODULE_ORDER } from '../hooks/usePermisosDraft'
+import { getAcciones } from '../api/admin.service'
 import RoleSidebar from '../components/admin/RoleSidebar'
 import PermissionsMatrix from '../components/admin/PermissionsMatrix'
 import PermisosDraftBar from '../components/admin/PermisosDraftBar'
@@ -282,7 +283,7 @@ function UsuarioModal({ usuario, roles, onClose, onSaved }) {
 }
 
 // ─── Tab 2: Gestión de Usuarios ───────────────────────────────────
-function GestionUsuarios() {
+function GestionUsuarios({ onNavigateToRole }) {
   const [usuarios, setUsuarios] = useState(null)
   const [roles,    setRoles]    = useState([])
   const [loading,  setLoading]  = useState(true)
@@ -400,12 +401,21 @@ function GestionUsuarios() {
                     <span className="font-mono text-[11px] text-primary">{u.codigo_empleado}</span>
                   </td>
                   <td className="px-4 py-3 text-[12.5px] text-muted">
-                    {isAdminUser
-                      ? <span className="flex items-center gap-1 text-primary font-medium">
-                          <Lock size={11} />{u.rol}
-                        </span>
-                      : u.rol || <span className="text-faint">Sin rol</span>
-                    }
+                    {isAdminUser ? (
+                      <span className="flex items-center gap-1 text-primary font-medium">
+                        <Lock size={11} />{u.rol}
+                      </span>
+                    ) : u.rol ? (
+                      <button
+                        onClick={() => onNavigateToRole?.(u.id_rol)}
+                        className="text-muted hover:text-primary hover:underline transition-colors"
+                        title="Ver permisos de este rol"
+                      >
+                        {u.rol}
+                      </button>
+                    ) : (
+                      <span className="text-faint">Sin rol</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span className={`inline-flex items-center gap-1.5 font-mono text-[11px]
@@ -565,16 +575,20 @@ function RolModal({ rol, onClose, onSaved }) {
 }
 
 // ─── Tab 3: Gestión de Roles ──────────────────────────────────────
-function GestionRoles() {
+function GestionRoles({ onNavigateToRole }) {
   const [roles,   setRoles]   = useState(null)
+  const [accesoByRol, setAccesoByRol] = useState({}) // { [id_rol]: nº de módulos con acceso }
   const [loading, setLoading] = useState(true)
   const [modal,   setModal]   = useState(null)
 
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      const { data } = await getRoles()
-      setRoles(data)
+      const [{ data: rolesData }, { data: permisosData }] = await Promise.all([getRoles(), getAcciones()])
+      setRoles(rolesData)
+      const acceso = {}
+      permisosData.roles.forEach(r => { acceso[r.id_rol] = r.modulos.length })
+      setAccesoByRol(acceso)
     } catch { toast.error('Error al cargar roles') }
     finally { setLoading(false) }
   }, [])
@@ -622,12 +636,13 @@ function GestionRoles() {
         <table className="w-full">
           <thead>
             <tr className="bg-surface2 border-b border-border">
-              {['Rol', 'Descripción', 'Usuarios', ''].map((h, i) => (
+              {['Rol', 'Descripción', 'Acceso', 'Usuarios', ''].map((h, i) => (
                 <th key={i}
                   className={`px-5 py-3 text-left font-mono text-[10.5px] font-semibold
                     uppercase tracking-[.06em] text-faint
                     ${i === 1 ? 'hidden md:table-cell' : ''}
-                    ${i === 2 ? 'text-center' : ''}`}
+                    ${i === 2 ? 'hidden lg:table-cell' : ''}
+                    ${i === 3 ? 'text-center' : ''}`}
                 >
                   {h}
                 </th>
@@ -665,6 +680,18 @@ function GestionRoles() {
                       )}
                     </p>
                   </td>
+                  <td className="px-5 py-4 hidden lg:table-cell">
+                    <div className="flex items-center gap-2 w-32">
+                      <div className="flex-1 h-1.5 rounded-full bg-surface2">
+                        <div className="h-1.5 rounded-full bg-primary"
+                          style={{ width: `${((accesoByRol[rol.id_rol] ?? 0) / MODULE_ORDER.length) * 100}%` }}
+                        />
+                      </div>
+                      <span className="font-mono text-[10.5px] text-faint tabular-nums shrink-0">
+                        {accesoByRol[rol.id_rol] ?? 0}/{MODULE_ORDER.length}
+                      </span>
+                    </div>
+                  </td>
                   <td className="px-5 py-4 text-center">
                     <span className={`inline-flex items-center gap-1 font-mono text-[11px]
                       font-semibold px-2.5 py-[5px] rounded-badge
@@ -677,26 +704,35 @@ function GestionRoles() {
                     </span>
                   </td>
                   <td className="px-5 py-4">
-                    {!isAdmin && (
-                      <div className="flex items-center gap-1 justify-end">
-                        <button onClick={() => setModal(rol)}
-                          className="w-7 h-7 flex items-center justify-center rounded-badge
-                            text-faint hover:bg-primary/10 hover:text-primary transition-colors"
-                          title="Editar"
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        <button onClick={() => handleDelete(rol)}
-                          disabled={Number(rol.total_usuarios) > 0}
-                          className="w-7 h-7 flex items-center justify-center rounded-badge
-                            text-faint hover:bg-error/10 hover:text-error
-                            disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                          title="Eliminar"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-1 justify-end">
+                      <button onClick={() => onNavigateToRole?.(rol.id_rol)}
+                        className="w-7 h-7 flex items-center justify-center rounded-badge
+                          text-faint hover:bg-primary/10 hover:text-primary transition-colors"
+                        title="Configurar permisos"
+                      >
+                        <Shield size={13} />
+                      </button>
+                      {!isAdmin && (
+                        <>
+                          <button onClick={() => setModal(rol)}
+                            className="w-7 h-7 flex items-center justify-center rounded-badge
+                              text-faint hover:bg-primary/10 hover:text-primary transition-colors"
+                            title="Editar"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button onClick={() => handleDelete(rol)}
+                            disabled={Number(rol.total_usuarios) > 0}
+                            className="w-7 h-7 flex items-center justify-center rounded-badge
+                              text-faint hover:bg-error/10 hover:text-error
+                              disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="Eliminar"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )
