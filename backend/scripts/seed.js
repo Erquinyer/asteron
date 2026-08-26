@@ -256,18 +256,40 @@ const seed = async () => {
   console.log('✅ Fases de proyecto')
 
   // ── PROGRAMACIÓN DE PLANTA (hoy) ──────────────────
+  // Los turnos van vinculados a fases reales (id_fase_proyecto por subquery, ya que
+  // fases_proyecto no resetea su AUTO_INCREMENT en cada seed). Los porcentaje_avance
+  // se escogen para que, si alguien recalculara la fase desde estos turnos (como hace
+  // recomputeFase en programacion.controller.js), el resultado coincida exactamente
+  // con el estado/avance ya sembrado arriba para esa fase — así la demo queda
+  // consistente con el flujo real de principio a fin.
   const today = new Date().toISOString().split('T')[0]
   await pool.query(`INSERT INTO programacion_planta
-    (fecha, id_operario, id_maquina, id_proyecto, tiempo_estimado, tiempo_real, estado, observaciones) VALUES
-    (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='EM-01'), 1, 480, 460, 'completado', 'Soldadura marco base exhibidor Castrol'),
-    (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='EM-02'), 2, 480, NULL,'en_proceso', 'Soldadura laterales display Bosch'),
-    (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='TZ-01'), 2, 240, NULL,'programado', 'Corte de perfilería cuadrada 20x20'),
-    (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='TZ-02'), 5, 300, NULL,'programado', 'Corte tubería para estructura LEGO')`,
+    (fecha, id_operario, id_maquina, id_proyecto, id_fase_proyecto, tiempo_estimado, tiempo_real, porcentaje_avance, estado, observaciones) VALUES
+    -- P1 Castrol · fase "Pintura y acabados" (en_curso, 70%) = promedio de estos 2 turnos
+    (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='EM-01'),
+     1, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=1 AND id_fase_estandar=8),
+     480, 460, 100, 'completado', 'Aplicación de base — marco exhibidor Castrol'),
+    (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='EM-01'),
+     1, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=1 AND id_fase_estandar=8),
+     480, NULL, 40, 'en_proceso', 'Pintura electrostática — segunda mano'),
+    -- P2 Bosch · fase "Soldadura MIG" (en_curso, 55%) = este único turno
+    (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='EM-02'),
+     2, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=2 AND id_fase_estandar=6),
+     480, NULL, 55, 'en_proceso', 'Soldadura laterales display Bosch'),
+    -- P2 Bosch · fase "Lijado y preparación" (pendiente, 0%) — turno aún sin iniciar
+    (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='TZ-01'),
+     2, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=2 AND id_fase_estandar=7),
+     240, NULL, 0, 'programado', 'Corte de perfilería cuadrada 20x20'),
+    -- P5 LEGO · fase "Soldadura MIG" (pendiente, 0%) — turno aún sin iniciar
+    (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='TZ-02'),
+     5, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=5 AND id_fase_estandar=6),
+     300, NULL, 0, 'programado', 'Preparación de piezas antes de soldadura')`,
     [today, uid['soldador1@macromet.com.co'],
+     today, uid['soldador2@macromet.com.co'],
      today, uid['soldador2@macromet.com.co'],
      today, uid['soldador3@macromet.com.co'],
      today, uid['ayudante@macromet.com.co']])
-  console.log('✅ Programación de planta (hoy)')
+  console.log('✅ Programación de planta (hoy) — con fases vinculadas')
 
   // ── MANTENIMIENTOS ────────────────────────────────
   await pool.query(`INSERT INTO mantenimientos (id_maquina, fecha, tipo, descripcion, realizado_por)
