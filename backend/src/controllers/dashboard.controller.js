@@ -57,7 +57,7 @@ export const getStats = async (_req, res) => {
     // Programación de hoy (operario puede ser null: turno sin asignar)
     const planta = await safeBlock(async () => {
       const [rows] = await pool.query(`
-        SELECT pp.id_programacion, pp.estado, pp.tiempo_estimado, pp.tiempo_real,
+        SELECT pp.id_programacion, pp.estado, pp.tiempo_estimado, pp.tiempo_real, pp.updated_at,
                u.nombre AS operario, m.nombre AS maquina, pr.nombre AS proyecto
         FROM programacion_planta pp
         LEFT JOIN usuarios   u  ON pp.id_operario  = u.id_usuario
@@ -69,30 +69,36 @@ export const getStats = async (_req, res) => {
     }, 'planta')
 
     const charts = await safeBlock(async () => {
+      // 14 días de historial: alcanza para armar tanto la serie de 7 días como la de 2 semanas
       const [produccionRaw] = await pool.query(`
         SELECT
           DATE_FORMAT(pp.fecha, '%Y-%m-%d')               AS fecha_str,
           ROUND(SUM(pp.tiempo_estimado) / 60, 1)          AS programado,
           ROUND(SUM(COALESCE(pp.tiempo_real, 0)) / 60, 1) AS real_h
         FROM programacion_planta pp
-        WHERE pp.fecha >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+        WHERE pp.fecha >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
           AND pp.fecha <= CURDATE()
         GROUP BY pp.fecha
         ORDER BY pp.fecha`)
 
       const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
-      const produccion7dias = []
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date()
-        d.setDate(d.getDate() - i)
-        const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-        const found = produccionRaw.find(r => r.fecha_str === ymd)
-        produccion7dias.push({
-          name:       DAYS[d.getDay()],
-          programado: found ? Number(found.programado) : 0,
-          real:       found ? Number(found.real_h)     : 0,
-        })
+      const buildSerie = (dias) => {
+        const serie = []
+        for (let i = dias - 1; i >= 0; i--) {
+          const d = new Date()
+          d.setDate(d.getDate() - i)
+          const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+          const found = produccionRaw.find(r => r.fecha_str === ymd)
+          serie.push({
+            name:       DAYS[d.getDay()],
+            programado: found ? Number(found.programado) : 0,
+            real:       found ? Number(found.real_h)     : 0,
+          })
+        }
+        return serie
       }
+      const produccion7dias  = buildSerie(7)
+      const produccion14dias = buildSerie(14)
 
       const [porEstadoProyecto] = await pool.query(`
         SELECT estado AS name, COUNT(*) AS value FROM (
@@ -109,7 +115,18 @@ export const getStats = async (_req, res) => {
         ) subq
         GROUP BY estado`)
 
-      return { produccion7dias, porEstadoProyecto }
+      const [[{ avance_promedio }]] = await pool.query(`
+        SELECT ROUND(AVG(avance)) AS avance_promedio FROM (
+          SELECT p.id_proyecto, COALESCE(ROUND(AVG(fp.porcentaje_avance)), 0) AS avance
+          FROM proyectos p
+          LEFT JOIN fases_proyecto fp ON fp.id_proyecto = p.id_proyecto
+          GROUP BY p.id_proyecto
+        ) proy`)
+
+      return {
+        produccion7dias, produccion14dias, porEstadoProyecto,
+        avancePromedio: Number(avance_promedio) || 0,
+      }
     }, 'charts')
 
     // KPIs accionables de la tira superior
