@@ -1,58 +1,21 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
-  Shield, Users, Tag, Check, Lock, AlertCircle, ChevronDown,
+  Shield, Users, Tag, Lock, AlertCircle,
   Plus, Pencil, Trash2, X, Eye, EyeOff, Search, UserCheck, UserX,
 } from 'lucide-react'
 import {
-  getAcciones, guardarPermisosLote,
   getUsuariosAdmin, createUsuarioAdmin, updateUsuarioAdmin,
   toggleUsuarioAdmin,
   getRoles, createRol, updateRol, deleteRol,
 } from '../api/admin.service'
 import Spinner from '../components/ui/Spinner'
 import toast from 'react-hot-toast'
+import { usePermisosDraft, ROL_INMUTABLE } from '../hooks/usePermisosDraft'
+import RoleSidebar from '../components/admin/RoleSidebar'
+import PermissionsMatrix from '../components/admin/PermissionsMatrix'
+import PermisosDraftBar from '../components/admin/PermisosDraftBar'
 
 // ─── constantes ───────────────────────────────────────────────────
-const MODULE_LABELS = {
-  dashboard:      'Dashboard',
-  proyectos:      'Proyectos',
-  pedidos:        'Pedidos',
-  clientes:       'Clientes',
-  maquinaria:     'Maquinaria',
-  mantenimientos: 'Mantenimientos',
-  programacion:   'Programación de Planta',
-  usuarios:       'Usuarios',
-}
-const MODULE_ORDER = ['dashboard','proyectos','pedidos','clientes','maquinaria','mantenimientos','programacion','usuarios']
-const MODULO_ACCIONES = {
-  dashboard:      [],
-  proyectos:      ['crear','editar','eliminar'],
-  pedidos:        ['crear','editar','eliminar'],
-  clientes:       ['crear','editar','eliminar'],
-  maquinaria:     ['crear','editar','eliminar'],
-  mantenimientos: ['crear','eliminar'],
-  programacion:   ['crear','editar','eliminar'],
-  usuarios:       ['crear','editar','eliminar'],
-}
-const ACCION_LABELS = { crear: 'Crear', editar: 'Editar', eliminar: 'Eliminar' }
-
-// Colores de las acciones por slot
-const ACCION_BTN = {
-  crear:    'bg-primary border-primary hover:bg-primary-hover text-white',
-  editar:   'bg-warning border-warning text-white',
-  eliminar: 'bg-error border-error text-white',
-}
-const ACCION_HEAD = {
-  crear:    'text-primary',
-  editar:   'text-warning',
-  eliminar: 'text-error',
-}
-const ACCION_PILL = {
-  crear:    'bg-primary/10 text-primary',
-  editar:   'bg-warning/10 text-warning',
-  eliminar: 'bg-error/10 text-error',
-}
-
 const AVATAR_COLORS = [
   { bg: 'bg-primary/15',    text: 'text-primary'   },
   { bg: 'bg-secondary/15',  text: 'text-secondary'  },
@@ -72,84 +35,58 @@ const inputCls = `w-full h-10 border border-border rounded-control px-3 text-[13
 const labelCls = 'block text-[11.5px] font-medium text-muted mb-1.5'
 
 // ─── Tab 1: Permisos unificados ───────────────────────────────────
-function PermisosUnificados() {
-  const [data,     setData]     = useState(null)
-  const [loading,  setLoading]  = useState(true)
-  const [expanded, setExpanded] = useState({ programacion: true })
-  const [saving,   setSaving]   = useState({})
+function PermisosUnificados({ focusRoleId, onFocusConsumed, onDirtyChange }) {
+  const {
+    loading, saving, roles,
+    setLevel, toggleAction, applyTemplate, copyFromRole,
+    undo, discard, save, canUndo, changeCount, isModuleDirty,
+  } = usePermisosDraft()
 
-  const load = useCallback(async () => {
-    try {
-      setLoading(true)
-      const { data: d } = await getAcciones()
-      setData(d)
-    } catch { toast.error('Error al cargar permisos') }
-    finally { setLoading(false) }
+  const [rolesMeta, setRolesMeta] = useState({}) // { [id_rol]: total_usuarios } — desde /admin/roles
+  const [selectedIds, setSelectedIds] = useState([])
+
+  useEffect(() => {
+    getRoles().then(({ data }) => {
+      const meta = {}
+      data.forEach(r => { meta[r.id_rol] = r.total_usuarios })
+      setRolesMeta(meta)
+    }).catch(() => {})
   }, [])
-  useEffect(() => { load() }, [load])
 
-  const toggleExpand = m => setExpanded(e => ({ ...e, [m]: !e[m] }))
+  useEffect(() => { onDirtyChange?.(changeCount) }, [changeCount, onDirtyChange])
 
-  const toggleAcceso = async (rol, modulo) => {
-    if (rol.nombre === 'Administrador Sistema') return
-    const tiene  = rol.modulos.includes(modulo)
-    const nuevos = tiene ? rol.modulos.filter(m => m !== modulo) : [...rol.modulos, modulo]
-    setData(prev => ({
-      ...prev,
-      roles: prev.roles.map(r =>
-        r.id_rol === rol.id_rol
-          ? { ...r, modulos: nuevos, acciones: tiene ? { ...r.acciones, [modulo]: [] } : r.acciones }
-          : r),
-    }))
-    const key = `acc-${rol.id_rol}-${modulo}`
-    setSaving(s => ({ ...s, [key]: true }))
-    try {
-      await guardarPermisosLote([{
-        id_rol: rol.id_rol, modulo,
-        acceso: !tiene, crear: false, editar: false, eliminar: false,
-      }])
-      toast.success(tiene ? 'Acceso removido' : 'Acceso habilitado')
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Error al guardar'); load()
-    } finally { setSaving(s => ({ ...s, [key]: false })) }
+  // Selección solicitada desde otra pestaña (Usuarios/Roles → "ver permisos de este rol")
+  useEffect(() => {
+    if (focusRoleId && roles?.[focusRoleId]) {
+      setSelectedIds([focusRoleId])
+      onFocusConsumed?.()
+    }
+  }, [focusRoleId, roles, onFocusConsumed])
+
+  if (loading || !roles) return <Spinner text="Cargando permisos..." />
+
+  const roleList = Object.values(roles)
+    .sort((a, b) => a.id_rol - b.id_rol)
+    .map(r => ({ ...r, total_usuarios: rolesMeta[r.id_rol] }))
+
+  const selectedRoles = selectedIds
+    .map(id => roles[id])
+    .filter(Boolean)
+
+  const handleSelect = (id, additive) => {
+    setSelectedIds(prev => {
+      if (!additive) return [id]
+      return prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    })
   }
-
-  const toggleAccion = async (rol, modulo, accion) => {
-    if (rol.nombre === 'Administrador Sistema') return
-    const accActuales = rol.acciones?.[modulo] ?? []
-    const tiene  = accActuales.includes(accion)
-    const nuevas = tiene ? accActuales.filter(a => a !== accion) : [...accActuales, accion]
-    setData(prev => ({
-      ...prev,
-      roles: prev.roles.map(r =>
-        r.id_rol === rol.id_rol
-          ? { ...r, acciones: { ...r.acciones, [modulo]: nuevas } }
-          : r),
-    }))
-    const key = `accion-${rol.id_rol}-${modulo}-${accion}`
-    setSaving(s => ({ ...s, [key]: true }))
-    try {
-      await guardarPermisosLote([{
-        id_rol: rol.id_rol, modulo, acceso: true,
-        crear: nuevas.includes('crear'), editar: nuevas.includes('editar'), eliminar: nuevas.includes('eliminar'),
-      }])
-      toast.success(tiene ? 'Permiso removido' : 'Permiso habilitado')
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Error al guardar'); load()
-    } finally { setSaving(s => ({ ...s, [key]: false })) }
-  }
-
-  if (loading) return <Spinner text="Cargando permisos..." />
-  if (!data)   return null
 
   return (
     <div className="space-y-4">
-      {/* Sub-cabecera */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-[15px] font-semibold text-ink">Permisos por Módulo</h2>
+          <h2 className="text-[15px] font-semibold text-ink">Permisos por Rol</h2>
           <p className="text-[12.5px] text-muted mt-0.5">
-            Expande un módulo para configurar acceso y acciones por rol.
+            Selecciona uno o más roles y configura el nivel de acceso por módulo.
             Los cambios aplican en el próximo inicio de sesión.
           </p>
         </div>
@@ -160,218 +97,28 @@ function PermisosUnificados() {
         </span>
       </div>
 
-      {/* Acordeón */}
-      <div className="space-y-2">
-        {MODULE_ORDER.map(modulo => {
-          const acciones   = MODULO_ACCIONES[modulo] ?? []
-          const isExpanded = expanded[modulo]
-          const conAcceso  = data.roles.filter(r => r.modulos.includes(modulo)).length
-
-          return (
-            <div key={modulo}
-              className="border border-border rounded-card overflow-hidden"
-            >
-              {/* Cabecera del acordeón */}
-              <button
-                onClick={() => toggleExpand(modulo)}
-                className="w-full flex items-center justify-between px-5 py-4
-                  bg-surface2 hover:bg-hover transition-colors text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-[13.5px] font-semibold text-ink">
-                    {MODULE_LABELS[modulo]}
-                  </span>
-                  {acciones.length > 0 ? (
-                    <div className="flex gap-1">
-                      {acciones.map(a => (
-                        <span key={a}
-                          className={`text-[10.5px] px-1.5 py-0.5 rounded-badge
-                            font-semibold ${ACCION_PILL[a]}`}
-                        >
-                          {ACCION_LABELS[a]}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="font-mono text-[10.5px] text-faint">Solo lectura</span>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className={`font-mono text-[10.5px] font-semibold px-2 py-0.5 rounded-badge
-                    ${conAcceso === data.roles.length
-                      ? 'bg-primary/10 text-primary'
-                      : conAcceso === 0
-                        ? 'bg-surface border border-border text-faint'
-                        : 'bg-success/10 text-success'
-                    }`}
-                  >
-                    {conAcceso}/{data.roles.length} roles
-                  </span>
-                  <ChevronDown size={15} className={`text-faint transition-transform duration-200
-                    ${isExpanded ? 'rotate-180' : ''}`}
-                  />
-                </div>
-              </button>
-
-              {/* Tabla de permisos */}
-              {isExpanded && (
-                <div className="border-t border-border overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-surface border-b border-border">
-                        <th className="text-left px-5 py-2.5 font-mono text-[10px] font-semibold
-                          uppercase tracking-[.06em] text-faint min-w-[200px]">
-                          Rol
-                        </th>
-                        <th className="px-4 py-2.5 text-center font-mono text-[10px] font-semibold
-                          uppercase tracking-[.06em] text-faint min-w-[90px]">
-                          Acceso
-                        </th>
-                        {acciones.map(a => (
-                          <th key={a}
-                            className={`px-4 py-2.5 text-center font-mono text-[10px] font-semibold
-                              uppercase tracking-[.06em] min-w-[90px] ${ACCION_HEAD[a]}`}
-                          >
-                            {ACCION_LABELS[a]}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.roles.map(rol => {
-                        const isAdmin     = rol.nombre === 'Administrador Sistema'
-                        const tieneAcceso = rol.modulos.includes(modulo)
-                        const accRol      = rol.acciones?.[modulo] ?? []
-                        const anyBusy     = Object.keys(saving).some(k =>
-                          k.startsWith(`acc-${rol.id_rol}-${modulo}`) ||
-                          k.startsWith(`accion-${rol.id_rol}-${modulo}`))
-
-                        return (
-                          <tr key={rol.id_rol}
-                            className={`border-b border-border last:border-0 transition-colors
-                              ${isAdmin
-                                ? 'bg-primary/[.03]'
-                                : tieneAcceso
-                                  ? 'hover:bg-hover'
-                                  : 'opacity-50'}`}
-                          >
-                            <td className="px-5 py-3">
-                              <div className="flex items-center gap-2">
-                                {anyBusy && (
-                                  <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse shrink-0" />
-                                )}
-                                <div>
-                                  <p className={`text-[12px] font-semibold
-                                    ${isAdmin ? 'text-primary' : 'text-ink'}`}
-                                  >
-                                    {rol.nombre}
-                                    {isAdmin && <Lock size={10} className="inline ml-1.5 opacity-60" />}
-                                  </p>
-                                  <p className="font-mono text-[10.5px] text-faint truncate max-w-[180px] mt-0.5">
-                                    {rol.descripcion}
-                                  </p>
-                                </div>
-                              </div>
-                            </td>
-
-                            {/* Toggle acceso */}
-                            <td className="px-4 py-3 text-center">
-                              {isAdmin ? (
-                                <span className="inline-flex items-center justify-center h-7 w-7
-                                  rounded-[8px] bg-primary/10 text-primary mx-auto"
-                                >
-                                  <Check size={13} strokeWidth={2.5} />
-                                </span>
-                              ) : (
-                                <button onClick={() => toggleAcceso(rol, modulo)}
-                                  disabled={!!saving[`acc-${rol.id_rol}-${modulo}`]}
-                                  className={`inline-flex items-center justify-center h-7 w-7
-                                    rounded-[8px] border-2 transition-all mx-auto
-                                    disabled:opacity-50 disabled:cursor-not-allowed
-                                    ${tieneAcceso
-                                      ? 'bg-primary/80 border-primary text-white'
-                                      : 'border-border text-transparent hover:border-border-strong'}`}
-                                >
-                                  <Check size={13} strokeWidth={2.5} />
-                                </button>
-                              )}
-                            </td>
-
-                            {/* Toggles de acción */}
-                            {acciones.map(accion => {
-                              const tieneAccion = accRol.includes(accion)
-                              const isBusy      = !!saving[`accion-${rol.id_rol}-${modulo}-${accion}`]
-                              return (
-                                <td key={accion} className="px-4 py-3 text-center">
-                                  {isAdmin ? (
-                                    <span className="inline-flex items-center justify-center h-7 w-7
-                                      rounded-[8px] bg-primary/10 text-primary mx-auto"
-                                    >
-                                      <Check size={13} strokeWidth={2.5} />
-                                    </span>
-                                  ) : !tieneAcceso ? (
-                                    <span className="inline-block h-7 w-7 rounded-[8px]
-                                      border-2 border-border/40 mx-auto" />
-                                  ) : (
-                                    <button onClick={() => toggleAccion(rol, modulo, accion)}
-                                      disabled={isBusy}
-                                      className={`inline-flex items-center justify-center h-7 w-7
-                                        rounded-[8px] border-2 transition-all mx-auto
-                                        disabled:opacity-50 disabled:cursor-not-allowed
-                                        ${tieneAccion
-                                          ? ACCION_BTN[accion]
-                                          : 'border-border text-transparent hover:border-border-strong'}`}
-                                    >
-                                      <Check size={13} strokeWidth={2.5} />
-                                    </button>
-                                  )}
-                                </td>
-                              )
-                            })}
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )
-        })}
+      <div className="flex flex-col lg:flex-row gap-4">
+        <RoleSidebar roles={roleList} selectedIds={selectedIds} onSelect={handleSelect} />
+        <PermissionsMatrix
+          selectedRoles={selectedRoles}
+          allRoles={roleList}
+          onSetLevel={setLevel}
+          onToggleAction={toggleAction}
+          onApplyTemplate={(t) => applyTemplate(selectedIds, t)}
+          onCopyFromRole={(sourceId) => copyFromRole(sourceId, selectedIds)}
+          isModuleDirty={(roleIds, modulo) => isModuleDirty(roleIds, modulo)}
+        />
       </div>
 
-      {/* Leyenda */}
-      <div className="flex flex-wrap items-center gap-4 font-mono text-[11px] text-faint pt-1">
-        <span className="flex items-center gap-1.5">
-          <span className="inline-flex h-4 w-4 rounded bg-primary/80 items-center justify-center text-white">
-            <Check size={9} />
-          </span>
-          Acceso
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className={`inline-flex h-4 w-4 rounded ${ACCION_BTN.crear} items-center justify-center`}>
-            <Check size={9} />
-          </span>
-          Crear
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className={`inline-flex h-4 w-4 rounded ${ACCION_BTN.editar} items-center justify-center`}>
-            <Check size={9} />
-          </span>
-          Editar
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className={`inline-flex h-4 w-4 rounded ${ACCION_BTN.eliminar} items-center justify-center`}>
-            <Check size={9} />
-          </span>
-          Eliminar
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-4 w-4 rounded border-2 border-border" />
-          Sin permiso
-        </span>
-      </div>
+      <PermisosDraftBar
+        changeCount={changeCount}
+        canUndo={canUndo}
+        saving={saving}
+        isInmutableOnly={selectedRoles.length > 0 && selectedRoles.every(r => r.nombre === ROL_INMUTABLE)}
+        onUndo={undo}
+        onDiscard={discard}
+        onSave={save}
+      />
     </div>
   )
 }
@@ -984,6 +731,18 @@ const TABS = [
 
 export default function AdminPanel() {
   const [tab, setTab] = useState('permisos')
+  const [focusRoleId, setFocusRoleId] = useState(null)
+  const [permisosDirty, setPermisosDirty] = useState(0)
+
+  const navigateToRole = (id_rol) => { setFocusRoleId(id_rol); setTab('permisos') }
+
+  const changeTab = (nextTab) => {
+    if (tab === 'permisos' && nextTab !== 'permisos' && permisosDirty > 0) {
+      const ok = confirm(`Tienes ${permisosDirty} cambio(s) sin guardar en Permisos. ¿Salir sin guardar?`)
+      if (!ok) return
+    }
+    setTab(nextTab)
+  }
 
   return (
     <div className="space-y-5 max-w-6xl mx-auto">
@@ -1012,7 +771,7 @@ export default function AdminPanel() {
           const Icon = t.icon
           const isActive = tab === t.id
           return (
-            <button key={t.id} onClick={() => setTab(t.id)}
+            <button key={t.id} onClick={() => changeTab(t.id)}
               className={`flex items-center gap-2 px-4 py-2 rounded-[9px]
                 text-[13px] font-medium transition-all
                 ${isActive
@@ -1030,9 +789,15 @@ export default function AdminPanel() {
       <div className="bg-surface border border-border rounded-card shadow-card
         dark:shadow-card-dk p-6"
       >
-        {tab === 'permisos' && <PermisosUnificados />}
-        {tab === 'usuarios' && <GestionUsuarios />}
-        {tab === 'roles'    && <GestionRoles />}
+        {tab === 'permisos' && (
+          <PermisosUnificados
+            focusRoleId={focusRoleId}
+            onFocusConsumed={() => setFocusRoleId(null)}
+            onDirtyChange={setPermisosDirty}
+          />
+        )}
+        {tab === 'usuarios' && <GestionUsuarios onNavigateToRole={navigateToRole} />}
+        {tab === 'roles'    && <GestionRoles onNavigateToRole={navigateToRole} />}
       </div>
     </div>
   )
