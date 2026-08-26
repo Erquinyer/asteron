@@ -4,7 +4,7 @@ import {
   Plus, Pencil, Trash2, X, Eye, EyeOff, Search, UserCheck, UserX,
 } from 'lucide-react'
 import {
-  getAcciones, updateRolPermisos, updateRolAcciones,
+  getAcciones, guardarPermisosLote,
   getUsuariosAdmin, createUsuarioAdmin, updateUsuarioAdmin,
   toggleUsuarioAdmin,
   getRoles, createRol, updateRol, deleteRol,
@@ -104,8 +104,10 @@ function PermisosUnificados() {
     const key = `acc-${rol.id_rol}-${modulo}`
     setSaving(s => ({ ...s, [key]: true }))
     try {
-      await updateRolPermisos(rol.id_rol, nuevos)
-      if (tiene) await updateRolAcciones(rol.id_rol, modulo, [])
+      await guardarPermisosLote([{
+        id_rol: rol.id_rol, modulo,
+        acceso: !tiene, crear: false, editar: false, eliminar: false,
+      }])
       toast.success(tiene ? 'Acceso removido' : 'Acceso habilitado')
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error al guardar'); load()
@@ -127,7 +129,10 @@ function PermisosUnificados() {
     const key = `accion-${rol.id_rol}-${modulo}-${accion}`
     setSaving(s => ({ ...s, [key]: true }))
     try {
-      await updateRolAcciones(rol.id_rol, modulo, nuevas)
+      await guardarPermisosLote([{
+        id_rol: rol.id_rol, modulo, acceso: true,
+        crear: nuevas.includes('crear'), editar: nuevas.includes('editar'), eliminar: nuevas.includes('eliminar'),
+      }])
       toast.success(tiene ? 'Permiso removido' : 'Permiso habilitado')
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error al guardar'); load()

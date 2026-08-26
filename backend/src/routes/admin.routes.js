@@ -1,8 +1,7 @@
 import { Router } from 'express'
 import { requireAdmin } from '../middlewares/requireAdmin.js'
 import {
-  getPermisos, updateRolPermisos,
-  getAcciones, updateRolAcciones,
+  getAcciones, guardarPermisosLote,
   getUsuariosAdmin, updateUsuarioRol,
   getRoles, createRol, updateRol, deleteRol,
 } from '../controllers/admin.controller.js'
@@ -15,11 +14,9 @@ import {
 const router = Router()
 router.use(requireAdmin)
 
-// Permissions
-router.get('/permisos',               getPermisos)
-router.put('/roles/:id/permisos',     updateRolPermisos)
+// Permissions — lectura de matriz + guardado en lote
 router.get('/acciones',               getAcciones)
-router.put('/roles/:id/acciones',     updateRolAcciones)
+router.put('/permisos/lote',          guardarPermisosLote)
 
 // Roles CRUD
 router.get('/roles',                  getRoles)

@@ -1,10 +1,8 @@
 import api from './axios.js'
 
 // Permissions
-export const getPermisos          = ()                     => api.get('/admin/permisos')
-export const updateRolPermisos    = (id, modulos)          => api.put(`/admin/roles/${id}/permisos`, { modulos })
-export const getAcciones          = ()                     => api.get('/admin/acciones')
-export const updateRolAcciones    = (id, modulo, acciones) => api.put(`/admin/roles/${id}/acciones`, { modulo, acciones })
+export const getAcciones          = ()          => api.get('/admin/acciones')
+export const guardarPermisosLote  = (cambios)   => api.put('/admin/permisos/lote', { cambios })
 
 // Roles CRUD
 export const getRoles             = ()           => api.get('/admin/roles')
