@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 70" fill="none" role="img" aria-label="Asteron">
+  <mask id="asteron-cut-ld" maskUnits="userSpaceOnUse" x="0" y="0" width="120" height="70">
+    <rect x="0" y="0" width="120" height="70" fill="#fff"></rect>
+    <circle cx="76" cy="35" r="18" fill="none" stroke="#000" stroke-width="14"></circle>
+  </mask>
+  <circle cx="44" cy="35" r="18" fill="none" stroke="#F4F6FB" stroke-width="8" mask="url(#asteron-cut-ld)"></circle>
+  <circle cx="76" cy="35" r="18" fill="none" stroke="#F4F6FB" stroke-width="8"></circle>
+  <text x="120" y="45" font-family="Geist, system-ui, sans-serif" font-size="30" font-weight="300" letter-spacing="6.5" fill="#F4F6FB">ASTERON</text>
+</svg>

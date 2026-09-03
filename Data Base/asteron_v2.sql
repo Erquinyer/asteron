@@ -126,6 +126,7 @@ CREATE TABLE detalle_pedido (
   cantidad         INT          DEFAULT NULL,
   punto_descargue  VARCHAR(150) DEFAULT NULL,
   estado           ENUM('pendiente','en_produccion','listo','entregado') NOT NULL DEFAULT 'pendiente',
+  fecha_entrega_estimada DATE  DEFAULT NULL  COMMENT 'Fecha de entrega propia de este ítem (puede diferir de los demás del pedido)',
   PRIMARY KEY (id_detalle),
   CONSTRAINT fk_detalle_pedido FOREIGN KEY (id_pedido) REFERENCES pedidos(id_pedido) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -184,6 +185,7 @@ CREATE TABLE proyectos (
   updated_at              DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   created_by              INT          DEFAULT NULL  COMMENT 'Usuario que creó el proyecto',
   PRIMARY KEY (id_proyecto),
+  UNIQUE KEY uq_proyecto_pedido (id_pedido),
   CONSTRAINT fk_proyecto_responsable FOREIGN KEY (id_usuario_responsable) REFERENCES usuarios(id_usuario) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT fk_proyecto_pedido      FOREIGN KEY (id_pedido)               REFERENCES pedidos(id_pedido)  ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT fk_proyecto_creado_por  FOREIGN KEY (created_by)              REFERENCES usuarios(id_usuario) ON DELETE SET NULL ON UPDATE CASCADE
@@ -194,19 +196,23 @@ CREATE TABLE proyectos (
 -- ============================================================
 
 CREATE TABLE fases_proyecto (
-  id_fase_proyecto  INT           NOT NULL AUTO_INCREMENT,
-  id_proyecto       INT           NOT NULL,
-  id_fase_estandar  INT           NOT NULL,
-  fecha_inicio      DATE          DEFAULT NULL,
-  fecha_fin         DATE          DEFAULT NULL,
-  estado            ENUM('pendiente','en_curso','completada','bloqueada') NOT NULL DEFAULT 'pendiente',
-  porcentaje_avance TINYINT UNSIGNED DEFAULT 0,
-  created_at        DATETIME      DEFAULT CURRENT_TIMESTAMP,
-  updated_at        DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  id_fase_proyecto    INT           NOT NULL AUTO_INCREMENT,
+  id_proyecto         INT           NOT NULL,
+  id_fase_estandar    INT           NOT NULL,
+  id_detalle_pedido   INT           DEFAULT NULL  COMMENT 'Ítem del pedido al que pertenece esta fase (NULL = fase única del proyecto: Diseño, Compra)',
+  id_usuario_asignado INT           DEFAULT NULL  COMMENT 'Responsable único de fases sin turno de planta (Diseño, Compra)',
+  fecha_inicio        DATE          DEFAULT NULL,
+  fecha_fin           DATE          DEFAULT NULL,
+  estado              ENUM('pendiente','en_curso','completada','bloqueada') NOT NULL DEFAULT 'pendiente',
+  porcentaje_avance   TINYINT UNSIGNED DEFAULT 0,
+  created_at          DATETIME      DEFAULT CURRENT_TIMESTAMP,
+  updated_at          DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id_fase_proyecto),
   CONSTRAINT chk_porcentaje   CHECK (porcentaje_avance BETWEEN 0 AND 100),
-  CONSTRAINT fk_fase_proyecto  FOREIGN KEY (id_proyecto)      REFERENCES proyectos(id_proyecto)           ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT fk_fase_estandar  FOREIGN KEY (id_fase_estandar) REFERENCES fases_estandar(id_fase_estandar) ON DELETE RESTRICT ON UPDATE CASCADE
+  CONSTRAINT fk_fase_proyecto  FOREIGN KEY (id_proyecto)         REFERENCES proyectos(id_proyecto)           ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_fase_estandar  FOREIGN KEY (id_fase_estandar)    REFERENCES fases_estandar(id_fase_estandar) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT fk_fase_detalle   FOREIGN KEY (id_detalle_pedido)   REFERENCES detalle_pedido(id_detalle)       ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_fase_usuario_asignado FOREIGN KEY (id_usuario_asignado) REFERENCES usuarios(id_usuario)      ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Trazabilidad: registra cada cambio de estado en una fase

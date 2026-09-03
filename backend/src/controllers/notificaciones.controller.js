@@ -1,6 +1,11 @@
 import pool from '../config/db.js'
 
-// Genera alertas reales basadas en el estado de los datos
+// Solo alertas accionables derivadas del estado real de los datos (nada de
+// "log de actividad" tipo turno/proyecto creado, que no requiere acción y
+// solo llenaba el panel de ruido) — sin tabla de notificaciones ni estado
+// leído/no leído, cada una se recalcula en cada request.
+const ORDEN_TIPO = { error: 0, warning: 1, info: 2 }
+
 export const getNotificaciones = async (_req, res) => {
   try {
     const notifs = []
@@ -77,6 +82,8 @@ export const getNotificaciones = async (_req, res) => {
       mensaje: `${sin_proyecto} pedido${sin_proyecto > 1 ? 's' : ''} activo${sin_proyecto > 1 ? 's' : ''} sin proyecto asignado`,
       link:    '/pedidos',
     })
+
+    notifs.sort((a, b) => ORDEN_TIPO[a.tipo] - ORDEN_TIPO[b.tipo])
 
     res.json({ total: notifs.length, items: notifs })
   } catch (err) {

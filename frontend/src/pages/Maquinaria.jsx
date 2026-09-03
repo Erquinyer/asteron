@@ -83,9 +83,10 @@ function MaquinaModal({ maquina, onClose, onSaved }) {
   )
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center
-      bg-black/50 backdrop-blur-sm p-4 overflow-y-auto animate-ov-in"
+    <div className="fixed inset-0 z-50 overflow-y-auto
+      bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
+      <div className="min-h-full flex items-center justify-center">
       <div className="bg-surface border border-border rounded-[18px] shadow-modal
         w-full max-w-lg my-4 animate-md-in overflow-hidden"
       >
@@ -173,6 +174,7 @@ function MaquinaModal({ maquina, onClose, onSaved }) {
             {saving ? 'Guardando…' : maquina ? 'Guardar cambios' : 'Crear equipo'}
           </button>
         </div>
+      </div>
       </div>
     </div>
   )

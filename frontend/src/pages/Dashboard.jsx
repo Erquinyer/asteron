@@ -1,5 +1,4 @@
-import { useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -11,10 +10,16 @@ import PlantToday         from '../components/dashboard/PlantToday'
 import RecentProjects     from '../components/dashboard/RecentProjects'
 import { KpiStripSkeleton, CardSkeleton, ListSkeleton } from '../components/dashboard/DashboardSkeleton'
 import EmptyState         from '../components/ui/EmptyState'
+import TurnoModal         from '../components/programacion/TurnoModal'
 import { useFetch }       from '../hooks/useFetch'
 import { getDashboard }   from '../api/dashboard.service'
-import { getUser, canDo } from '../utils/auth'
+import { getUsuarios }    from '../api/usuarios.service'
+import { getMaquinaria }  from '../api/maquinaria.service'
+import { getProyectos }   from '../api/proyectos.service'
+import { getUser, canManagePlanta } from '../utils/auth'
 import { useDarkMode }    from '../context/DarkModeContext'
+
+const toISO = d => d.toISOString().split('T')[0]
 
 const getGreeting = () => {
   const h = new Date().getHours()
@@ -47,7 +52,11 @@ const RetryButton = ({ onClick }) => (
 const Dashboard = () => {
   const user = getUser()
   const [dark] = useDarkMode()
-  const { data, loading, error, refresh } = useFetch(getDashboard)
+  const [showTurnoModal, setShowTurnoModal] = useState(false)
+  const { data, loading, error, refresh } = useFetch(getDashboard, [], { intervalMs: 45000 })
+  const { data: usuarios }  = useFetch(getUsuarios)
+  const { data: maquinas }  = useFetch(getMaquinaria)
+  const { data: proyectos } = useFetch(getProyectos)
 
   // Si el backend degradó algún bloque (llegó en null), avisamos una sola vez
   useEffect(() => {
@@ -68,7 +77,7 @@ const Dashboard = () => {
     )
   }
 
-  const puedeProgramar = canDo('programacion', 'crear')
+  const puedeProgramar = canManagePlanta()
   const today = new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })
     .replace(',', '').toUpperCase()
 
@@ -87,19 +96,19 @@ const Dashboard = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link to="/programacion"
-            className="h-9 flex items-center px-3.5 border border-border rounded-control
-              text-[12.5px] font-medium text-muted hover:text-ink hover:bg-hover transition-colors"
+          <button onClick={refresh} title="Actualizar ahora"
+            className="h-9 w-9 flex items-center justify-center border border-border rounded-control
+              text-muted hover:text-ink hover:bg-hover transition-colors"
           >
-            Ver planta
-          </Link>
+            <RefreshCw size={14} />
+          </button>
           {puedeProgramar && (
-            <Link to="/programacion"
+            <button onClick={() => setShowTurnoModal(true)}
               className="h-9 flex items-center px-3.5 bg-primary hover:bg-primary-hover text-white
                 text-[12.5px] font-semibold rounded-control shadow-btn transition-colors"
             >
               + Programar turno
-            </Link>
+            </button>
           )}
         </div>
       </div>
@@ -133,6 +142,17 @@ const Dashboard = () => {
       {loading ? <ListSkeleton rows={5} /> : data.recientes
         ? <RecentProjects projects={recientesConId} />
         : <EmptyState title="No se pudo cargar la lista de proyectos" action={<RetryButton onClick={refresh} />} />}
+
+      {showTurnoModal && (
+        <TurnoModal
+          fecha={toISO(new Date())}
+          usuarios={usuarios || []}
+          maquinas={maquinas || []}
+          proyectos={proyectos || []}
+          onClose={() => setShowTurnoModal(false)}
+          onSaved={refresh}
+        />
+      )}
     </div>
   )
 }

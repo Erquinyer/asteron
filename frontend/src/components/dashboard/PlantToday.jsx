@@ -3,7 +3,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Play, CheckCircle2, Clock, Ban, UserX } from 'lucide-react'
 import { initials } from '../../utils/initials'
 import { canDo } from '../../utils/auth'
+import { relativeTime } from '../../utils/format'
 import EmptyState from '../ui/EmptyState'
+import ActivityDetailModal from './ActivityDetailModal'
 
 const ESTADO_CONFIG = {
   en_proceso: { label: 'En proceso', badge: 'bg-primary/10 text-primary',     Icon: Play,        iconBg: 'bg-primary/10 text-primary'     },
@@ -20,19 +22,11 @@ const TABS = [
 
 const horas = (min) => (min ? (min / 60).toFixed(1) : '0.0')
 
-const relativeTime = (iso) => {
-  if (!iso) return null
-  const diffMin = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
-  if (diffMin < 1)  return 'hace instantes'
-  if (diffMin < 60) return `hace ${diffMin} min`
-  const diffH = Math.round(diffMin / 60)
-  return `hace ${diffH} h`
-}
-
 // schedule: filas crudas de planta (ver dashboard.controller.js) — puede ser [] o null
 const PlantToday = ({ schedule }) => {
   const navigate = useNavigate()
   const [tab, setTab] = useState('todos')
+  const [selectedItem, setSelectedItem] = useState(null)
 
   const items = schedule ?? []
   const filtered = tab === 'todos' ? items : items.filter(i => i.estado === tab)
@@ -111,7 +105,7 @@ const PlantToday = ({ schedule }) => {
             return (
               <div
                 key={item.id_programacion}
-                onClick={() => navigate('/programacion')}
+                onClick={() => setSelectedItem(item)}
                 className="px-[18px] py-3 flex items-center gap-3 hover:bg-hover transition-colors cursor-pointer"
               >
                 <div className={`w-8 h-8 rounded-[8px] flex items-center justify-center shrink-0 ${cfg.iconBg}`}>
@@ -120,7 +114,14 @@ const PlantToday = ({ schedule }) => {
 
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-medium text-ink truncate leading-tight">
-                    {item.maquina || 'Máquina sin asignar'}
+                    {item.fase_nombre || item.observaciones?.split('\n')[0] || 'Actividad sin nombre'}
+                    {item.item_producto && (
+                      <span className="ml-1.5 font-mono text-[10px] font-semibold text-secondary
+                        bg-secondary/10 px-1.5 py-[1px] rounded-badge align-middle"
+                      >
+                        {item.item_producto}
+                      </span>
+                    )}
                   </p>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     {item.operario && (
@@ -132,6 +133,7 @@ const PlantToday = ({ schedule }) => {
                     )}
                     <p className="font-mono text-[10.5px] text-faint truncate">
                       {item.operario || 'Sin operario'}
+                      {' · '}{item.maquina || 'Sin máquina'}
                       {item.proyecto ? ` · ${item.proyecto}` : ''}
                     </p>
                   </div>
@@ -168,6 +170,10 @@ const PlantToday = ({ schedule }) => {
             Ver programación completa →
           </Link>
         </div>
+      )}
+
+      {selectedItem && (
+        <ActivityDetailModal item={selectedItem} onClose={() => setSelectedItem(null)} />
       )}
     </div>
   )

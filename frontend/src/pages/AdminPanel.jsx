@@ -164,11 +164,12 @@ function UsuarioModal({ usuario, roles, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center
+    <div className="fixed inset-0 z-50 overflow-y-auto
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
+      <div className="min-h-full flex items-center justify-center">
       <div className="bg-surface border border-border rounded-[18px] shadow-modal
-        w-full max-w-md overflow-hidden animate-md-in"
+        w-full max-w-md my-4 overflow-hidden animate-md-in"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5
@@ -277,6 +278,7 @@ function UsuarioModal({ usuario, roles, onClose, onSaved }) {
             {saving ? 'Guardando…' : usuario ? 'Guardar cambios' : 'Crear usuario'}
           </button>
         </div>
+      </div>
       </div>
     </div>
   )
@@ -502,11 +504,12 @@ function RolModal({ rol, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center
+    <div className="fixed inset-0 z-50 overflow-y-auto
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
+      <div className="min-h-full flex items-center justify-center">
       <div className="bg-surface border border-border rounded-[18px] shadow-modal
-        w-full max-w-sm overflow-hidden animate-md-in"
+        w-full max-w-sm my-4 overflow-hidden animate-md-in"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5
@@ -569,6 +572,7 @@ function RolModal({ rol, onClose, onSaved }) {
             {saving ? 'Guardando…' : rol ? 'Guardar cambios' : 'Crear rol'}
           </button>
         </div>
+      </div>
       </div>
     </div>
   )

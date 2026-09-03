@@ -28,25 +28,27 @@ cd frontend && npm run dev
 ```
 backend/
   src/
-    app.js                   ← Express app, all routes registered
-    server.js                ← Entry point, MySQL pool check
-    config/db.js             ← mysql2/promise pool
-    middlewares/auth.js      ← JWT verifyToken middleware
-    controllers/             ← One file per domain entity
-    routes/                  ← One file per domain entity
-  scripts/seed.js            ← Full Macromet real data seed
-  .env                       ← DB creds, JWT_SECRET, PORT
+    app.js                        ← Express app, all routes registered
+    server.js                     ← Entry point, MySQL pool check
+    config/db.js                  ← mysql2/promise pool
+    middlewares/auth.middleware.js ← JWT verifyToken middleware
+    middlewares/requireAdmin.js   ← Gate for 'Administrador Sistema' role only
+    controllers/                  ← One file per domain entity (incl. admin, recovery)
+    routes/                       ← One file per domain entity (incl. admin)
+  scripts/seed.js                 ← Full Macromet real data seed
+  .env                            ← DB creds, JWT_SECRET, PORT, SMTP creds (Nodemailer)
 
 frontend/
   src/
     api/           ← One service file per entity (axios calls)
     hooks/         ← useFetch.js (generic GET hook)
-    pages/         ← One page per module
+    pages/         ← One page per module (incl. Landing, AdminPanel, ForgotPassword, ResetPassword, NotFound)
+    config/permissions.js ← canAccess(rol, module) — frontend RBAC lookup
     components/
       dashboard/   ← StatCard, RecentProjects, PlantToday
       layout/      ← Sidebar, TopBar, AppLayout
       ui/          ← Spinner, EmptyState
-    router/        ← ProtectedRoute, PublicRoute
+    router/        ← ProtectedRoute (auth), PublicRoute (guest-only), RoleRoute (per-module RBAC)
     utils/auth.js  ← localStorage session helpers
 ```
 
@@ -58,11 +60,23 @@ frontend/
 3. `axios.js` interceptor injects `Authorization: Bearer <token>` on every request
 4. `401` response → auto-logout + redirect to `/login`
 5. `PublicRoute` → redirects to `/dashboard` if already authenticated
+6. Password recovery: `POST /api/auth/forgot-password` (sends reset link via Nodemailer) → `POST /api/auth/reset-password` — both public, no JWT required
+7. `RoleRoute` (per-route) → checks `canAccess(user.rol, module)` from `config/permissions.js`; redirects to `/dashboard` if the role lacks access to that module
+8. Backend RBAC gate: `requireAdmin` middleware restricts `/api/admin/*` to `rol === 'Administrador Sistema'`, on top of the global `verifyToken`
 
 ### Data fetching pattern
 All pages use `useFetch(serviceFn, deps)` hook — returns `{ data, loading, error, refresh }`.
 
-### Protected modules (all require JWT)
+### Public routes (no auth)
+| Route | Page |
+|---|---|
+| `/` | `Landing.jsx` — public marketing/hero page |
+| `/login` | Login |
+| `/forgot-password` | Request password reset email |
+| `/reset-password` | Set new password via emailed token |
+| `*` | `NotFound.jsx` |
+
+### Protected modules (all require JWT; some also gated by role via `RoleRoute`)
 | Route | Page | CRUD |
 |---|---|---|
 | `/dashboard` | Stats + charts (recharts) | — |
@@ -75,6 +89,10 @@ All pages use `useFetch(serviceFn, deps)` hook — returns `{ data, loading, err
 | `/programacion` | Daily plant schedule with date nav | Create + Estado + Delete |
 | `/usuarios` | Team cards | Create + Edit + Toggle estado |
 | `/perfil` | Own profile + change password | — |
+| `/admin` | `AdminPanel.jsx` — roles CRUD, per-module permissions, per-module actions (granular RBAC), user role assignment | Full CRUD (roles); restricted to `Administrador Sistema` via `requireAdmin` |
+
+### UI
+- Dark mode implemented across all modules.
 
 ## Database
 

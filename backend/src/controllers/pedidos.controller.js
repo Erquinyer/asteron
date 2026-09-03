@@ -31,23 +31,32 @@ export const getOne = async (req, res) => {
   }
 }
 
+const insertItems = async (conn, id_pedido, items) => {
+  for (const item of items) {
+    if (item.producto?.trim()) {
+      await conn.query(
+        `INSERT INTO detalle_pedido (id_pedido, producto, cantidad, punto_descargue, estado, fecha_entrega_estimada)
+         VALUES (?,?,?,?,?,?)`,
+        [id_pedido, item.producto, item.cantidad || 1, item.punto_descargue || null,
+         item.estado || 'pendiente', item.fecha_entrega_estimada || null])
+    }
+  }
+}
+
 export const create = async (req, res) => {
-  const { id_cliente, descripcion, estado, items = [] } = req.body
+  const { id_cliente, descripcion, items = [] } = req.body
   if (!id_cliente) return res.status(400).json({ message: 'El cliente es requerido' })
   const conn = await pool.getConnection()
   try {
     await conn.beginTransaction()
+    // El estado siempre arranca en 'pendiente': no es editable manualmente,
+    // pasa a 'en_proceso' automáticamente al crear el proyecto asociado
+    // (ver proyectos.controller.js create).
     const [result] = await conn.query(
-      `INSERT INTO pedidos (id_cliente, fecha_pedido, estado, descripcion) VALUES (?, CURDATE(), ?, ?)`,
-      [id_cliente, estado || 'pendiente', descripcion || null])
+      `INSERT INTO pedidos (id_cliente, fecha_pedido, estado, descripcion) VALUES (?, CURDATE(), 'pendiente', ?)`,
+      [id_cliente, descripcion || null])
     const id = result.insertId
-    for (const item of items) {
-      if (item.producto?.trim()) {
-        await conn.query(
-          `INSERT INTO detalle_pedido (id_pedido, producto, cantidad, punto_descargue, estado) VALUES (?,?,?,?,?)`,
-          [id, item.producto, item.cantidad || 1, item.punto_descargue || null, item.estado || 'pendiente'])
-      }
-    }
+    await insertItems(conn, id, items)
     await conn.commit()
     const [[pedido]] = await pool.query(`${BASE} WHERE p.id_pedido = ? GROUP BY p.id_pedido`, [id])
     res.status(201).json(pedido)
@@ -59,22 +68,44 @@ export const create = async (req, res) => {
 }
 
 export const update = async (req, res) => {
-  const { id_cliente, descripcion, estado } = req.body
+  const { id_cliente, descripcion, items } = req.body
+  const conn = await pool.getConnection()
   try {
-    const [result] = await pool.query(
-      `UPDATE pedidos SET id_cliente=?, descripcion=?, estado=? WHERE id_pedido=?`,
-      [id_cliente, descripcion || null, estado, req.params.id])
-    if (result.affectedRows === 0) return res.status(404).json({ message: 'Pedido no encontrado' })
+    await conn.beginTransaction()
+    // El estado no se edita manualmente aquí: lo controla el flujo automático
+    // (creación del proyecto asociado → 'en_proceso'), así que no se toca en este UPDATE.
+    const [result] = await conn.query(
+      `UPDATE pedidos SET id_cliente=?, descripcion=? WHERE id_pedido=?`,
+      [id_cliente, descripcion || null, req.params.id])
+    if (result.affectedRows === 0) {
+      await conn.rollback()
+      return res.status(404).json({ message: 'Pedido no encontrado' })
+    }
+    // items === undefined → el cliente no envió la sección de ítems, se preservan tal cual
+    if (Array.isArray(items)) {
+      await conn.query('DELETE FROM detalle_pedido WHERE id_pedido=?', [req.params.id])
+      await insertItems(conn, req.params.id, items)
+    }
+    await conn.commit()
     const [[pedido]] = await pool.query(`${BASE} WHERE p.id_pedido = ? GROUP BY p.id_pedido`, [req.params.id])
     res.json(pedido)
   } catch (err) {
+    await conn.rollback()
     console.error('[pedidos.update]', err)
     res.status(500).json({ message: 'Error al actualizar pedido' })
-  }
+  } finally { conn.release() }
 }
 
 export const remove = async (req, res) => {
   try {
+    const [[{ total_proyectos }]] = await pool.query(
+      'SELECT COUNT(*) AS total_proyectos FROM proyectos WHERE id_pedido=?', [req.params.id])
+    if (total_proyectos > 0) {
+      return res.status(409).json({
+        message: `No se puede eliminar: el pedido tiene ${total_proyectos} proyecto${total_proyectos !== 1 ? 's' : ''} asociado${total_proyectos !== 1 ? 's' : ''}. Elimina o desvincula el proyecto primero.`,
+      })
+    }
+
     const [result] = await pool.query('DELETE FROM pedidos WHERE id_pedido=?', [req.params.id])
     if (result.affectedRows === 0) return res.status(404).json({ message: 'Pedido no encontrado' })
     res.json({ message: 'Pedido eliminado' })

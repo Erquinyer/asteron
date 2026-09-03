@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Search, Plus, Pencil, Trash2, Building2, ShoppingBag, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, Building2, ShoppingBag, X } from 'lucide-react'
 import { useFetch }    from '../hooks/useFetch'
 import { getClientes, createCliente, updateCliente, deleteCliente } from '../api/clientes.service'
 import { canDo }       from '../utils/auth'
-import Spinner    from '../components/ui/Spinner'
-import EmptyState from '../components/ui/EmptyState'
-import Pagination from '../components/ui/Pagination'
+import Spinner     from '../components/ui/Spinner'
+import EmptyState  from '../components/ui/EmptyState'
+import Pagination  from '../components/ui/Pagination'
+import FieldFilter from '../components/ui/FieldFilter'
 import toast      from 'react-hot-toast'
 
 const PAGE_SIZE = 8
@@ -64,11 +65,12 @@ function ClienteModal({ cliente, onClose, onSaved }) {
   ]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center
+    <div className="fixed inset-0 z-50 overflow-y-auto
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
+      <div className="min-h-full flex items-center justify-center">
       <div className="bg-surface border border-border rounded-[18px] shadow-modal
-        w-full max-w-md overflow-hidden animate-md-in"
+        w-full max-w-md my-4 overflow-hidden animate-md-in"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5
@@ -127,6 +129,7 @@ function ClienteModal({ cliente, onClose, onSaved }) {
           </button>
         </div>
       </div>
+      </div>
     </div>
   )
 }
@@ -134,8 +137,15 @@ function ClienteModal({ cliente, onClose, onSaved }) {
 export default function Clientes() {
   const { data, loading, error, refresh } = useFetch(getClientes)
   const [search, setSearch] = useState('')
+  const [searchField, setSearchField] = useState('todos') // 'todos' | 'nombre' | 'nit'
   const [modal,  setModal]  = useState(null)
   const [page,   setPage]   = useState(1)
+
+  const SEARCH_FIELDS = [
+    { value: 'todos',  label: 'Todo',     placeholder: 'Buscar por nombre o código…' },
+    { value: 'nombre', label: 'Nombre',   placeholder: 'Nombre del cliente…' },
+    { value: 'nit',    label: 'Documento', placeholder: 'NIT del cliente…' },
+  ]
 
   const handleDelete = async (c) => {
     if (!confirm(`¿Eliminar "${c.nombre}"? Se perderá el historial de pedidos asociados.`)) return
@@ -151,14 +161,19 @@ export default function Clientes() {
   if (loading) return <Spinner text="Cargando clientes..." />
   if (error)   return <EmptyState title="Error" description={error} />
 
-  const filtrada = (data || []).filter(c =>
-    c.nombre.toLowerCase().includes(search.toLowerCase()) ||
-    (c.codigo_cliente || '').toLowerCase().includes(search.toLowerCase())
-  )
+  const q = search.trim().toLowerCase()
+  const filtrada = (data || []).filter(c => {
+    if (!q) return true
+    if (searchField === 'nombre') return c.nombre.toLowerCase().includes(q)
+    if (searchField === 'nit')    return (c.nit || '').toLowerCase().includes(q)
+    return c.nombre.toLowerCase().includes(q) ||
+      (c.codigo_cliente || '').toLowerCase().includes(q)
+  })
   const totalPages = Math.ceil(filtrada.length / PAGE_SIZE)
   const lista = filtrada.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const handleSearch = (val) => { setSearch(val); setPage(1) }
+  const handleSearchField = (val) => { setSearchField(val); setPage(1) }
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
@@ -172,16 +187,14 @@ export default function Clientes() {
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
-          <input value={search} onChange={e => handleSearch(e.target.value)}
-            placeholder="Buscar por nombre o código…"
-            className="w-full h-[38px] pl-9 pr-4 border border-border rounded-control
-              text-[13px] bg-surface2 text-ink placeholder:text-faint
-              focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary
-              transition-colors"
-          />
-        </div>
+        <FieldFilter
+          fields={SEARCH_FIELDS}
+          field={searchField}
+          onFieldChange={handleSearchField}
+          value={search}
+          onValueChange={handleSearch}
+          className="flex-1 min-w-[220px] max-w-sm"
+        />
 
         <div className="flex-1" />
 
@@ -196,78 +209,108 @@ export default function Clientes() {
         )}
       </div>
 
-      {/* Grid de cards */}
+      {/* Tabla */}
       {filtrada.length === 0 ? (
         <EmptyState title="Sin clientes" description="Crea el primer cliente con el botón de arriba." />
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {lista.map((c, i) => {
-              const av = AVATAR_COLORS[i % AVATAR_COLORS.length]
-              return (
-                <div key={c.id_cliente}
-                  className="group bg-surface border border-border rounded-card
-                    shadow-card dark:shadow-card-dk p-5 flex flex-col gap-3
-                    hover:border-border-strong hover:shadow-md transition-all"
-                >
-                  {/* Header: avatar + actions */}
-                  <div className="flex items-start justify-between">
-                    <div className={`w-11 h-11 rounded-[12px] flex items-center justify-center
-                      text-[14px] font-bold shrink-0 ${av.bg} ${av.text}`}
-                    >
-                      {initials(c.nombre)}
-                    </div>
+          <div className="bg-surface border border-border rounded-card shadow-card
+            dark:shadow-card-dk overflow-hidden"
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-surface2 border-b border-border">
+                    {['Cliente', 'NIT / código', 'Dirección', 'Pedidos', ''].map((h, i) => (
+                      <th key={i}
+                        className={`px-[18px] py-[13px] text-left font-mono text-[10.5px]
+                          font-semibold uppercase tracking-[.08em] text-faint
+                          ${i === 1 ? 'hidden sm:table-cell' : ''}
+                          ${i === 2 ? 'hidden lg:table-cell' : ''}
+                          ${i === 3 ? 'hidden md:table-cell' : ''}
+                        `}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {lista.map((c, i) => {
+                    const av = AVATAR_COLORS[i % AVATAR_COLORS.length]
+                    return (
+                      <tr key={c.id_cliente} className="hover:bg-hover transition-colors duration-100">
+                        {/* Cliente */}
+                        <td className="px-[18px] py-[13px]">
+                          <div className="flex items-center gap-2.5">
+                            <div className={`w-8 h-8 rounded-[9px] flex items-center justify-center
+                              text-[11px] font-bold shrink-0 ${av.bg} ${av.text}`}
+                            >
+                              {initials(c.nombre)}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[13.5px] font-medium text-ink truncate max-w-[200px]">
+                                {c.nombre}
+                              </p>
+                              {c.codigo_cliente && (
+                                <p className="font-mono text-[10.5px] text-primary sm:hidden">
+                                  {c.codigo_cliente}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
 
-                    {(canDo('clientes', 'editar') || canDo('clientes', 'eliminar')) && (
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {canDo('clientes', 'editar') && (
-                          <button onClick={() => setModal(c)}
-                            className="w-7 h-7 flex items-center justify-center rounded-badge
-                              text-faint hover:bg-primary/10 hover:text-primary transition-colors"
-                          >
-                            <Pencil size={13} />
-                          </button>
-                        )}
-                        {canDo('clientes', 'eliminar') && (
-                          <button onClick={() => handleDelete(c)}
-                            className="w-7 h-7 flex items-center justify-center rounded-badge
-                              text-faint hover:bg-error/10 hover:text-error transition-colors"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                        {/* NIT / código */}
+                        <td className="px-[18px] py-[13px] hidden sm:table-cell">
+                          <p className="font-mono text-[12px] text-muted">{c.nit || '—'}</p>
+                          {c.codigo_cliente && (
+                            <p className="font-mono text-[11px] text-primary mt-0.5">{c.codigo_cliente}</p>
+                          )}
+                        </td>
 
-                  {/* Datos */}
-                  <div className="flex-1">
-                    <p className="text-[14px] font-semibold text-ink leading-tight">{c.nombre}</p>
-                    {c.nit && (
-                      <p className="font-mono text-[11px] text-faint mt-0.5">NIT: {c.nit}</p>
-                    )}
-                    {c.codigo_cliente && (
-                      <p className="font-mono text-[11px] text-primary mt-0.5">{c.codigo_cliente}</p>
-                    )}
-                  </div>
+                        {/* Dirección */}
+                        <td className="px-[18px] py-[13px] hidden lg:table-cell">
+                          <p className="text-[13px] text-muted truncate max-w-[220px]">
+                            {c.direccion || <span className="text-faint italic">Sin dirección</span>}
+                          </p>
+                        </td>
 
-                  {c.direccion && (
-                    <p className="flex items-start gap-1.5 text-[12px] text-muted">
-                      <Building2 size={12} className="mt-0.5 shrink-0 text-faint" />
-                      {c.direccion}
-                    </p>
-                  )}
+                        {/* Pedidos */}
+                        <td className="px-[18px] py-[13px] hidden md:table-cell">
+                          <div className="flex items-center gap-1.5 text-[13px] text-muted">
+                            <ShoppingBag size={13} className="text-faint" />
+                            {c.total_pedidos}
+                          </div>
+                        </td>
 
-                  {/* Footer */}
-                  <div className="flex items-center gap-1.5 pt-2.5 border-t border-border mt-auto">
-                    <ShoppingBag size={13} className="text-faint" />
-                    <span className="font-mono text-[11.5px] text-muted">
-                      {c.total_pedidos} {c.total_pedidos === 1 ? 'pedido' : 'pedidos'}
-                    </span>
-                  </div>
-                </div>
-              )
-            })}
+                        {/* Acciones */}
+                        <td className="px-[18px] py-[13px]">
+                          <div className="flex items-center gap-0.5">
+                            {canDo('clientes', 'editar') && (
+                              <button onClick={() => setModal(c)} title="Editar"
+                                className="w-7 h-7 flex items-center justify-center rounded-badge
+                                  text-faint hover:bg-primary/10 hover:text-primary transition-colors"
+                              >
+                                <Pencil size={13} />
+                              </button>
+                            )}
+                            {canDo('clientes', 'eliminar') && (
+                              <button onClick={() => handleDelete(c)} title="Eliminar"
+                                className="w-7 h-7 flex items-center justify-center rounded-badge
+                                  text-faint hover:bg-error/10 hover:text-error transition-colors"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
           <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </>

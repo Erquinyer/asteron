@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
-  Menu, Bell, AlertTriangle, Info, XCircle, ChevronRight,
-  ChevronDown, LogOut, Sun, Moon, Search, UserRound,
+  Menu, Bell, AlertTriangle, Info, XCircle, ChevronRight, X,
+  ChevronDown, LogOut, Sun, Moon, UserRound,
 } from 'lucide-react'
 import { getNotificaciones } from '../../api/notificaciones.service'
 import { logout } from '../../utils/auth'
+import { relativeTime } from '../../utils/format'
 import { useDarkMode } from '../../context/DarkModeContext'
 
 const PAGE_META = {
@@ -30,6 +31,19 @@ const tipoCfg = {
 const initials = (nombre) =>
   (nombre || 'U').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
 
+// Notificaciones descartadas: no hay tabla de estado leído/no leído en el
+// backend, así que se guardan localmente por navegador para que el panel no
+// vuelva a mostrar lo que el usuario ya eliminó.
+const DISMISSED_KEY = 'asteron_dismissed_notifs'
+
+const loadDismissed = () => {
+  try { return new Set(JSON.parse(localStorage.getItem(DISMISSED_KEY)) || []) }
+  catch { return new Set() }
+}
+const saveDismissed = (set) => {
+  try { localStorage.setItem(DISMISSED_KEY, JSON.stringify([...set])) } catch { /* noop */ }
+}
+
 const TopBar = ({ user, onMenuToggle }) => {
   const { pathname } = useLocation()
   const navigate     = useNavigate()
@@ -37,6 +51,7 @@ const TopBar = ({ user, onMenuToggle }) => {
   const [notifOpen,    setNotifOpen]    = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [notifs, setNotifs]             = useState([])
+  const [dismissed, setDismissed]       = useState(loadDismissed)
   const notifRef = useRef(null)
   const userRef  = useRef(null)
 
@@ -49,9 +64,32 @@ const TopBar = ({ user, onMenuToggle }) => {
 
   useEffect(() => {
     getNotificaciones()
-      .then(r => setNotifs(r.data.items || []))
+      .then(r => {
+        const items = r.data.items || []
+        setNotifs(items)
+        // Depura IDs descartados que ya no aparecen (la alerta se resolvió)
+        // para que el storage no crezca indefinidamente.
+        setDismissed(prev => {
+          const activeIds = new Set(items.map(n => n.id))
+          const pruned = new Set([...prev].filter(id => activeIds.has(id)))
+          if (pruned.size !== prev.size) saveDismissed(pruned)
+          return pruned
+        })
+      })
       .catch(() => {})
   }, [pathname])
+
+  const visibleNotifs = notifs.filter(n => !dismissed.has(n.id))
+
+  const handleDismiss = (e, id) => {
+    e.stopPropagation()
+    setDismissed(prev => {
+      const next = new Set(prev)
+      next.add(id)
+      saveDismissed(next)
+      return next
+    })
+  }
 
   useEffect(() => {
     const handler = (e) => {
@@ -89,20 +127,7 @@ const TopBar = ({ user, onMenuToggle }) => {
         </p>
       </div>
 
-      {/* ── Buscador central ── */}
-      <div className="flex-1 hidden md:flex justify-center">
-        <div className="flex items-center gap-2 h-[38px] w-full max-w-[260px]
-          bg-surface2 border border-border rounded-control px-3
-          text-faint text-[13px] cursor-text select-none"
-        >
-          <Search size={14} className="shrink-0" />
-          <span className="flex-1 truncate">Buscar proyecto, máquina…</span>
-          <span className="font-mono text-[10px] bg-surface border border-border
-            rounded px-1 py-0.5 text-faint hidden sm:inline">
-            ⌘K
-          </span>
-        </div>
-      </div>
+      <div className="flex-1" />
 
       {/* ── Acciones derecha ── */}
       <div className="ml-auto flex items-center gap-2">
@@ -129,7 +154,7 @@ const TopBar = ({ user, onMenuToggle }) => {
               transition-colors relative"
           >
             <Bell size={16} />
-            {notifs.length > 0 && (
+            {visibleNotifs.length > 0 && (
               <span className="absolute top-2 right-2 w-[7px] h-[7px] bg-error
                 rounded-full ring-2 ring-surface" />
             )}
@@ -142,11 +167,11 @@ const TopBar = ({ user, onMenuToggle }) => {
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <p className="text-[13px] font-semibold text-ink">
                   Notificaciones
-                  {notifs.length > 0 && (
+                  {visibleNotifs.length > 0 && (
                     <span className="ml-2 px-1.5 py-0.5 bg-error/10 text-error
                       rounded-badge text-[10px] font-mono"
                     >
-                      {notifs.length}
+                      {visibleNotifs.length}
                     </span>
                   )}
                 </p>
@@ -156,29 +181,45 @@ const TopBar = ({ user, onMenuToggle }) => {
                 </button>
               </div>
 
-              {notifs.length === 0 ? (
+              {visibleNotifs.length === 0 ? (
                 <div className="px-4 py-8 text-center">
                   <Bell size={22} className="mx-auto text-faint mb-2" />
                   <p className="text-[13px] text-faint">Sin alertas activas</p>
                 </div>
               ) : (
                 <div className="max-h-72 overflow-y-auto divide-y divide-border">
-                  {notifs.map(n => {
+                  {visibleNotifs.map(n => {
                     const cfg = tipoCfg[n.tipo] || tipoCfg.info
                     return (
-                      <button key={n.id} onClick={() => handleNotifClick(n.link)}
-                        className={`w-full text-left px-4 py-3 flex items-start gap-3
+                      <div key={n.id}
+                        className={`w-full flex items-start gap-2 px-4 py-3
                           hover:bg-hover transition-colors ${cfg.bg}`}
                       >
-                        {cfg.icon}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[12px] font-semibold text-ink">{n.titulo}</p>
-                          <p className="text-[11px] text-muted mt-0.5 leading-relaxed">
-                            {n.mensaje}
-                          </p>
-                        </div>
-                        {n.link && <ChevronRight size={12} className="text-faint mt-0.5 shrink-0" />}
-                      </button>
+                        <button onClick={() => handleNotifClick(n.link)}
+                          className="flex-1 min-w-0 flex items-start gap-3 text-left"
+                        >
+                          {cfg.icon}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[12px] font-semibold text-ink">{n.titulo}</p>
+                            <p className="text-[11px] text-muted mt-0.5 leading-relaxed">
+                              {n.mensaje}
+                            </p>
+                            {n.creado_en && (
+                              <p className="font-mono text-[10px] text-faint mt-1">
+                                {relativeTime(n.creado_en)}
+                              </p>
+                            )}
+                          </div>
+                          {n.link && <ChevronRight size={12} className="text-faint mt-0.5 shrink-0" />}
+                        </button>
+                        <button onClick={(e) => handleDismiss(e, n.id)}
+                          title="Eliminar notificación"
+                          className="w-6 h-6 flex items-center justify-center rounded-badge shrink-0
+                            text-faint hover:bg-error/10 hover:text-error transition-colors"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
                     )
                   })}
                 </div>

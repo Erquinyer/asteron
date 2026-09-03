@@ -1,27 +1,75 @@
 import { useState, useEffect } from 'react'
 import {
-  ChevronLeft, ChevronRight, Plus, Trash2, X,
-  Play, Check, CheckCircle, Calendar, Wrench,
+  ChevronLeft, ChevronRight, ChevronDown, Plus, Trash2, X,
+  Play, Check, CheckCircle, Wrench,
 } from 'lucide-react'
 import { useFetch }          from '../hooks/useFetch'
-import { getProgramacion, createProgramacion, updateEstadoTurno, updateAvanceTurno, deleteProgramacion } from '../api/programacion.service'
+import { getProgramacion, updateEstadoTurno, updateAvanceTurno, deleteProgramacion } from '../api/programacion.service'
 import { getUsuarios }       from '../api/usuarios.service'
 import { getMaquinaria }     from '../api/maquinaria.service'
-import { getProyectos, getProyecto } from '../api/proyectos.service'
-import { canDo }             from '../utils/auth'
-import Spinner    from '../components/ui/Spinner'
-import EmptyState from '../components/ui/EmptyState'
+import { getProyectos }      from '../api/proyectos.service'
+import { canDo, canManagePlanta } from '../utils/auth'
+import Spinner     from '../components/ui/Spinner'
+import EmptyState  from '../components/ui/EmptyState'
+import FieldFilter from '../components/ui/FieldFilter'
+import TurnoModal   from '../components/programacion/TurnoModal'
 import toast      from 'react-hot-toast'
 
 // ── Helpers de fecha ──────────────────────────────────────────────────────────
 const toISO = d => d.toISOString().split('T')[0]
 
 const DAYS_SHORT   = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']
+const DAYS_LONG    = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']
 const MONTHS_SHORT = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+const MONTHS_LONG  = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto',
+  'septiembre','octubre','noviembre','diciembre']
 const fmtFechaCorta = (iso) => {
   const d = new Date(iso + 'T12:00:00')
   return `${DAYS_SHORT[d.getDay()]} ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`
 }
+const fmtFechaLarga = (iso) => {
+  const d = new Date(iso + 'T12:00:00')
+  return `${DAYS_LONG[d.getDay()]} ${d.getDate()} de ${MONTHS_LONG[d.getMonth()]}`
+}
+const isoDia = (v) => String(v ?? '').slice(0, 10)
+
+// ── Vistas de periodo: día · semana · mes ────────────────────────────────────
+const startOfWeek = (iso) => {           // lunes de la semana que contiene la fecha
+  const d = new Date(iso + 'T12:00:00')
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7))
+  return d
+}
+const rangoDe = (iso, modo) => {
+  if (modo === 'semana') {
+    const a = startOfWeek(iso)
+    const b = new Date(a); b.setDate(a.getDate() + 6)
+    return { desde: toISO(a), hasta: toISO(b) }
+  }
+  if (modo === 'mes') {
+    const d = new Date(iso + 'T12:00:00')
+    const a = new Date(d.getFullYear(), d.getMonth(), 1, 12)
+    const b = new Date(d.getFullYear(), d.getMonth() + 1, 0, 12)
+    return { desde: toISO(a), hasta: toISO(b) }
+  }
+  return { desde: iso, hasta: iso }
+}
+const fmtPeriodoLabel = (iso, modo) => {
+  if (modo === 'dia') return fmtFechaCorta(iso)
+  if (modo === 'semana') {
+    const { desde, hasta } = rangoDe(iso, 'semana')
+    const a = new Date(desde + 'T12:00:00'), b = new Date(hasta + 'T12:00:00')
+    return a.getMonth() === b.getMonth()
+      ? `${a.getDate()} – ${b.getDate()} ${MONTHS_SHORT[b.getMonth()]}`
+      : `${a.getDate()} ${MONTHS_SHORT[a.getMonth()]} – ${b.getDate()} ${MONTHS_SHORT[b.getMonth()]}`
+  }
+  const d = new Date(iso + 'T12:00:00')
+  return `${MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}`
+}
+const MODOS = [
+  { value: 'dia',    label: 'Día'    },
+  { value: 'semana', label: 'Semana' },
+  { value: 'mes',    label: 'Mes'    },
+]
 
 // ── Helpers de tiempo ─────────────────────────────────────────────────────────
 function fmtTime(minutes) {
@@ -80,13 +128,6 @@ function useTimer(startISO, active) {
   return elapsed
 }
 
-// ── Estilos de formulario ─────────────────────────────────────────────────────
-const inputCls = `w-full h-10 border border-border rounded-control px-3 text-[13px]
-  bg-surface2 text-ink placeholder:text-faint
-  focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary
-  transition-colors`
-const labelCls = 'block text-[11.5px] font-medium text-muted mb-1.5'
-
 // ── Badge de estado con punto pulsante (en_proceso) ───────────────────────────
 function StateBadge({ estado }) {
   const cfg    = estadoConfig[estado] || estadoConfig.programado
@@ -108,9 +149,8 @@ function StateBadge({ estado }) {
   )
 }
 
-// ── Card de actividad ─────────────────────────────────────────────────────────
-function ActivityCard({ item, onClick, onIniciar, onCompletar, onDelete }) {
-  const cfg       = estadoConfig[item.estado] || estadoConfig.programado
+// ── Fila compacta de actividad ────────────────────────────────────────────────
+function ActivityRow({ item, onClick, onIniciar, onCompletar, onDelete, showProyecto = false }) {
   const isLive    = item.estado === 'en_proceso'
   const isDone    = item.estado === 'completado' || item.estado === 'cancelado'
   const elapsed   = useTimer(item.updated_at, isLive)
@@ -124,148 +164,165 @@ function ActivityCard({ item, onClick, onIniciar, onCompletar, onDelete }) {
   return (
     <div
       onClick={onClick}
-      className={`relative bg-surface border border-border rounded-card
-        shadow-card dark:shadow-card-dk overflow-hidden cursor-pointer
-        hover:border-border-strong hover:shadow-md transition-all duration-150
+      className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3
+        cursor-pointer hover:bg-hover transition-colors
         ${item.estado === 'cancelado' ? 'opacity-60' : ''}`}
     >
-      {/* Franja superior de color */}
-      <div className={`h-1 w-full ${cfg.bar}`} />
-
-      <div className="p-[18px]">
-        {/* ── Header: código + badge ── */}
-        <div className="flex items-start justify-between mb-2.5">
-          <span className="font-mono text-[10.5px] text-faint">
-            ACT-{String(item.id_programacion).padStart(4, '0')}
-          </span>
-          <StateBadge estado={item.estado} />
-        </div>
-
-        {/* ── Fase + Proyecto ── */}
-        <p className="text-[15px] font-semibold text-ink leading-tight">
+      {/* Fase + ítem */}
+      <div className="min-w-[180px] flex-1">
+        <p className="text-[13px] font-medium text-ink truncate">
           {item.fase_nombre || item.observaciones?.split('\n')[0] || 'Sin fase asignada'}
-        </p>
-        <p className="text-[12.5px] text-muted mt-0.5 truncate">
-          {item.proyecto || 'Sin proyecto'}
-        </p>
-
-        {/* ── Divider ── */}
-        <div className="my-3 border-t border-border" />
-
-        {/* ── Operario + Máquina ── */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-badge shrink-0
-              bg-primary/10 text-primary text-[10px] font-bold
-              flex items-center justify-center"
+          {item.item_producto && (
+            <span className="ml-1.5 font-mono text-[10px] font-semibold text-secondary
+              bg-secondary/10 px-1.5 py-[1px] rounded-badge align-middle"
             >
-              {initials(item.operario)}
-            </div>
-            <span className="text-[13px] text-muted">{item.operario}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-badge shrink-0
-              bg-surface2 text-faint flex items-center justify-center"
-            >
-              <Wrench size={13} />
-            </div>
-            <span className="text-[12.5px] text-muted truncate">
-              {item.maquina_codigo
-                ? `${item.maquina} · ${item.maquina_codigo}`
-                : item.maquina}
+              {item.item_producto}
             </span>
-          </div>
-        </div>
+          )}
+        </p>
+        {showProyecto && (
+          <p className="text-[11px] text-faint truncate mt-0.5">
+            {item.proyecto || 'Sin proyecto'}
+            {item.cliente ? ` · ${item.cliente}` : ''}
+          </p>
+        )}
+      </div>
 
-        {/* ── Avance (solo si está en proceso) ── */}
-        {isLive && (
-          <div className="mt-3">
-            <div className="flex items-center justify-between mb-1">
-              <span className="font-mono text-[9px] font-semibold uppercase tracking-[.08em] text-faint">
-                Avance
-              </span>
-              <span className="font-mono text-[10.5px] font-semibold text-primary tabular-nums">
-                {item.porcentaje_avance}%
-              </span>
-            </div>
-            <div className="h-1.5 rounded-full bg-surface2 overflow-hidden">
-              <div className="h-1.5 rounded-full bg-primary transition-all duration-500"
+      {/* Operario */}
+      <div className="flex items-center gap-1.5 w-[130px] shrink-0">
+        <div className="w-6 h-6 rounded-badge shrink-0
+          bg-primary/10 text-primary text-[9px] font-bold
+          flex items-center justify-center"
+        >
+          {initials(item.operario)}
+        </div>
+        <span className="text-[12px] text-muted truncate">{item.operario || 'Sin asignar'}</span>
+      </div>
+
+      {/* Máquina */}
+      <div className="hidden sm:flex items-center gap-1.5 w-[150px] shrink-0">
+        <Wrench size={12} className="text-faint shrink-0" />
+        <span className="text-[12px] text-muted truncate">
+          {item.maquina_codigo ? `${item.maquina} · ${item.maquina_codigo}` : item.maquina}
+        </span>
+      </div>
+
+      {/* Avance / tiempo */}
+      <div className="hidden md:block w-[90px] shrink-0">
+        {isLive ? (
+          <div>
+            <div className="h-1 rounded-full bg-surface2 overflow-hidden mb-1">
+              <div className="h-1 rounded-full bg-primary transition-all duration-500"
                 style={{ width: `${item.porcentaje_avance}%` }}
               />
             </div>
+            <span className="font-mono text-[10.5px] text-primary tabular-nums">
+              {fmtElapsed(elapsed)}
+            </span>
           </div>
+        ) : (
+          <span className="font-mono text-[11px] text-faint">
+            {item.tiempo_real ? fmtTime(item.tiempo_real) : fmtTime(item.tiempo_estimado)}
+          </span>
         )}
+      </div>
 
-        {/* ── Divider ── */}
-        <div className="my-3 border-t border-border" />
+      <StateBadge estado={item.estado} />
 
-        {/* ── Tiempos + Acción ── */}
-        <div className="flex items-end justify-between gap-2">
-          {/* Tiempos */}
-          <div className="flex gap-4">
-            <div>
-              <p className="font-mono text-[9px] font-semibold uppercase
-                tracking-[.08em] text-faint mb-0.5">Estim.</p>
-              <p className="font-mono text-[13px] font-semibold text-ink">
-                {fmtTime(item.tiempo_estimado)}
-              </p>
-            </div>
-            <div>
-              <p className="font-mono text-[9px] font-semibold uppercase
-                tracking-[.08em] text-faint mb-0.5">Real</p>
-              {item.tiempo_real ? (
-                <p className="font-mono text-[13px] font-semibold text-success">
-                  {fmtTime(item.tiempo_real)}
-                </p>
-              ) : isLive ? (
-                <p className="font-mono text-[13px] font-semibold text-primary tabular-nums">
-                  {fmtElapsed(elapsed)}
-                </p>
-              ) : (
-                <p className="font-mono text-[13px] font-semibold text-faint">—</p>
-              )}
-            </div>
-          </div>
+      {/* Acciones — solo líder de planta / coordinación de producción */}
+      {!isDone && canManagePlanta() && (
+        <div className="flex items-center gap-1.5 ml-auto" onClick={e => e.stopPropagation()}>
+          {canDo('programacion', 'eliminar') && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(item) }}
+              className="w-7 h-7 flex items-center justify-center rounded-badge
+                text-faint hover:bg-error/10 hover:text-error transition-colors"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
 
-          {/* Botón de acción inline */}
-          {!isDone && (
-            <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
-              {canDo('programacion', 'eliminar') && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onDelete(item) }}
-                  className="w-7 h-7 flex items-center justify-center rounded-badge
-                    text-faint hover:bg-error/10 hover:text-error transition-colors"
-                >
-                  <Trash2 size={13} />
-                </button>
-              )}
+          {item.estado === 'programado' && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onIniciar(item) }}
+              className="flex items-center gap-1.5 px-3 h-[28px]
+                bg-primary hover:bg-primary-hover text-white
+                rounded-control text-[11.5px] font-semibold shadow-btn transition-colors"
+            >
+              <Play size={10} /> Iniciar
+            </button>
+          )}
 
-              {item.estado === 'programado' && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onIniciar(item) }}
-                  className="flex items-center gap-1.5 px-3 h-[30px]
-                    bg-primary hover:bg-primary-hover text-white
-                    rounded-control text-[12px] font-semibold shadow-btn transition-colors"
-                >
-                  <Play size={11} /> Iniciar
-                </button>
-              )}
-
-              {item.estado === 'en_proceso' && (
-                <button
-                  onClick={handleCompletar}
-                  className="flex items-center gap-1.5 px-3 h-[30px]
-                    bg-success/10 hover:bg-success/20 text-success
-                    border border-success/30 rounded-control text-[12px] font-semibold
-                    transition-colors"
-                >
-                  <Check size={11} /> Completar
-                </button>
-              )}
-            </div>
+          {item.estado === 'en_proceso' && (
+            <button
+              onClick={handleCompletar}
+              className="flex items-center gap-1.5 px-3 h-[28px]
+                bg-success/10 hover:bg-success/20 text-success
+                border border-success/30 rounded-control text-[11.5px] font-semibold
+                transition-colors"
+            >
+              <Check size={10} /> Completar
+            </button>
           )}
         </div>
-      </div>
+      )}
+    </div>
+  )
+}
+
+// ── Resumen del día ────────────────────────────────────────────────────────────
+function ResumenDia({ total, enCurso, completados, sinOperario, periodoLabel = 'Turnos hoy' }) {
+  const cells = [
+    { label: periodoLabel,     value: total },
+    { label: 'En curso',       value: enCurso,      tone: enCurso > 0 ? 'text-primary' : 'text-ink' },
+    { label: 'Completados',    value: completados,  tone: 'text-success' },
+    { label: 'Sin operario',   value: sinOperario,  tone: sinOperario > 0 ? 'text-error' : 'text-ink' },
+  ]
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-border rounded-card
+      overflow-hidden border border-border shadow-card dark:shadow-card-dk"
+    >
+      {cells.map(c => (
+        <div key={c.label} className="bg-surface p-4">
+          <p className="font-mono text-[9.5px] font-semibold uppercase tracking-[.08em] text-faint">
+            {c.label}
+          </p>
+          <p className={`text-[22px] font-semibold leading-tight mt-1 tabular-nums ${c.tone || 'text-ink'}`}>
+            {c.value}
+          </p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Grupo de actividades por proyecto (desplegable) ───────────────────────────
+function ProjectGroup({ nombre, items, collapsed, onToggle, onSelect, onIniciar, onCompletar, onDelete, showProyecto = false }) {
+  return (
+    <div className="bg-surface border border-border rounded-card shadow-card dark:shadow-card-dk overflow-hidden">
+      <button onClick={onToggle}
+        className="w-full flex items-center gap-2 px-4 py-3 bg-surface2
+          hover:bg-hover transition-colors text-left"
+      >
+        <ChevronRight size={14}
+          className={`text-faint shrink-0 transition-transform ${collapsed ? '' : 'rotate-90'}`}
+        />
+        <span className="text-[13.5px] font-semibold text-ink truncate">{nombre}</span>
+        <span className="font-mono text-[10.5px] text-faint ml-auto shrink-0">
+          {items.length} turno{items.length !== 1 ? 's' : ''}
+        </span>
+      </button>
+      {!collapsed && (
+        <div className="divide-y divide-border">
+          {items.map(item => (
+            <ActivityRow key={item.id_programacion} item={item}
+              onClick={() => onSelect(item)}
+              onIniciar={onIniciar} onCompletar={onCompletar} onDelete={onDelete}
+              showProyecto={showProyecto}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -273,11 +330,12 @@ function ActivityCard({ item, onClick, onIniciar, onCompletar, onDelete }) {
 // ── Modal de confirmación de completar ────────────────────────────────────────
 function ConfirmModal({ item, onConfirm, onCancel }) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center
+    <div className="fixed inset-0 z-[60] overflow-y-auto
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
+      <div className="min-h-full flex items-center justify-center">
       <div className="bg-surface border border-border rounded-[18px] shadow-modal
-        w-full max-w-sm p-6 text-center animate-md-in"
+        w-full max-w-sm p-6 text-center my-4 animate-md-in"
       >
         <div className="w-12 h-12 bg-success/10 rounded-[14px] flex items-center
           justify-center mx-auto mb-4"
@@ -307,6 +365,7 @@ function ConfirmModal({ item, onConfirm, onCancel }) {
             Sí, completar
           </button>
         </div>
+      </div>
       </div>
     </div>
   )
@@ -348,11 +407,12 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onDelete, onAv
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center
+      <div className="fixed inset-0 z-50 overflow-y-auto
         bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
       >
+        <div className="min-h-full flex items-center justify-center">
         <div className="bg-surface border border-border rounded-[18px] shadow-modal
-          w-full max-w-lg overflow-hidden animate-md-in"
+          w-full max-w-lg my-4 overflow-hidden animate-md-in"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-5
@@ -382,6 +442,13 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onDelete, onAv
               {item.fase_nombre && (
                 <p className="text-[13px] text-primary mt-1 font-medium">
                   Fase: {item.fase_nombre}
+                  {item.item_producto && (
+                    <span className="ml-1.5 font-mono text-[10.5px] font-semibold
+                      text-secondary bg-secondary/10 px-1.5 py-[2px] rounded-badge"
+                    >
+                      {item.item_producto}
+                    </span>
+                  )}
                 </p>
               )}
             </div>
@@ -431,7 +498,7 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onDelete, onAv
               </div>
             </div>
 
-            {isLive && (
+            {isLive && canManagePlanta() && (
               <div className="bg-surface2 rounded-[11px] p-4">
                 <div className="flex items-center justify-between mb-2">
                   <p className="font-mono text-[9px] font-semibold uppercase
@@ -482,9 +549,9 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onDelete, onAv
             )}
           </div>
 
-          {/* Footer actions */}
+          {/* Footer actions — solo líder de planta / coordinación de producción */}
           <div className="px-6 py-4 border-t border-border bg-surface2">
-            {!isDone ? (
+            {!isDone && canManagePlanta() ? (
               <div className="flex gap-3">
                 {canDo('programacion', 'eliminar') && (
                   <button
@@ -527,6 +594,7 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onDelete, onAv
             )}
           </div>
         </div>
+        </div>
       </div>
 
       {showConfirm && (
@@ -540,201 +608,62 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onDelete, onAv
   )
 }
 
-// ── Modal de nueva actividad (TurnoModal) ─────────────────────────────────────
-function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClose, onSaved }) {
-  const [form, setForm] = useState({
-    fecha,
-    id_operario: '', id_maquina: '', id_proyecto: '', id_fase_proyecto: '',
-    tiempo_estimado: 480, observaciones: '',
-  })
-  const [fases,        setFases]        = useState([])
-  const [loadingFases, setLoadingFases] = useState(false)
-  const [saving,       setSaving]       = useState(false)
-
-  const set = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
-
-  useEffect(() => {
-    if (!form.id_proyecto) { setFases([]); setForm(f => ({ ...f, id_fase_proyecto: '' })); return }
-    setLoadingFases(true)
-    getProyecto(form.id_proyecto)
-      .then(({ data }) => { setFases(data.fases || []); setForm(f => ({ ...f, id_fase_proyecto: '' })) })
-      .catch(() => setFases([]))
-      .finally(() => setLoadingFases(false))
-  }, [form.id_proyecto])
-
-  const handleSubmit = async e => {
-    e.preventDefault()
-    if (!form.id_operario || !form.id_maquina) {
-      toast.error('Operario y máquina son requeridos'); return
-    }
-    setSaving(true)
-    try {
-      await createProgramacion(form)
-      toast.success('Actividad programada')
-      onSaved(); onClose()
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Error al programar')
-    } finally { setSaving(false) }
-  }
-
-  const operarios  = usuarios.filter(u => u.estado === 1)
-  const maqActivas = maquinas.filter(m => ['activa', 'sin_asignar'].includes(m.estado))
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center
-      bg-black/50 backdrop-blur-sm p-4 overflow-y-auto animate-ov-in"
-    >
-      <div className="bg-surface border border-border rounded-[18px] shadow-modal
-        w-full max-w-md my-4 overflow-hidden animate-md-in"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5
-          border-b border-border bg-gradient-to-b from-primary/5 to-surface sticky top-0"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-[11px] bg-primary/10 flex items-center justify-center">
-              <Calendar size={18} className="text-primary" />
-            </div>
-            <div>
-              <h3 className="text-[16px] font-semibold text-ink">Nueva actividad</h3>
-              <p className="text-[12px] text-muted">Programar un turno de trabajo</p>
-            </div>
-          </div>
-          <button onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-[8px]
-              bg-surface2 text-faint hover:text-muted transition-colors"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        {/* Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className={labelCls}>Fecha</label>
-            <input type="date" name="fecha" value={form.fecha} onChange={set}
-              className={inputCls} />
-          </div>
-
-          <div>
-            <label className={labelCls}>Operario *</label>
-            <select name="id_operario" value={form.id_operario} onChange={set}
-              required className={inputCls}
-            >
-              <option value="">Seleccionar operario</option>
-              {operarios.map(u => (
-                <option key={u.id_usuario} value={u.id_usuario}>
-                  {u.nombre} — {u.rol}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className={labelCls}>Máquina / Equipo *</label>
-            <select name="id_maquina" value={form.id_maquina} onChange={set}
-              required className={inputCls}
-            >
-              <option value="">Seleccionar equipo</option>
-              {maqActivas.map(m => (
-                <option key={m.id_maquina} value={m.id_maquina}>
-                  {m.codigo ? `[${m.codigo}] ` : ''}{m.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className={labelCls}>Proyecto</label>
-            <select name="id_proyecto" value={form.id_proyecto} onChange={set}
-              className={inputCls}
-            >
-              <option value="">Sin proyecto</option>
-              {proyectos.map(p => (
-                <option key={p.id_proyecto} value={p.id_proyecto}>{p.nombre}</option>
-              ))}
-            </select>
-          </div>
-
-          {form.id_proyecto && (
-            <div>
-              <label className={labelCls}>Fase del proyecto</label>
-              <select name="id_fase_proyecto" value={form.id_fase_proyecto}
-                onChange={set} disabled={loadingFases} className={inputCls}
-              >
-                <option value="">{loadingFases ? 'Cargando fases…' : 'Sin fase específica'}</option>
-                {fases.map(f => (
-                  <option key={f.id_fase_proyecto} value={f.id_fase_proyecto}>
-                    {f.fase_nombre} ({f.estado})
-                  </option>
-                ))}
-              </select>
-              <p className="font-mono text-[10px] text-faint mt-1">
-                El avance de la fase se recalcula automáticamente a partir de sus turnos.
-              </p>
-            </div>
-          )}
-
-          <div>
-            <label className={labelCls}>Tiempo estimado (minutos)</label>
-            <div className="flex items-center gap-2">
-              <input type="number" name="tiempo_estimado" value={form.tiempo_estimado}
-                onChange={set} min={30} step={30} className={inputCls} />
-              <span className="font-mono text-[11px] text-faint whitespace-nowrap shrink-0">
-                = {(form.tiempo_estimado / 60).toFixed(1)}h
-              </span>
-            </div>
-          </div>
-
-          <div>
-            <label className={labelCls}>Tarea / Observaciones</label>
-            <textarea name="observaciones" value={form.observaciones} onChange={set} rows={3}
-              placeholder="Describe la tarea específica, instrucciones, etc."
-              className={`${inputCls} h-auto py-2.5 resize-none`} />
-          </div>
-        </form>
-
-        {/* Footer */}
-        <div className="flex gap-3 px-6 py-4 border-t border-border bg-surface2">
-          <button type="button" onClick={onClose}
-            className="flex-1 h-10 border border-border rounded-control text-[13px]
-              text-muted hover:bg-hover hover:text-ink transition-colors"
-          >
-            Cancelar
-          </button>
-          <button onClick={handleSubmit} disabled={saving}
-            className="flex-1 h-10 bg-primary hover:bg-primary-hover disabled:opacity-50
-              text-white rounded-control text-[13px] font-semibold shadow-btn transition-colors"
-          >
-            {saving ? 'Guardando…' : 'Programar actividad'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function Programacion() {
-  const [fecha,        setFecha]        = useState(toISO(new Date()))
-  const [showModal,    setShowModal]    = useState(false)
-  const [selectedItem, setSelectedItem] = useState(null)
+  const [fecha,           setFecha]           = useState(toISO(new Date()))
+  const [modo,            setModo]            = useState('dia') // 'dia' | 'semana' | 'mes'
+  const [modoMenu,        setModoMenu]        = useState(false)
+  const [showModal,       setShowModal]       = useState(false)
+  const [selectedItem,    setSelectedItem]    = useState(null)
+  const [activeTab,       setActiveTab]       = useState('todas')
+  const [search,          setSearch]          = useState('')
+  const [searchField,     setSearchField]     = useState('todos') // 'todos' | 'operario' | 'proyecto' | 'cliente'
+  // Grupos abiertos manualmente (por defecto todos colapsados; al buscar se
+  // autoexpanden los que tengan coincidencias, sin tocar este estado).
+  const [expandedGroups,  setExpandedGroups]  = useState(new Set())
 
-  const { data, loading, error, refresh } = useFetch(() => getProgramacion(fecha), [fecha])
+  const toggleGroup = (key) => setExpandedGroups(prev => {
+    const next = new Set(prev)
+    next.has(key) ? next.delete(key) : next.add(key)
+    return next
+  })
+
+  const SEARCH_FIELDS = [
+    { value: 'todos',     label: 'Todo',      placeholder: 'Filtrar actividades…' },
+    { value: 'operario',  label: 'Operario',  placeholder: 'Nombre del operario…' },
+    { value: 'proyecto',  label: 'Proyecto',  placeholder: 'Nombre del proyecto…' },
+    { value: 'cliente',   label: 'Cliente',   placeholder: 'Nombre del cliente…' },
+  ]
+
+  const rango = rangoDe(fecha, modo)
+  const { data, loading, error, refresh } = useFetch(
+    () => getProgramacion(modo === 'dia' ? fecha : rango),
+    [rango.desde, rango.hasta])
   const { data: usuarios }  = useFetch(getUsuarios)
   const { data: maquinas }  = useFetch(getMaquinaria)
   const { data: proyectos } = useFetch(getProyectos)
 
-  const prevDay = () => { const d = new Date(fecha); d.setDate(d.getDate() - 1); setFecha(toISO(d)) }
-  const nextDay = () => { const d = new Date(fecha); d.setDate(d.getDate() + 1); setFecha(toISO(d)) }
-  const isToday = fecha === toISO(new Date())
+  // Navegación: las flechas avanzan/retroceden según el modo (día, semana o mes).
+  const step = (dir) => {
+    const d = new Date(fecha + 'T12:00:00')
+    if (modo === 'semana')   d.setDate(d.getDate() + dir * 7)
+    else if (modo === 'mes') d.setMonth(d.getMonth() + dir)
+    else                     d.setDate(d.getDate() + dir)
+    setFecha(toISO(d))
+  }
+  const prevDay = () => step(-1)
+  const nextDay = () => step(1)
+  const hoyISO  = toISO(new Date())
+  const hoyEnRango = hoyISO >= rango.desde && hoyISO <= rango.hasta
 
   const handleIniciar = async (item) => {
     try {
       await updateEstadoTurno(item.id_programacion, { estado: 'en_proceso' })
       toast.success('Actividad iniciada')
       refresh()
-    } catch { toast.error('Error al iniciar') }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error al iniciar')
+    }
   }
 
   const handleCompletar = async (item, tiempoReal) => {
@@ -769,13 +698,53 @@ export default function Programacion() {
     completado: (data || []).filter(r => r.estado === 'completado').length,
     cancelado:  (data || []).filter(r => r.estado === 'cancelado').length,
   }
+  const sinOperario = (data || []).filter(r => !r.id_operario).length
 
-  const stateChips = [
-    { key: 'programado', dot: 'bg-secondary', label: 'Programado' },
-    { key: 'en_proceso', dot: 'bg-primary',   label: 'En proceso' },
-    { key: 'completado', dot: 'bg-success',   label: 'Completado' },
-    { key: 'cancelado',  dot: 'bg-error',     label: 'Cancelado'  },
-  ].filter(c => stats[c.key] > 0)
+  const TABS = [
+    { key: 'todas',      label: 'Todas',        count: (data || []).length },
+    { key: 'en_proceso', label: 'En curso',     count: stats.en_proceso },
+    { key: 'programado', label: 'Programadas',  count: stats.programado },
+    { key: 'completado', label: 'Completadas',  count: stats.completado },
+  ]
+
+  // Actividades de la pestaña activa, agrupadas por proyecto (orden de llegada del backend)
+  const filtradasPorTab = activeTab === 'todas'
+    ? (data || [])
+    : (data || []).filter(r => r.estado === activeTab)
+
+  const searchActive = search.trim().length > 0
+  const q = search.trim().toLowerCase()
+  const filtradasPorSearch = !q ? filtradasPorTab : filtradasPorTab.filter(item => {
+    if (searchField === 'operario') return (item.operario || '').toLowerCase().includes(q)
+    if (searchField === 'proyecto') return (item.proyecto || '').toLowerCase().includes(q)
+    if (searchField === 'cliente')  return (item.cliente || '').toLowerCase().includes(q)
+    return (item.operario || '').toLowerCase().includes(q) ||
+      (item.proyecto || '').toLowerCase().includes(q) ||
+      (item.cliente || '').toLowerCase().includes(q) ||
+      (item.fase_nombre || '').toLowerCase().includes(q)
+  })
+
+  // En vista día se agrupa por proyecto; en semana / mes por fecha.
+  const agruparPorFecha = modo !== 'dia'
+  const grupos = []
+  const gruposPorId = new Map()
+  for (const item of filtradasPorSearch) {
+    const key = agruparPorFecha
+      ? (isoDia(item.fecha) || 'sin-fecha')
+      : (item.id_proyecto ?? 'sin-proyecto')
+    if (!gruposPorId.has(key)) {
+      const g = {
+        key,
+        nombre: agruparPorFecha
+          ? fmtFechaLarga(key)
+          : (item.proyecto || 'Sin proyecto'),
+        items: [],
+      }
+      gruposPorId.set(key, g)
+      grupos.push(g)
+    }
+    gruposPorId.get(key).items.push(item)
+  }
 
   return (
     <div className="space-y-4 max-w-6xl mx-auto">
@@ -801,23 +770,60 @@ export default function Programacion() {
             <ChevronLeft size={16} />
           </button>
 
-          <div className="flex items-center gap-2 h-[38px] px-4
-            bg-surface border border-border rounded-control"
-          >
-            <input
-              type="date"
-              value={fecha}
-              onChange={e => setFecha(e.target.value)}
-              className="opacity-0 absolute pointer-events-none"
-              id="date-picker-hidden"
-            />
-            <label
-              htmlFor="date-picker-hidden"
-              className="font-mono text-[13px] font-semibold text-ink cursor-pointer
-                whitespace-nowrap select-none"
+          {/* Etiqueta del periodo — al hacer clic se elige día / semana / mes o se salta a una fecha */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setModoMenu(o => !o)}
+              className="flex items-center gap-2 h-[38px] px-4
+                bg-surface border border-border rounded-control
+                font-mono text-[13px] font-semibold text-ink whitespace-nowrap
+                hover:bg-hover transition-colors select-none"
             >
-              {fmtFechaCorta(fecha)}
-            </label>
+              {fmtPeriodoLabel(fecha, modo)}
+              <ChevronDown size={14}
+                className={`text-faint transition-transform ${modoMenu ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {modoMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setModoMenu(false)} />
+                <div className="absolute left-0 top-[44px] z-20 w-[248px]
+                  bg-surface border border-border rounded-card shadow-modal p-3 space-y-3"
+                >
+                  <div>
+                    <p className="font-mono text-[9.5px] font-semibold uppercase
+                      tracking-[.08em] text-faint mb-1.5">Ver por</p>
+                    <div className="flex gap-1">
+                      {MODOS.map(m => (
+                        <button key={m.value} type="button"
+                          onClick={() => { setModo(m.value); setModoMenu(false) }}
+                          className={`flex-1 h-8 rounded-control text-[12px] font-semibold
+                            border transition-colors
+                            ${modo === m.value
+                              ? 'bg-primary text-white border-primary'
+                              : 'bg-surface border-border text-muted hover:bg-hover hover:text-ink'}`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="font-mono text-[9.5px] font-semibold uppercase
+                      tracking-[.08em] text-faint mb-1.5">Ir a una fecha</p>
+                    <input
+                      type="date"
+                      value={fecha}
+                      onChange={e => { if (e.target.value) { setFecha(e.target.value); setModoMenu(false) } }}
+                      className="w-full h-9 border border-border rounded-control px-2.5 text-[12px]
+                        bg-surface2 text-ink focus:outline-none focus:ring-2 focus:ring-primary/25"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           <button onClick={nextDay}
@@ -828,8 +834,8 @@ export default function Programacion() {
             <ChevronRight size={16} />
           </button>
 
-          {!isToday && (
-            <button onClick={() => setFecha(toISO(new Date()))}
+          {!hoyEnRango && (
+            <button onClick={() => setFecha(hoyISO)}
               className="h-[38px] px-3 font-mono text-[12px] text-primary
                 border border-primary/30 bg-primary/8 hover:bg-primary/15
                 rounded-control transition-colors"
@@ -839,26 +845,20 @@ export default function Programacion() {
           )}
         </div>
 
-        {/* Chips de estado */}
-        {stateChips.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {stateChips.map(c => (
-              <span key={c.key}
-                className="inline-flex items-center gap-1.5 h-[38px] px-3
-                  bg-surface border border-border rounded-control
-                  font-mono text-[11.5px] text-muted"
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
-                {c.label} {stats[c.key]}
-              </span>
-            ))}
-          </div>
-        )}
+        {/* Buscador con selector de campo */}
+        <FieldFilter
+          fields={SEARCH_FIELDS}
+          field={searchField}
+          onFieldChange={setSearchField}
+          value={search}
+          onValueChange={setSearch}
+          className="flex-1 min-w-[220px] max-w-xs"
+        />
 
         <div className="flex-1" />
 
-        {/* Botón primario */}
-        {canDo('programacion', 'crear') && (
+        {/* Botón primario — solo líder de planta / coordinación de producción */}
+        {canManagePlanta() && (
           <button onClick={() => setShowModal(true)}
             className="h-[38px] flex items-center gap-2 px-4
               bg-primary hover:bg-primary-hover text-white
@@ -870,7 +870,6 @@ export default function Programacion() {
         )}
       </div>
 
-      {/* ── Cards de actividad ── */}
       {loading ? (
         <Spinner text="Cargando actividades..." />
       ) : error ? (
@@ -878,21 +877,62 @@ export default function Programacion() {
       ) : (data || []).length === 0 ? (
         <EmptyState
           title="Sin actividades programadas"
-          description={`No hay actividades para el ${fmtFechaCorta(fecha)}.`}
+          description={
+            modo === 'dia'
+              ? `No hay actividades para el ${fmtFechaCorta(fecha)}.`
+              : `No hay actividades en ${modo === 'semana' ? 'la semana' : 'el mes'} de ${fmtPeriodoLabel(fecha, modo)}.`
+          }
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {data.map(item => (
-            <ActivityCard
-              key={item.id_programacion}
-              item={item}
-              onClick={() => setSelectedItem(item)}
-              onIniciar={handleIniciar}
-              onCompletar={handleCompletar}
-              onDelete={handleDelete}
-            />
-          ))}
-        </div>
+        <>
+          {/* ── Resumen del periodo ── */}
+          <ResumenDia
+            periodoLabel={modo === 'dia' ? 'Turnos hoy' : modo === 'semana' ? 'Turnos (semana)' : 'Turnos (mes)'}
+            total={(data || []).length}
+            enCurso={stats.en_proceso}
+            completados={stats.completado}
+            sinOperario={sinOperario}
+          />
+
+          {/* ── Pestañas por estado ── */}
+          <div className="flex flex-wrap gap-1.5">
+            {TABS.map(t => (
+              <button key={t.key} onClick={() => setActiveTab(t.key)}
+                className={`h-[34px] px-3.5 rounded-control font-mono text-[12px]
+                  font-semibold transition-colors border
+                  ${activeTab === t.key
+                    ? 'bg-primary text-white border-primary'
+                    : 'bg-surface border-border text-muted hover:bg-hover hover:text-ink'}`}
+              >
+                {t.label} {t.count}
+              </button>
+            ))}
+          </div>
+
+          {/* ── Actividades agrupadas por proyecto ── */}
+          {grupos.length === 0 ? (
+            <EmptyState title="Sin actividades" description={
+              searchActive
+                ? 'No hay coincidencias con el filtro de búsqueda.'
+                : 'No hay turnos en este estado para la fecha seleccionada.'
+            } />
+          ) : (
+            <div className="space-y-3">
+              {grupos.map(g => (
+                <ProjectGroup key={g.key} nombre={g.nombre} items={g.items}
+                  showProyecto={agruparPorFecha}
+                  collapsed={searchActive ? false
+                    : agruparPorFecha ? expandedGroups.has(g.key) : !expandedGroups.has(g.key)}
+                  onToggle={() => toggleGroup(g.key)}
+                  onSelect={setSelectedItem}
+                  onIniciar={handleIniciar}
+                  onCompletar={handleCompletar}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* ── Modales ── */}

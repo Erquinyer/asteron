@@ -58,11 +58,16 @@ export const getStats = async (_req, res) => {
     const planta = await safeBlock(async () => {
       const [rows] = await pool.query(`
         SELECT pp.id_programacion, pp.estado, pp.tiempo_estimado, pp.tiempo_real, pp.updated_at,
-               u.nombre AS operario, m.nombre AS maquina, pr.nombre AS proyecto
+               pp.observaciones,
+               u.nombre AS operario, m.nombre AS maquina, m.codigo AS maquina_codigo, pr.nombre AS proyecto,
+               fe.nombre AS fase_nombre, dp.producto AS item_producto
         FROM programacion_planta pp
-        LEFT JOIN usuarios   u  ON pp.id_operario  = u.id_usuario
-        LEFT JOIN maquinaria m  ON pp.id_maquina   = m.id_maquina
-        LEFT JOIN proyectos  pr ON pp.id_proyecto  = pr.id_proyecto
+        LEFT JOIN usuarios       u  ON pp.id_operario      = u.id_usuario
+        LEFT JOIN maquinaria     m  ON pp.id_maquina       = m.id_maquina
+        LEFT JOIN proyectos      pr ON pp.id_proyecto      = pr.id_proyecto
+        LEFT JOIN fases_proyecto fp ON pp.id_fase_proyecto = fp.id_fase_proyecto
+        LEFT JOIN fases_estandar fe ON fp.id_fase_estandar = fe.id_fase_estandar
+        LEFT JOIN detalle_pedido dp ON fp.id_detalle_pedido = dp.id_detalle
         WHERE pp.fecha = CURDATE()
         ORDER BY FIELD(pp.estado,'en_proceso','programado','completado','cancelado')`)
       return rows

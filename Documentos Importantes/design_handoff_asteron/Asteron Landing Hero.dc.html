@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@200;300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:#070C18}
+body{-webkit-font-smoothing:antialiased}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+@keyframes glowP{0%,100%{opacity:.55}50%{opacity:.9}}
+@keyframes pulseDot{0%,100%{opacity:.3;transform:scale(.7)}50%{opacity:1;transform:scale(1)}}
+@keyframes shimmer{to{background-position:200% 0}}
+</style>
+</helmet>
+
+<div style="position:relative;min-height:100vh;overflow:hidden;background:radial-gradient(120% 130% at 72% -10%,#132244 0%,#0A1123 44%,#070C18 100%);color:#EAF0FB;font-family:'Geist',system-ui,sans-serif">
+
+  <!-- interactive particle canvas (full-bleed, behind content) -->
+  <canvas ref="{{ canvasRef }}" style="position:absolute;inset:0;width:100%;height:100%;display:block;z-index:1"></canvas>
+
+  <!-- dotted grid + glow -->
+  <div style="position:absolute;inset:0;z-index:0;background-image:radial-gradient(circle at 1px 1px,rgba(255,255,255,.045) 1px,transparent 0);background-size:32px 32px;pointer-events:none"></div>
+  <div ref="{{ glowRef }}" style="position:absolute;top:34%;left:66%;width:520px;height:520px;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle,rgba(28,140,232,.5),rgba(28,140,232,0) 66%);filter:blur(34px);z-index:0;pointer-events:none;animation:glowP 6s ease-in-out infinite;transition:transform .5s cubic-bezier(.2,.8,.2,1)"></div>
+
+  <!-- top nav -->
+  <header style="position:relative;z-index:5;max-width:1160px;margin:0 auto;height:76px;display:flex;align-items:center;gap:14px;padding:0 32px">
+    <div style="display:flex;align-items:center;gap:13px">{{ navMark }}<span style="font:300 18px/1 'Geist';letter-spacing:.22em;text-indent:.22em;color:#F4F6FB">ASTERON</span></div>
+    <div style="flex:1"></div>
+    <span style="font:500 13px/1 'Geist';color:#9DA9C2;cursor:pointer">Plataforma</span>
+    <span style="font:500 13px/1 'Geist';color:#9DA9C2;cursor:pointer;margin-left:26px">Módulos</span>
+    <span style="font:500 13px/1 'Geist';color:#9DA9C2;cursor:pointer;margin-left:26px">Changelog</span>
+    <button style="margin-left:30px;height:40px;padding:0 18px;border-radius:11px;border:1px solid #1C8CE8;background:linear-gradient(180deg,#26A0F0,#1478D0);color:#fff;font:600 13px/1 'Geist';cursor:pointer;box-shadow:0 10px 26px -10px rgba(28,140,232,.8)">Entrar al sistema</button>
+  </header>
+
+  <!-- hero content -->
+  <div ref="{{ heroRef }}" style="position:relative;z-index:5;max-width:1160px;margin:0 auto;padding:78px 32px 40px;display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center">
+    <!-- left: copy -->
+    <div style="min-width:0">
+      <span style="display:inline-flex;align-items:center;gap:9px;font:500 11px/1 'Geist Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:#A9D6F5;padding:8px 14px;border-radius:30px;border:1px solid rgba(120,180,240,.24);background:rgba(30,120,210,.1)"><span style="width:6px;height:6px;border-radius:50%;background:#33D6A0;box-shadow:0 0 10px #33D6A0"></span>MES · Macromet S.A.S.</span>
+      <h1 style="font:600 58px/1.04 'Geist';letter-spacing:-.03em;margin:26px 0 0;color:#F5F8FF">Control total de tu<br><span ref="{{ shineRef }}" style="background:linear-gradient(100deg,#EAF0FB 0%,#59B6F5 30%,#1C8CE8 50%,#59B6F5 70%,#EAF0FB 100%);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shimmer 6s linear infinite">producción</span></h1>
+      <p style="font:400 17px/1.62 'Geist';color:#A9B4CD;max-width:470px;margin:24px 0 0">Proyectos, planta, maquinaria y equipos conectados en una sola plataforma. Mueve el cursor: cada nodo es una parte de tu operación bajo control.</p>
+      <div style="display:flex;gap:13px;margin-top:34px">
+        <button style="height:48px;padding:0 24px;border-radius:12px;border:1px solid #1C8CE8;background:linear-gradient(180deg,#26A0F0,#1478D0);color:#fff;font:600 15px/1 'Geist';cursor:pointer;box-shadow:0 14px 32px -12px rgba(28,140,232,.85)">Comenzar ahora</button>
+        <button style="height:48px;padding:0 22px;border-radius:12px;border:1px solid rgba(150,180,220,.22);background:rgba(255,255,255,.04);color:#EAF0FB;font:600 15px/1 'Geist';cursor:pointer">Ver demo</button>
+      </div>
+      <div style="display:flex;gap:30px;margin-top:44px">
+        <div><div style="font:600 26px/1 'Geist';color:#F5F8FF;font-variant-numeric:tabular-nums">42</div><div style="font:500 11px/1.4 'Geist Mono',monospace;color:#7C88A4;margin-top:7px">PROYECTOS<br>EN CONTROL</div></div>
+        <div style="width:1px;background:rgba(150,180,220,.14)"></div>
+        <div><div style="font:600 26px/1 'Geist';color:#F5F8FF;font-variant-numeric:tabular-nums">76%</div><div style="font:500 11px/1.4 'Geist Mono',monospace;color:#7C88A4;margin-top:7px">EQUIPOS<br>ACTIVOS</div></div>
+        <div style="width:1px;background:rgba(150,180,220,.14)"></div>
+        <div><div style="font:600 26px/1 'Geist';color:#F5F8FF;font-variant-numeric:tabular-nums">6</div><div style="font:500 11px/1.4 'Geist Mono',monospace;color:#7C88A4;margin-top:7px">TURNOS<br>HOY</div></div>
+      </div>
+    </div>
+
+    <!-- right: floating tilt card -->
+    <div ref="{{ tiltRef }}" style="position:relative;transform-style:preserve-3d;transition:transform .3s cubic-bezier(.2,.8,.2,1);will-change:transform">
+      <div style="animation:floaty 7s ease-in-out infinite">
+        <div style="background:linear-gradient(165deg,rgba(20,32,58,.9),rgba(12,20,40,.82));border:1px solid rgba(120,160,220,.18);border-radius:20px;padding:22px;backdrop-filter:blur(10px);box-shadow:0 40px 90px -34px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.08)">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:18px">
+            <span style="width:9px;height:9px;border-radius:50%;background:#F04D6A"></span><span style="width:9px;height:9px;border-radius:50%;background:#F5A623"></span><span style="width:9px;height:9px;border-radius:50%;background:#33D6A0"></span>
+            <span style="font:500 10px/1 'Geist Mono',monospace;color:#7C88A4;margin-left:8px">CONTROL DE PRODUCCIÓN · HOY</span>
+            <div style="flex:1"></div>
+            <span style="font:500 10px/1 'Geist Mono',monospace;color:#33D6A0">● LIVE</span>
+          </div>
+          <sc-for list="{{ rows }}" as="r" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+              <span style="width:22px;height:22px;border-radius:6px;flex-shrink:0;display:grid;place-items:center;background:rgba(28,140,232,.14);color:#59B6F5;font:600 9px/1 'Geist'">{{ r.init }}</span>
+              <span style="width:72px;font:500 11.5px/1 'Geist';color:#B7C2DA;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0">{{ r.name }}</span>
+              <div style="flex:1;height:15px;border-radius:5px;background:rgba(8,14,28,.7);position:relative;overflow:hidden">
+                <div style="position:absolute;left:{{ r.start }}%;width:{{ r.len }}%;top:0;bottom:0;border-radius:5px;background:{{ r.color }};box-shadow:0 0 14px -2px {{ r.glow }}"></div>
+              </div>
+              <span style="width:32px;font:600 10.5px/1 'Geist Mono',monospace;color:#D6DEEF;text-align:right;flex-shrink:0">{{ r.pct }}</span>
+            </div>
+          </sc-for>
+          <div style="display:flex;gap:12px;margin-top:18px;padding-top:16px;border-top:1px solid rgba(120,160,220,.12)">
+            <div style="flex:1;background:rgba(8,14,28,.5);border:1px solid rgba(120,160,220,.1);border-radius:12px;padding:13px 15px">
+              <div style="font:500 9px/1 'Geist Mono',monospace;color:#7C88A4;letter-spacing:.06em">EN PROCESO</div>
+              <div style="font:600 22px/1 'Geist';color:#59B6F5;margin-top:8px;font-variant-numeric:tabular-nums">18</div>
+            </div>
+            <div style="flex:1;background:rgba(8,14,28,.5);border:1px solid rgba(120,160,220,.1);border-radius:12px;padding:13px 15px">
+              <div style="font:500 9px/1 'Geist Mono',monospace;color:#7C88A4;letter-spacing:.06em">COMPLETADO</div>
+              <div style="font:600 22px/1 'Geist';color:#33D6A0;margin-top:8px;font-variant-numeric:tabular-nums">14</div>
+            </div>
+            <div style="flex:1;background:rgba(8,14,28,.5);border:1px solid rgba(120,160,220,.1);border-radius:12px;padding:13px 15px">
+              <div style="font:500 9px/1 'Geist Mono',monospace;color:#7C88A4;letter-spacing:.06em">A TIEMPO</div>
+              <div style="font:600 22px/1 'Geist';color:#F5F8FF;margin-top:8px;font-variant-numeric:tabular-nums">96%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- floating chip that follows cursor slightly -->
+      <div ref="{{ chipRef }}" style="position:absolute;top:-20px;left:-26px;background:rgba(16,26,48,.92);border:1px solid rgba(120,160,220,.2);border-radius:12px;padding:11px 14px;display:flex;align-items:center;gap:10px;backdrop-filter:blur(8px);box-shadow:0 20px 40px -18px rgba(0,0,0,.8);transition:transform .4s cubic-bezier(.2,.8,.2,1)">
+        <span style="width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:rgba(51,214,160,.16)">{{ boltIcon }}</span>
+        <div><div style="font:600 11.5px/1 'Geist';color:#EAF0FB">Corte láser</div><div style="font:500 9.5px/1 'Geist Mono',monospace;color:#7C88A4;margin-top:4px">LC-04 · en vivo</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="position:relative;z-index:5;text-align:center;padding:8px 0 40px;font:500 11px/1 'Geist Mono',monospace;letter-spacing:.14em;color:#5C688A">MUEVE EL CURSOR SOBRE EL FONDO ↑</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1160,&quot;height&quot;:760}}">
+class Component extends DCLogic {
+  R(){
+    if(!this._refs) this._refs = { canvas:React.createRef(), glow:React.createRef(), hero:React.createRef(), tilt:React.createRef(), chip:React.createRef(), shine:React.createRef() };
+    return this._refs;
+  }
+  componentDidMount(){
+    this.mouse = {x:-9999,y:-9999,active:false};
+    this.raf = null;
+    // defer one frame so layout is settled and refs are attached
+    requestAnimationFrame(()=>{
+      this._initCanvas();
+      this._bind();
+      this._loop();
+    });
+  }
+  componentWillUnmount(){
+    cancelAnimationFrame(this.raf);
+    window.removeEventListener('resize', this._onResize);
+    const root=this._root; if(root){ root.removeEventListener('mousemove',this._onMove); root.removeEventListener('mouseleave',this._onLeave); }
+  }
+
+  _bind(){
+    const cv=this.R().canvas.current;
+    this._root = cv ? cv.parentElement : null;
+    this._onMove = (e)=>{
+      const r=this._cv.getBoundingClientRect();
+      this.mouse.x = e.clientX - r.left;
+      this.mouse.y = e.clientY - r.top;
+      this.mouse.active = true;
+      this._parallax(e, r);
+    };
+    this._onLeave = ()=>{ this.mouse.active=false; this.mouse.x=-9999; this.mouse.y=-9999; this._reset(); };
+    this._onResize = ()=>this._initCanvas();
+    if(this._root){ this._root.addEventListener('mousemove', this._onMove); this._root.addEventListener('mouseleave', this._onLeave); }
+    window.addEventListener('resize', this._onResize);
+  }
+
+  _parallax(e, r){
+    const nx = (this.mouse.x/r.width - .5);
+    const ny = (this.mouse.y/r.height - .5);
+    const tilt=this.R().tilt.current; if(tilt) tilt.style.transform = `perspective(900px) rotateY(${(-nx*7).toFixed(2)}deg) rotateX(${(ny*7).toFixed(2)}deg)`;
+    const chip=this.R().chip.current; if(chip) chip.style.transform = `translate(${(nx*22).toFixed(1)}px,${(ny*18).toFixed(1)}px)`;
+    const glow=this.R().glow.current; if(glow) glow.style.transform = `translate(calc(-50% + ${(nx*60).toFixed(0)}px), calc(-50% + ${(ny*50).toFixed(0)}px))`;
+  }
+  _reset(){
+    const tilt=this.R().tilt.current; if(tilt) tilt.style.transform='perspective(900px) rotateY(0) rotateX(0)';
+    const chip=this.R().chip.current; if(chip) chip.style.transform='translate(0,0)';
+  }
+
+  _initCanvas(){
+    const cv=this.R().canvas.current; if(!cv) return;
+    this._cv=cv;
+    const dpr=Math.min(window.devicePixelRatio||1, 2);
+    const rect=cv.getBoundingClientRect();
+    this.W=rect.width; this.H=rect.height;
+    cv.width=Math.max(1,rect.width*dpr); cv.height=Math.max(1,rect.height*dpr);
+    this.ctx=cv.getContext('2d');
+    this.ctx.setTransform(dpr,0,0,dpr,0,0);
+    this._seed();
+  }
+
+  _seed(){
+    const n = this.W < 700 ? 34 : 62;
+    this.pts=[];
+    for(let i=0;i<n;i++){
+      this.pts.push({
+        x:Math.random()*this.W, y:Math.random()*this.H,
+        ox:0, oy:0,
+        vx:(Math.random()-.5)*.18, vy:(Math.random()-.5)*.18,
+        r:Math.random()*1.6+1,
+        hot:0
+      });
+    }
+  }
+
+  _loop(){
+    this.raf=requestAnimationFrame(()=>this._loop());
+    const ctx=this.ctx; if(!ctx) return;
+    const {W,H}=this;
+    ctx.clearRect(0,0,W,H);
+    const mx=this.mouse.x, my=this.mouse.y, active=this.mouse.active;
+    const R=150, R2=R*R;
+    const pts=this.pts;
+
+    // update
+    for(const p of pts){
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0||p.x>W) p.vx*=-1;
+      if(p.y<0||p.y>H) p.vy*=-1;
+      // cursor attraction + heat
+      let dispx=0, dispy=0;
+      if(active){
+        const dx=p.x-mx, dy=p.y-my, d2=dx*dx+dy*dy;
+        if(d2<R2){
+          const d=Math.sqrt(d2)||1;
+          const f=(1-d/R);
+          p.hot = Math.max(p.hot, f);
+          // gentle pull toward cursor
+          dispx = -(dx/d)*f*14;
+          dispy = -(dy/d)*f*14;
+        }
+      }
+      p.hot*=0.92;
+      p.dx=p.x+dispx; p.dy=p.y+dispy;
+    }
+
+    // links
+    for(let i=0;i<pts.length;i++){
+      const a=pts[i];
+      for(let j=i+1;j<pts.length;j++){
+        const b=pts[j];
+        const dx=a.dx-b.dx, dy=a.dy-b.dy, d2=dx*dx+dy*dy;
+        if(d2<125*125){
+          const d=Math.sqrt(d2);
+          const base=1-d/125;
+          const heat=Math.max(a.hot,b.hot);
+          const alpha=base*(0.10+heat*0.55);
+          ctx.strokeStyle=`rgba(${Math.round(90+heat*90)},${Math.round(160+heat*40)},${Math.round(232+heat*20)},${alpha.toFixed(3)})`;
+          ctx.lineWidth=0.6+heat*1.1;
+          ctx.beginPath(); ctx.moveTo(a.dx,a.dy); ctx.lineTo(b.dx,b.dy); ctx.stroke();
+        }
+      }
+    }
+    // nodes
+    for(const p of pts){
+      const heat=p.hot;
+      const rr=p.r*(1+heat*1.6);
+      if(heat>0.05){
+        ctx.beginPath(); ctx.arc(p.dx,p.dy,rr+5*heat,0,7); ctx.fillStyle=`rgba(40,160,240,${(heat*0.18).toFixed(3)})`; ctx.fill();
+      }
+      ctx.beginPath(); ctx.arc(p.dx,p.dy,rr,0,7);
+      ctx.fillStyle=`rgba(${Math.round(120+heat*120)},${Math.round(180+heat*60)},${Math.round(240)},${(0.5+heat*0.5).toFixed(3)})`;
+      ctx.fill();
+    }
+    // cursor halo
+    if(active){
+      const g=ctx.createRadialGradient(mx,my,0,mx,my,R);
+      g.addColorStop(0,'rgba(28,140,232,0.10)'); g.addColorStop(1,'rgba(28,140,232,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(mx,my,R,0,7); ctx.fill();
+    }
+  }
+
+  // eslabón mark (approved logo)
+  navMarkEl(){
+    const E=React.createElement, WHITE='#F4F6FB', bg='#0B1428';
+    return E('svg',{viewBox:'0 0 120 70',width:44,height:26,style:{display:'block',overflow:'visible'}},[
+      E('circle',{key:'a',cx:42,cy:35,r:21,fill:WHITE}),
+      E('circle',{key:'sep',cx:78,cy:35,r:21,fill:'none',stroke:bg,strokeWidth:5}),
+      E('circle',{key:'c',cx:78,cy:35,r:16.5,fill:WHITE}),
+      E('circle',{key:'h1',cx:42,cy:35,r:8,fill:bg}),
+      E('circle',{key:'h2',cx:78,cy:35,r:8,fill:bg})
+    ]);
+  }
+  icon(name,size,color){
+    const I={bolt:'<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>'};
+    return React.createElement('svg',{width:size,height:size,viewBox:'0 0 24 24',fill:'none',stroke:color,strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round',style:{display:'block'},dangerouslySetInnerHTML:{__html:I[name]}});
+  }
+
+  renderVals(){
+    const rows=[
+      {init:'BA',name:'Bavaria',start:4,len:62,pct:'78%',color:'linear-gradient(90deg,#1478D0,#59B6F5)',glow:'rgba(40,160,240,.6)'},
+      {init:'NU',name:'Nutresa',start:10,len:80,pct:'92%',color:'linear-gradient(90deg,#1EA97C,#33D6A0)',glow:'rgba(51,214,160,.5)'},
+      {init:'PO',name:'Postobón',start:18,len:40,pct:'45%',color:'linear-gradient(90deg,#0E9DBE,#22D3EE)',glow:'rgba(34,211,238,.5)'},
+      {init:'EX',name:'Éxito',start:8,len:55,pct:'64%',color:'linear-gradient(90deg,#D08A1A,#F5B342)',glow:'rgba(245,166,66,.45)'},
+      {init:'CL',name:'Claro',start:22,len:34,pct:'30%',color:'linear-gradient(90deg,#1478D0,#59B6F5)',glow:'rgba(40,160,240,.5)'}
+    ];
+    const R=this.R();
+    return { rows, navMark:this.navMarkEl(), boltIcon:this.icon('bolt',16,'#33D6A0'),
+      canvasRef:R.canvas, glowRef:R.glow, heroRef:R.hero, tiltRef:R.tilt, chipRef:R.chip, shineRef:R.shine };
+  }
+}
+</script>
+</body>
+</html>

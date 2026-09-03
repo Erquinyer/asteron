@@ -35,27 +35,77 @@ export const recomputeFase = async (id_fase_proyecto) => {
     [id_fase_proyecto, fase.estado, estado, avance, 'Actualizado automáticamente desde Programación de planta'])
 }
 
+// Operarios y máquinas con una actividad en_proceso ahora mismo — no pueden
+// tomar una actividad nueva hasta que esa termine o se cancele.
+export const getOcupados = async (_req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id_operario, id_maquina FROM programacion_planta WHERE estado = 'en_proceso'`)
+    res.json({
+      operarios: [...new Set(rows.map(r => r.id_operario).filter(Boolean))],
+      maquinas:  [...new Set(rows.map(r => r.id_maquina).filter(Boolean))],
+    })
+  } catch (err) {
+    console.error('[programacion.getOcupados]', err)
+    res.status(500).json({ message: 'Error al obtener disponibilidad' })
+  }
+}
+
 export const getAll = async (req, res) => {
-  const fecha = req.query.fecha || new Date().toISOString().split('T')[0]
+  // Rango de fechas: ?desde=YYYY-MM-DD&hasta=YYYY-MM-DD (vista semana / mes) o
+  // ?fecha=YYYY-MM-DD (vista día, comportamiento por defecto).
+  const hoy = new Date().toISOString().split('T')[0]
+  const desde = req.query.desde || req.query.fecha || hoy
+  const hasta = req.query.hasta || req.query.fecha || desde
   try {
     const [rows] = await pool.query(`
       SELECT pp.*,
              u.nombre  AS operario,
              m.nombre  AS maquina,  m.codigo AS maquina_codigo,
              pr.nombre AS proyecto,
-             fe.nombre AS fase_nombre
+             cl.nombre AS cliente,
+             fe.nombre AS fase_nombre,
+             dp.producto AS item_producto
       FROM programacion_planta pp
       LEFT JOIN usuarios       u  ON pp.id_operario      = u.id_usuario
       LEFT JOIN maquinaria     m  ON pp.id_maquina       = m.id_maquina
       LEFT JOIN proyectos      pr ON pp.id_proyecto      = pr.id_proyecto
+      LEFT JOIN pedidos        pe ON pr.id_pedido        = pe.id_pedido
+      LEFT JOIN clientes       cl ON pe.id_cliente       = cl.id_cliente
       LEFT JOIN fases_proyecto fp ON pp.id_fase_proyecto = fp.id_fase_proyecto
       LEFT JOIN fases_estandar fe ON fp.id_fase_estandar = fe.id_fase_estandar
-      WHERE pp.fecha = ?
-      ORDER BY FIELD(pp.estado,'en_proceso','programado','completado','cancelado')`, [fecha])
+      LEFT JOIN detalle_pedido dp ON fp.id_detalle_pedido = dp.id_detalle
+      WHERE pp.fecha BETWEEN ? AND ?
+      ORDER BY pp.fecha,
+               FIELD(pp.estado,'en_proceso','programado','completado','cancelado')`,
+      [desde, hasta])
     res.json(rows)
   } catch (err) {
     console.error('[programacion.getAll]', err)
     res.status(500).json({ message: 'Error al obtener programación' })
+  }
+}
+
+// GET /fase/:idFase — actividades (turnos) vinculadas a una fase concreta de un
+// proyecto. Se usa en ProyectoDetalle para ver el detalle sin salir del módulo.
+export const getByFase = async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT pp.id_programacion, pp.fecha, pp.estado, pp.porcentaje_avance,
+             pp.tiempo_estimado, pp.tiempo_real, pp.observaciones,
+             u.nombre AS operario,
+             m.nombre AS maquina, m.codigo AS maquina_codigo
+      FROM programacion_planta pp
+      LEFT JOIN usuarios   u ON pp.id_operario = u.id_usuario
+      LEFT JOIN maquinaria m ON pp.id_maquina  = m.id_maquina
+      WHERE pp.id_fase_proyecto = ?
+      ORDER BY pp.fecha DESC,
+               FIELD(pp.estado,'en_proceso','programado','completado','cancelado')`,
+      [req.params.idFase])
+    res.json(rows)
+  } catch (err) {
+    console.error('[programacion.getByFase]', err)
+    res.status(500).json({ message: 'Error al obtener actividades de la fase' })
   }
 }
 
@@ -65,6 +115,32 @@ export const create = async (req, res) => {
     return res.status(400).json({ message: 'Fecha, operario y máquina son requeridos' })
   }
   try {
+    const [[operarioOcupado]] = await pool.query(
+      `SELECT 1 FROM programacion_planta WHERE id_operario=? AND estado='en_proceso' LIMIT 1`,
+      [id_operario])
+    if (operarioOcupado) {
+      return res.status(409).json({ message: 'El operario ya tiene una actividad en curso' })
+    }
+
+    const [[maquinaOcupada]] = await pool.query(
+      `SELECT 1 FROM programacion_planta WHERE id_maquina=? AND estado='en_proceso' LIMIT 1`,
+      [id_maquina])
+    if (maquinaOcupada) {
+      return res.status(409).json({ message: 'La máquina ya está en uso en otra actividad' })
+    }
+
+    // No se pueden programar actividades sobre una fase ya completada.
+    if (id_fase_proyecto) {
+      const [[fase]] = await pool.query(
+        'SELECT estado FROM fases_proyecto WHERE id_fase_proyecto = ?', [id_fase_proyecto])
+      if (!fase) {
+        return res.status(404).json({ message: 'La fase indicada no existe' })
+      }
+      if (fase.estado === 'completada') {
+        return res.status(409).json({ message: 'Esa fase ya está completada; no admite nuevas actividades' })
+      }
+    }
+
     const [result] = await pool.query(
       `INSERT INTO programacion_planta (fecha, id_operario, id_maquina, id_proyecto, id_fase_proyecto, tiempo_estimado, estado, porcentaje_avance, observaciones)
        VALUES (?,?,?,?,?,?,?,?,?)`,
@@ -75,13 +151,15 @@ export const create = async (req, res) => {
 
     const [[row]] = await pool.query(`
       SELECT pp.*, u.nombre AS operario, m.nombre AS maquina, m.codigo AS maquina_codigo,
-             pr.nombre AS proyecto, fe.nombre AS fase_nombre
+             pr.nombre AS proyecto, fe.nombre AS fase_nombre,
+             dp.producto AS item_producto
       FROM programacion_planta pp
       LEFT JOIN usuarios       u  ON pp.id_operario      = u.id_usuario
       LEFT JOIN maquinaria     m  ON pp.id_maquina       = m.id_maquina
       LEFT JOIN proyectos      pr ON pp.id_proyecto      = pr.id_proyecto
       LEFT JOIN fases_proyecto fp ON pp.id_fase_proyecto = fp.id_fase_proyecto
       LEFT JOIN fases_estandar fe ON fp.id_fase_estandar = fe.id_fase_estandar
+      LEFT JOIN detalle_pedido dp ON fp.id_detalle_pedido = dp.id_detalle
       WHERE pp.id_programacion = ?`, [result.insertId])
 
     res.status(201).json(row)
@@ -96,8 +174,26 @@ export const updateEstado = async (req, res) => {
   const { id } = req.params
   try {
     const [[prog]] = await pool.query(
-      'SELECT id_fase_proyecto FROM programacion_planta WHERE id_programacion=?', [id])
+      'SELECT id_fase_proyecto, id_operario, id_maquina FROM programacion_planta WHERE id_programacion=?', [id])
     if (!prog) return res.status(404).json({ message: 'Registro no encontrado' })
+
+    if (estado === 'en_proceso') {
+      const [[operarioOcupado]] = await pool.query(
+        `SELECT 1 FROM programacion_planta
+         WHERE id_operario=? AND estado='en_proceso' AND id_programacion!=? LIMIT 1`,
+        [prog.id_operario, id])
+      if (operarioOcupado) {
+        return res.status(409).json({ message: 'El operario ya tiene otra actividad en curso' })
+      }
+
+      const [[maquinaOcupada]] = await pool.query(
+        `SELECT 1 FROM programacion_planta
+         WHERE id_maquina=? AND estado='en_proceso' AND id_programacion!=? LIMIT 1`,
+        [prog.id_maquina, id])
+      if (maquinaOcupada) {
+        return res.status(409).json({ message: 'La máquina ya está en uso en otra actividad' })
+      }
+    }
 
     const porcentaje_avance = estado === 'completado' ? 100 : undefined
     await pool.query(

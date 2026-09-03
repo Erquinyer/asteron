@@ -1,13 +1,15 @@
-import { useState } from 'react'
-import { Plus, Search, Eye, Pencil, Trash2, X, Filter } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Plus, Pencil, Trash2, X, Filter, ChevronRight, Users, List } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useFetch }      from '../hooks/useFetch'
 import { getProyectos, createProyecto, updateProyecto, deleteProyecto } from '../api/proyectos.service'
 import { getPedidos }    from '../api/pedidos.service'
 import { getUsuarios }   from '../api/usuarios.service'
 import { canDo }         from '../utils/auth'
-import Spinner    from '../components/ui/Spinner'
-import EmptyState from '../components/ui/EmptyState'
+import Spinner          from '../components/ui/Spinner'
+import EmptyState       from '../components/ui/EmptyState'
+import FieldFilter      from '../components/ui/FieldFilter'
+import SearchableSelect from '../components/ui/SearchableSelect'
 import toast      from 'react-hot-toast'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -40,7 +42,7 @@ const EMPTY_FORM = {
   id_pedido: '', id_usuario_responsable: '',
 }
 
-function ProyectoModal({ proyecto, pedidos, usuarios, onClose, onSaved }) {
+function ProyectoModal({ proyecto, pedidos, proyectos, usuarios, onClose, onSaved, initialIdPedido }) {
   const [form, setForm] = useState(proyecto ? {
     nombre:                 proyecto.nombre                || '',
     objetivo:               proyecto.objetivo              || '',
@@ -49,10 +51,29 @@ function ProyectoModal({ proyecto, pedidos, usuarios, onClose, onSaved }) {
     fecha_fin_estimada:     proyecto.fecha_fin_estimada?.slice(0,10)    || '',
     id_pedido:              proyecto.id_pedido             || '',
     id_usuario_responsable: proyecto.id_responsable        || '',
-  } : EMPTY_FORM)
+  } : { ...EMPTY_FORM, id_pedido: initialIdPedido || '' })
   const [saving, setSaving] = useState(false)
 
   const handleChange = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
+
+  // Un pedido solo puede vincularse a un proyecto: se ocultan los que ya
+  // tienen proyecto asociado (salvo el del proyecto que se está editando).
+  const pedidosOcupados = new Set(
+    (proyectos || [])
+      .filter(p => p.id_pedido && p.id_proyecto !== proyecto?.id_proyecto)
+      .map(p => p.id_pedido)
+  )
+
+  // Pedidos más recientes primero (por defecto se muestran los 5 más
+  // nuevos en el selector; si el que se busca no aparece, se filtra por texto).
+  const pedidoOptions = [...pedidos]
+    .filter(p => !pedidosOcupados.has(p.id_pedido))
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+    .map(p => ({
+      value: p.id_pedido,
+      label: `#${p.id_pedido} · ${p.cliente || 'Sin cliente'}`,
+      sublabel: p.descripcion || '',
+    }))
 
   const handleSubmit = async e => {
     e.preventDefault()
@@ -73,11 +94,12 @@ function ProyectoModal({ proyecto, pedidos, usuarios, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center
+    <div className="fixed inset-0 z-50 overflow-y-auto
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
+      <div className="min-h-full flex items-center justify-center">
       <div className="bg-surface border border-border rounded-[18px] shadow-modal
-        w-full max-w-lg animate-md-in overflow-hidden"
+        w-full max-w-lg my-4 animate-md-in overflow-hidden"
       >
         {/* Cabecera */}
         <div className="flex items-center justify-between px-6 py-5
@@ -107,6 +129,19 @@ function ProyectoModal({ proyecto, pedidos, usuarios, onClose, onSaved }) {
 
         {/* Cuerpo */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className={labelCls}>Pedido asociado</label>
+            <SearchableSelect
+              value={form.id_pedido}
+              onChange={val => setForm(f => ({ ...f, id_pedido: val }))}
+              options={pedidoOptions}
+              placeholder="Sin pedido"
+              searchPlaceholder="Buscar pedido por # o cliente…"
+              emptyText="Sin pedidos que coincidan"
+              clearable
+            />
+          </div>
+
           <div>
             <label className={labelCls}>Nombre del proyecto *</label>
             <input name="nombre" value={form.nombre} onChange={handleChange} required
@@ -156,20 +191,6 @@ function ProyectoModal({ proyecto, pedidos, usuarios, onClose, onSaved }) {
                 onChange={handleChange} className={inputCls} />
             </div>
           </div>
-
-          <div>
-            <label className={labelCls}>Pedido asociado</label>
-            <select name="id_pedido" value={form.id_pedido} onChange={handleChange}
-              className={inputCls}
-            >
-              <option value="">Sin pedido</option>
-              {pedidos.map(p => (
-                <option key={p.id_pedido} value={p.id_pedido}>
-                  #{p.id_pedido} · {p.cliente}
-                </option>
-              ))}
-            </select>
-          </div>
         </form>
 
         {/* Pie */}
@@ -189,6 +210,103 @@ function ProyectoModal({ proyecto, pedidos, usuarios, onClose, onSaved }) {
           </button>
         </div>
       </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Fila compacta de proyecto (vista agrupada por cliente) ────────────────────
+function ClienteProjectRow({ p, navigate, onEdit, onDelete }) {
+  const pCfg = prioridadCfg[p.prioridad] || prioridadCfg.baja
+  return (
+    <div
+      onClick={() => navigate(`/proyectos/${p.id_proyecto}`)}
+      className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3
+        cursor-pointer hover:bg-hover transition-colors"
+    >
+      <div className="min-w-[160px] flex-1">
+        <p className="text-[13px] font-medium text-ink truncate">{p.nombre}</p>
+        {p.responsable && (
+          <p className="font-mono text-[10.5px] text-faint truncate mt-0.5">{p.responsable}</p>
+        )}
+      </div>
+
+      <span className={`inline-flex items-center gap-1.5 font-mono text-[11px]
+        font-semibold px-[9px] py-[5px] rounded-badge shrink-0 ${pCfg.badge}`}
+      >
+        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${pCfg.dot}`} />
+        {pCfg.label}
+      </span>
+
+      <div className="hidden sm:flex items-center gap-2 w-[120px] shrink-0">
+        <div className="flex-1 h-1.5 rounded-full bg-surface2">
+          <div
+            className={`h-1.5 rounded-full transition-all duration-500 ${progressColor(p.avance)}`}
+            style={{ width: `${p.avance}%` }}
+          />
+        </div>
+        <span className="font-mono text-[11px] text-muted w-8 text-right tabular-nums">
+          {p.avance}%
+        </span>
+      </div>
+
+      <span className="hidden md:inline font-mono text-[12px] text-muted w-[70px] shrink-0">
+        {p.fecha_fin_estimada
+          ? new Date(p.fecha_fin_estimada).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
+          : '—'}
+      </span>
+
+      <div className="flex items-center gap-0.5 ml-auto shrink-0" onClick={e => e.stopPropagation()}>
+        {canDo('proyectos', 'editar') && (
+          <button
+            onClick={() => onEdit(p)}
+            title="Editar"
+            className="w-7 h-7 flex items-center justify-center rounded-badge
+              text-faint hover:bg-surface2 hover:text-primary transition-colors"
+          >
+            <Pencil size={15} />
+          </button>
+        )}
+        {canDo('proyectos', 'eliminar') && (
+          <button
+            onClick={() => onDelete(p)}
+            title="Eliminar"
+            className="w-7 h-7 flex items-center justify-center rounded-badge
+              text-faint hover:bg-error/10 hover:text-error transition-colors"
+          >
+            <Trash2 size={15} />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Grupo de proyectos por cliente (desplegable) ───────────────────────────────
+function ClienteGroup({ cliente, proyectos, collapsed, onToggle, navigate, onEdit, onDelete }) {
+  return (
+    <div className="bg-surface border border-border rounded-card shadow-card dark:shadow-card-dk overflow-hidden">
+      <button onClick={onToggle}
+        className="w-full flex items-center gap-2 px-4 py-3 bg-surface2
+          hover:bg-hover transition-colors text-left"
+      >
+        <ChevronRight size={14}
+          className={`text-faint shrink-0 transition-transform ${collapsed ? '' : 'rotate-90'}`}
+        />
+        <span className="text-[13.5px] font-semibold text-ink truncate">{cliente}</span>
+        <span className="font-mono text-[10.5px] text-faint ml-auto shrink-0">
+          {proyectos.length} proyecto{proyectos.length !== 1 ? 's' : ''}
+        </span>
+      </button>
+      {!collapsed && (
+        <div className="divide-y divide-border">
+          {proyectos.map(p => (
+            <ClienteProjectRow key={p.id_proyecto} p={p} navigate={navigate}
+              onEdit={onEdit} onDelete={onDelete}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -196,11 +314,40 @@ function ProyectoModal({ proyecto, pedidos, usuarios, onClose, onSaved }) {
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function Proyectos() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { data: proyectos, loading, error, refresh } = useFetch(getProyectos)
   const { data: pedidos }  = useFetch(getPedidos)
   const { data: usuarios } = useFetch(getUsuarios)
   const [search, setSearch] = useState('')
+  const [searchField, setSearchField] = useState('todos') // 'todos' | 'cliente' | 'responsable'
   const [modal,  setModal]  = useState(null)
+  const [prefillPedido, setPrefillPedido] = useState('')
+  const [viewMode, setViewMode] = useState('lista') // 'lista' | 'cliente'
+  // Grupos abiertos manualmente (por defecto todos colapsados; al buscar se
+  // autoexpanden los que tengan coincidencias, sin tocar este estado).
+  const [expandedClientes, setExpandedClientes] = useState(new Set())
+
+  const toggleCliente = (key) => setExpandedClientes(prev => {
+    const next = new Set(prev)
+    next.has(key) ? next.delete(key) : next.add(key)
+    return next
+  })
+
+  const SEARCH_FIELDS = [
+    { value: 'todos',       label: 'Todo',        placeholder: 'Filtrar proyectos…' },
+    { value: 'cliente',     label: 'Cliente',      placeholder: 'Nombre del cliente…' },
+    { value: 'responsable', label: 'Responsable',  placeholder: 'Nombre del responsable…' },
+  ]
+
+  // Llega desde Pedidos ("crear el proyecto asociado ahora") con ?nuevo=1&id_pedido=X
+  useEffect(() => {
+    if (searchParams.get('nuevo') === '1') {
+      setPrefillPedido(searchParams.get('id_pedido') || '')
+      setModal('new')
+      setSearchParams({}, { replace: true })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleDelete = async (p) => {
     if (!confirm(`¿Eliminar "${p.nombre}"?`)) return
@@ -216,10 +363,30 @@ export default function Proyectos() {
   if (loading) return <Spinner text="Cargando proyectos..." />
   if (error)   return <EmptyState title="Error" description={error} />
 
-  const filtrados = (proyectos || []).filter(p =>
-    p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-    (p.cliente || '').toLowerCase().includes(search.toLowerCase())
-  )
+  const searchActive = search.trim().length > 0
+  const q = search.trim().toLowerCase()
+  const filtrados = (proyectos || []).filter(p => {
+    if (!q) return true
+    if (searchField === 'cliente')     return (p.cliente || '').toLowerCase().includes(q)
+    if (searchField === 'responsable') return (p.responsable || '').toLowerCase().includes(q)
+    return p.nombre.toLowerCase().includes(q) ||
+      (p.cliente || '').toLowerCase().includes(q) ||
+      (p.responsable || '').toLowerCase().includes(q)
+  })
+
+  // Agrupación por cliente (orden alfabético, "Sin cliente" al final)
+  const gruposCliente = Object.values(
+    filtrados.reduce((acc, p) => {
+      const key = p.cliente || 'Sin cliente'
+      if (!acc[key]) acc[key] = { cliente: key, proyectos: [] }
+      acc[key].proyectos.push(p)
+      return acc
+    }, {})
+  ).sort((a, b) => {
+    if (a.cliente === 'Sin cliente') return 1
+    if (b.cliente === 'Sin cliente') return -1
+    return a.cliente.localeCompare(b.cliente)
+  })
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
@@ -234,19 +401,15 @@ export default function Proyectos() {
 
       {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center gap-3">
-        {/* Buscador */}
-        <div className="relative flex-1 min-w-[180px] max-w-xs">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Filtrar proyectos…"
-            className="w-full h-[38px] pl-9 pr-4 bg-surface border border-border
-              rounded-control text-[13px] text-ink placeholder:text-faint
-              focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary
-              transition-colors"
-          />
-        </div>
+        {/* Buscador con selector de campo */}
+        <FieldFilter
+          fields={SEARCH_FIELDS}
+          field={searchField}
+          onFieldChange={setSearchField}
+          value={search}
+          onValueChange={setSearch}
+          className="flex-1 min-w-[240px] max-w-sm"
+        />
 
         {/* Filtro placeholder */}
         <button className="h-[38px] flex items-center gap-2 px-3 bg-surface border border-border
@@ -256,11 +419,27 @@ export default function Proyectos() {
           Prioridad
         </button>
 
+        {/* Toggle de vista: Lista / Por cliente */}
+        <div className="flex gap-0.5 p-0.5 bg-surface2 border border-border rounded-control h-[38px]">
+          <button onClick={() => setViewMode('lista')}
+            className={`flex items-center gap-1.5 px-3 h-full rounded-[6px] text-[12.5px] font-medium
+              transition-colors ${viewMode === 'lista' ? 'bg-primary text-white' : 'text-muted hover:text-ink'}`}
+          >
+            <List size={13} /> Lista
+          </button>
+          <button onClick={() => setViewMode('cliente')}
+            className={`flex items-center gap-1.5 px-3 h-full rounded-[6px] text-[12.5px] font-medium
+              transition-colors ${viewMode === 'cliente' ? 'bg-primary text-white' : 'text-muted hover:text-ink'}`}
+          >
+            <Users size={13} /> Por cliente
+          </button>
+        </div>
+
         <div className="flex-1" />
 
         {/* Botón primario */}
         {canDo('proyectos', 'crear') && (
-          <button onClick={() => setModal('new')}
+          <button onClick={() => { setPrefillPedido(''); setModal('new') }}
             className="h-[38px] flex items-center gap-2 px-4 bg-primary hover:bg-primary-hover
               text-white text-[13px] font-semibold rounded-control shadow-btn transition-colors"
           >
@@ -270,9 +449,21 @@ export default function Proyectos() {
         )}
       </div>
 
-      {/* ── Tabla ── */}
+      {/* ── Vista por cliente ── */}
       {filtrados.length === 0 ? (
         <EmptyState title="Sin proyectos" description="Crea el primer proyecto con el botón de arriba." />
+      ) : viewMode === 'cliente' ? (
+        <div className="space-y-3">
+          {gruposCliente.map(g => (
+            <ClienteGroup key={g.cliente} cliente={g.cliente} proyectos={g.proyectos}
+              collapsed={searchActive ? false : !expandedClientes.has(g.cliente)}
+              onToggle={() => toggleCliente(g.cliente)}
+              navigate={navigate}
+              onEdit={setModal}
+              onDelete={handleDelete}
+            />
+          ))}
+        </div>
       ) : (
         <div className="bg-surface border border-border rounded-card shadow-card
           dark:shadow-card-dk overflow-hidden"
@@ -299,7 +490,8 @@ export default function Proyectos() {
                   const pCfg = prioridadCfg[p.prioridad] || prioridadCfg.baja
                   return (
                     <tr key={p.id_proyecto}
-                      className="hover:bg-hover transition-colors duration-100"
+                      onClick={() => navigate(`/proyectos/${p.id_proyecto}`)}
+                      className="hover:bg-hover transition-colors duration-100 cursor-pointer"
                     >
                       {/* Proyecto */}
                       <td className="px-[18px] py-[13px]">
@@ -375,16 +567,8 @@ export default function Proyectos() {
                       </td>
 
                       {/* Acciones */}
-                      <td className="px-[18px] py-[13px]">
+                      <td className="px-[18px] py-[13px]" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-0.5">
-                          <button
-                            onClick={() => navigate(`/proyectos/${p.id_proyecto}`)}
-                            title="Ver detalle"
-                            className="w-7 h-7 flex items-center justify-center rounded-badge
-                              text-faint hover:bg-surface2 hover:text-primary transition-colors"
-                          >
-                            <Eye size={15} />
-                          </button>
                           {canDo('proyectos', 'editar') && (
                             <button
                               onClick={() => setModal(p)}
@@ -420,7 +604,9 @@ export default function Proyectos() {
         <ProyectoModal
           proyecto={modal === 'new' ? null : modal}
           pedidos={pedidos || []}
+          proyectos={proyectos || []}
           usuarios={usuarios || []}
+          initialIdPedido={prefillPedido}
           onClose={() => setModal(null)}
           onSaved={refresh}
         />

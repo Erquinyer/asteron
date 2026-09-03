@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Calendar, User, Flag,
-  CheckCircle2, Clock3, Circle, Save,
+  CheckCircle2, Clock3, Circle, Save, Lock, Package, ChevronRight, Wrench,
 } from 'lucide-react'
 import { useFetch }    from '../hooks/useFetch'
 import { getProyecto, updateFase } from '../api/proyectos.service'
+import { getActividadesFase } from '../api/programacion.service'
+import { getUser }     from '../utils/auth'
 import Spinner    from '../components/ui/Spinner'
 import EmptyState from '../components/ui/EmptyState'
 import toast      from 'react-hot-toast'
@@ -58,6 +60,13 @@ const estadoGlobalCfg = {
 const ESTADOS_FASE = ['pendiente', 'en_curso', 'completada']
 const estadoLabel  = { pendiente: 'Pendiente', en_curso: 'En curso', completada: 'Completada' }
 
+// Fases únicas del proyecto (sin turno de planta, sin máquina, un solo responsable
+// asignado automáticamente por rol) — orden 1 = Diseño, orden 2 = Compra.
+const FASE_ESPECIAL_LABELS = {
+  1: { en_curso: 'En proceso',                              completada: 'Finalizada' },
+  2: { en_curso: 'En progreso de compra y cotización',      completada: 'Compra finalizada' },
+}
+
 const fmtFecha = d => d
   ? new Date(d).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
   : '—'
@@ -65,14 +74,82 @@ const fmtFecha = d => d
 const progressColor = (pct) =>
   pct === 100 ? 'bg-success' : pct >= 50 ? 'bg-primary' : 'bg-warning'
 
+// ── Estados de las actividades de planta (turnos) ────────────────────────────
+const turnoEstadoCfg = {
+  programado: { label: 'Programado', badge: 'bg-secondary/10 text-secondary' },
+  en_proceso: { label: 'En proceso', badge: 'bg-primary/10 text-primary'     },
+  completado: { label: 'Completado', badge: 'bg-success/10 text-success'     },
+  cancelado:  { label: 'Cancelado',  badge: 'bg-error/10 text-error'         },
+}
+
+// Actividades de Programación de planta vinculadas a una fase concreta de un ítem.
+// Se carga bajo demanda al desplegar la fila (sin salir de ProyectoDetalle).
+function ActividadesFase({ faseId }) {
+  const { data, loading, error } = useFetch(() => getActividadesFase(faseId), [faseId])
+
+  if (loading) return (
+    <p className="font-mono text-[10.5px] text-faint mt-2 ml-[68px]">Cargando actividades…</p>
+  )
+  if (error) return (
+    <p className="font-mono text-[10.5px] text-error mt-2 ml-[68px]">
+      No se pudieron cargar las actividades
+    </p>
+  )
+  if (!data || data.length === 0) return (
+    <p className="font-mono text-[10.5px] text-faint mt-2 ml-[68px]">
+      Esta fase no tiene actividades programadas.
+    </p>
+  )
+
+  return (
+    <ul className="mt-2 ml-[68px] space-y-1.5">
+      {data.map(a => {
+        const cfg = turnoEstadoCfg[a.estado] || turnoEstadoCfg.programado
+        return (
+          <li key={a.id_programacion}
+            className="flex items-center flex-wrap gap-x-2.5 gap-y-1 text-[11.5px]
+              border border-border rounded-control bg-surface2 px-2.5 py-2"
+          >
+            <span className={`font-mono text-[10px] font-semibold px-1.5 py-[2px]
+              rounded-badge shrink-0 ${cfg.badge}`}
+            >
+              {cfg.label}
+            </span>
+            <span className="font-mono text-[10.5px] text-faint">{fmtFecha(a.fecha)}</span>
+            <span className="flex items-center gap-1 text-muted">
+              <User size={11} className="text-faint" />
+              {a.operario || 'Sin operario'}
+            </span>
+            <span className="flex items-center gap-1 text-muted">
+              <Wrench size={11} className="text-faint" />
+              {a.maquina_codigo || a.maquina || 'Sin máquina'}
+            </span>
+            <span className="ml-auto font-mono text-[10.5px] text-ink font-semibold tabular-nums">
+              {a.porcentaje_avance}%
+            </span>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 export default function ProyectoDetalle() {
   const { id }   = useParams()
   const navigate = useNavigate()
   const { data: proyecto, loading, error, refresh } =
     useFetch(() => getProyecto(id), [id])
 
-  const [edits,  setEdits]  = useState({})
-  const [saving, setSaving] = useState(null)
+  const [edits,      setEdits]      = useState({})
+  const [saving,     setSaving]     = useState(null)
+  const [openItems,  setOpenItems]  = useState(new Set())
+  const [openTurnos, setOpenTurnos] = useState(new Set())
+
+  const toggleTurnos = (faseId) => setOpenTurnos(prev => {
+    const next = new Set(prev)
+    next.has(faseId) ? next.delete(faseId) : next.add(faseId)
+    return next
+  })
 
   if (loading) return <Spinner text="Cargando proyecto..." />
   if (error)   return <EmptyState title="Error" description={error} />
@@ -81,6 +158,33 @@ export default function ProyectoDetalle() {
   const fases  = proyecto.fases || []
   const avance = proyecto.avance || 0
   const pCfg   = prioridadCfg[proyecto.prioridad] || prioridadCfg.media
+  const user   = getUser()
+
+  // Fases únicas (Diseño, Compra): un solo responsable, sin turno de planta.
+  const fasesAsignadas = fases.filter(f => f.id_usuario_asignado != null)
+  // Resto de fases (Corte → Despacho): una copia por ítem del pedido cuando aplica.
+  const fasesResto = fases.filter(f => f.id_usuario_asignado == null)
+  const gruposItem = []
+  for (const f of fasesResto) {
+    let grupo = gruposItem.find(g => g.id_detalle_pedido === f.id_detalle_pedido)
+    if (!grupo) {
+      grupo = {
+        id_detalle_pedido:  f.id_detalle_pedido,
+        item_producto:      f.item_producto,
+        item_fecha_entrega: f.item_fecha_entrega,
+        fases: [],
+      }
+      gruposItem.push(grupo)
+    }
+    grupo.fases.push(f)
+  }
+  const mostrarPorItem = gruposItem.length > 1
+
+  const toggleItem = (key) => setOpenItems(prev => {
+    const next = new Set(prev)
+    next.has(key) ? next.delete(key) : next.add(key)
+    return next
+  })
 
   const estadoGlobal = fases.length === 0 ? 'pendiente'
     : fases.every(f => f.estado === 'completada') ? 'completada'
@@ -126,6 +230,141 @@ export default function ProyectoDetalle() {
 
   const completadas = fases.filter(f => f.estado === 'completada').length
   const enCurso     = fases.filter(f => f.estado === 'en_curso').length
+
+  const renderFilaFase = (fase, idx) => {
+    const edit     = getEdit(fase)
+    const cfg      = faseCfg[edit.estado] || faseCfg.pendiente
+    const locked   = fase.turnos_vinculados > 0
+    const turnosAbierto = openTurnos.has(fase.id_fase_proyecto)
+    const dirty    = !locked && isDirty(fase)
+    const isSaving = saving === fase.id_fase_proyecto
+    const IconComp = cfg.Icon
+
+    return (
+      <div
+        key={fase.id_fase_proyecto}
+        className={`px-5 py-3.5 transition-colors ${cfg.rowBg}`}
+      >
+        <div className="flex items-center gap-3">
+          {/* Número */}
+          <span className="font-mono text-[10.5px] text-faint w-5
+            text-right shrink-0"
+          >
+            {idx + 1}
+          </span>
+
+          {/* Icono de estado */}
+          <div className={`w-8 h-8 rounded-[8px] shrink-0
+            flex items-center justify-center ${cfg.iconBg}`}
+          >
+            <IconComp size={15} className={cfg.iconColor} />
+          </div>
+
+          {/* Nombre de fase */}
+          <p className={`flex-1 text-[13.5px] font-medium
+            min-w-0 truncate ${cfg.nameStyle}`}
+          >
+            {fase.fase_nombre}
+          </p>
+
+          {/* Select de estado */}
+          <select
+            value={edit.estado}
+            disabled={locked}
+            onChange={e =>
+              setEdit(fase.id_fase_proyecto, 'estado', e.target.value)
+            }
+            className={`font-mono text-[11px] font-semibold
+              rounded-badge px-2.5 py-[5px]
+              border-0 appearance-none text-center
+              focus:outline-none focus:ring-2 focus:ring-primary/25
+              transition-colors ${cfg.selectStyle}
+              ${locked ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
+          >
+            {ESTADOS_FASE.map(s => (
+              <option key={s} value={s}>{estadoLabel[s]}</option>
+            ))}
+          </select>
+
+          {/* Mini barra + % input */}
+          <div className="hidden sm:flex items-center gap-2 w-[148px] shrink-0">
+            <div className="flex-1 bg-surface2 border border-border
+              rounded-full h-1.5 overflow-hidden"
+            >
+              <div
+                className={`${cfg.barColor} h-1.5 rounded-full
+                  transition-all duration-500`}
+                style={{ width: `${edit.porcentaje_avance}%` }}
+              />
+            </div>
+            <input
+              type="number" min={0} max={100}
+              value={edit.porcentaje_avance}
+              disabled={locked}
+              onChange={e =>
+                setEdit(
+                  fase.id_fase_proyecto,
+                  'porcentaje_avance',
+                  Number(e.target.value),
+                )
+              }
+              className="w-[42px] h-[26px] font-mono text-[12px] text-right
+                bg-surface border border-border rounded-[6px] px-1.5
+                text-ink focus:outline-none focus:ring-2 focus:ring-primary/25
+                focus:border-primary transition-colors disabled:opacity-60
+                disabled:cursor-not-allowed
+                [appearance:textfield]
+                [&::-webkit-outer-spin-button]:appearance-none
+                [&::-webkit-inner-spin-button]:appearance-none"
+            />
+            <span className="font-mono text-[11px] text-faint">%</span>
+          </div>
+
+          {/* Botón guardar (solo si hay cambios) */}
+          {dirty && (
+            <button
+              onClick={() => handleSave(fase)}
+              disabled={isSaving}
+              className="flex items-center gap-1.5 h-[30px] px-3
+                bg-primary hover:bg-primary-hover disabled:opacity-50
+                text-white rounded-control font-mono text-[11px]
+                font-semibold shadow-btn transition-colors shrink-0"
+            >
+              <Save size={11} />
+              {isSaving ? '…' : 'Guardar'}
+            </button>
+          )}
+        </div>
+
+        {/* Fechas (fila secundaria) */}
+        {(fase.fecha_inicio || fase.fecha_fin) && (
+          <p className="font-mono text-[10.5px] text-faint mt-1.5 ml-[68px]">
+            {fmtFecha(fase.fecha_inicio)}
+            <span className="mx-1.5 text-faint/40">→</span>
+            {fmtFecha(fase.fecha_fin)}
+          </p>
+        )}
+
+        {locked && (
+          <div className="mt-1.5 ml-[68px]">
+            <button
+              type="button"
+              onClick={() => toggleTurnos(fase.id_fase_proyecto)}
+              className="flex items-center gap-1 text-[11.5px] font-semibold
+                text-primary hover:underline"
+            >
+              <ChevronRight size={12}
+                className={`transition-transform ${turnosAbierto ? 'rotate-90' : ''}`}
+              />
+              {turnosAbierto ? 'Ocultar actividades' : 'Ver actividades'}
+              {' '}({fase.turnos_vinculados})
+            </button>
+            {turnosAbierto && <ActividadesFase faseId={fase.id_fase_proyecto} />}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5 max-w-4xl mx-auto">
@@ -243,6 +482,83 @@ export default function ProyectoDetalle() {
         </div>
       </div>
 
+      {/* ── Fases únicas: Diseño / Compra ── */}
+      {fasesAsignadas.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {fasesAsignadas.map(fase => {
+            const labels    = FASE_ESPECIAL_LABELS[fase.orden] || {}
+            const puedeEditar = user && (
+              user.id_usuario === fase.id_usuario_asignado || user.rol === 'Administrador Sistema')
+            const isSaving  = saving === fase.id_fase_proyecto
+            const setEstado = async (estado) => {
+              setSaving(fase.id_fase_proyecto)
+              try {
+                await updateFase(proyecto.id_proyecto, fase.id_fase_proyecto,
+                  { estado, porcentaje_avance: estado === 'completada' ? 100 : 0 })
+                toast.success(`Fase "${fase.fase_nombre}" actualizada`)
+                refresh()
+              } catch (err) {
+                toast.error(err.response?.data?.message || 'Error al guardar')
+              } finally { setSaving(null) }
+            }
+            return (
+              <div key={fase.id_fase_proyecto}
+                className="bg-surface border border-border rounded-card
+                  shadow-card dark:shadow-card-dk p-4"
+              >
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div>
+                    <p className="text-[13.5px] font-semibold text-ink">{fase.fase_nombre}</p>
+                    <p className="font-mono text-[10.5px] text-faint mt-0.5 flex items-center gap-1">
+                      <User size={11} /> {fase.usuario_asignado_nombre || 'Sin asignar'}
+                    </p>
+                  </div>
+                  {!puedeEditar && (
+                    <span title="Solo la persona asignada puede gestionar esta fase"
+                      className="text-faint shrink-0"
+                    >
+                      <Lock size={13} />
+                    </span>
+                  )}
+                </div>
+
+                {!puedeEditar ? (
+                  <span className={`inline-flex items-center gap-1.5 font-mono text-[11px]
+                    font-semibold px-2.5 py-[5px] rounded-badge
+                    ${(faseCfg[fase.estado] || faseCfg.pendiente).selectStyle}`}
+                  >
+                    {fase.estado === 'pendiente' ? 'Pendiente' : (labels[fase.estado] || estadoLabel[fase.estado])}
+                  </span>
+                ) : (
+                  <div className="flex gap-2">
+                    <button type="button" disabled={isSaving || fase.estado === 'en_curso'}
+                      onClick={() => setEstado('en_curso')}
+                      className={`flex-1 h-9 rounded-control text-[12px] font-semibold
+                        border transition-colors disabled:opacity-60
+                        ${fase.estado === 'en_curso'
+                          ? 'bg-primary/10 border-primary/30 text-primary'
+                          : 'border-border text-muted hover:bg-hover'}`}
+                    >
+                      {labels.en_curso}
+                    </button>
+                    <button type="button" disabled={isSaving || fase.estado === 'completada'}
+                      onClick={() => setEstado('completada')}
+                      className={`flex-1 h-9 rounded-control text-[12px] font-semibold
+                        border transition-colors disabled:opacity-60
+                        ${fase.estado === 'completada'
+                          ? 'bg-success/10 border-success/30 text-success'
+                          : 'border-border text-muted hover:bg-hover'}`}
+                    >
+                      {labels.completada}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       {/* ── Fases editables ── */}
       <div className="bg-surface border border-border rounded-card
         shadow-card dark:shadow-card-dk overflow-hidden"
@@ -252,137 +568,63 @@ export default function ProyectoDetalle() {
           flex items-center justify-between"
         >
           <h2 className="text-[14px] font-semibold text-ink">Fases del proyecto</h2>
-          <p className="font-mono text-[10.5px] text-faint">
-            Edita el estado y el % directamente en cada fila
-          </p>
         </div>
 
-        {fases.length === 0 ? (
+        {fasesResto.length === 0 ? (
           <div className="p-10 text-center font-mono text-[13px] text-faint">
             No hay fases registradas.
           </div>
+        ) : !mostrarPorItem ? (
+          <div className="divide-y divide-border">
+            {fasesResto.map((fase, idx) => renderFilaFase(fase, idx))}
+          </div>
         ) : (
           <div className="divide-y divide-border">
-            {fases.map((fase, idx) => {
-              const edit     = getEdit(fase)
-              const cfg      = faseCfg[edit.estado] || faseCfg.pendiente
-              const locked   = fase.turnos_vinculados > 0
-              const dirty    = !locked && isDirty(fase)
-              const isSaving = saving === fase.id_fase_proyecto
-              const IconComp = cfg.Icon
-
+            {gruposItem.map(grupo => {
+              const abierto = openItems.has(grupo.id_detalle_pedido)
+              const avanceGrupo = grupo.fases.length
+                ? Math.round(grupo.fases.reduce((s, f) => s + f.porcentaje_avance, 0) / grupo.fases.length)
+                : 0
+              const estadoGrupo = grupo.fases.every(f => f.estado === 'completada') ? 'completada'
+                : grupo.fases.some(f => f.estado === 'en_curso') ? 'en_curso'
+                : 'pendiente'
+              const egCfgGrupo = estadoGlobalCfg[estadoGrupo]
               return (
-                <div
-                  key={fase.id_fase_proyecto}
-                  className={`px-5 py-3.5 transition-colors ${cfg.rowBg}`}
-                >
-                  <div className="flex items-center gap-3">
-                    {/* Número */}
-                    <span className="font-mono text-[10.5px] text-faint w-5
-                      text-right shrink-0"
-                    >
-                      {idx + 1}
-                    </span>
-
-                    {/* Icono de estado */}
-                    <div className={`w-8 h-8 rounded-[8px] shrink-0
-                      flex items-center justify-center ${cfg.iconBg}`}
-                    >
-                      <IconComp size={15} className={cfg.iconColor} />
-                    </div>
-
-                    {/* Nombre de fase */}
-                    <p className={`flex-1 text-[13.5px] font-medium
-                      min-w-0 truncate ${cfg.nameStyle}`}
-                    >
-                      {fase.fase_nombre}
+                <div key={grupo.id_detalle_pedido}>
+                  <button onClick={() => toggleItem(grupo.id_detalle_pedido)}
+                    className="w-full flex items-center gap-2.5 px-5 py-3
+                      bg-surface2/60 hover:bg-surface2 transition-colors text-left"
+                  >
+                    <ChevronRight size={14}
+                      className={`text-faint shrink-0 transition-transform ${abierto ? 'rotate-90' : ''}`}
+                    />
+                    <Package size={13} className="text-faint shrink-0" />
+                    <p className="text-[12.5px] font-semibold text-ink truncate">
+                      {grupo.item_producto || `Ítem #${grupo.id_detalle_pedido}`}
                     </p>
-
-                    {/* Select de estado */}
-                    <select
-                      value={edit.estado}
-                      disabled={locked}
-                      onChange={e =>
-                        setEdit(fase.id_fase_proyecto, 'estado', e.target.value)
-                      }
-                      className={`font-mono text-[11px] font-semibold
-                        rounded-badge px-2.5 py-[5px]
-                        border-0 appearance-none text-center
-                        focus:outline-none focus:ring-2 focus:ring-primary/25
-                        transition-colors ${cfg.selectStyle}
-                        ${locked ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
+                    <span className={`font-mono text-[10px] font-semibold px-2 py-[3px]
+                      rounded-badge shrink-0 ${egCfgGrupo.badge}`}
                     >
-                      {ESTADOS_FASE.map(s => (
-                        <option key={s} value={s}>{estadoLabel[s]}</option>
-                      ))}
-                    </select>
-
-                    {/* Mini barra + % input */}
-                    <div className="hidden sm:flex items-center gap-2 w-[148px] shrink-0">
-                      <div className="flex-1 bg-surface2 border border-border
-                        rounded-full h-1.5 overflow-hidden"
-                      >
-                        <div
-                          className={`${cfg.barColor} h-1.5 rounded-full
-                            transition-all duration-500`}
-                          style={{ width: `${edit.porcentaje_avance}%` }}
+                      {egCfgGrupo.label}
+                    </span>
+                    <div className="hidden sm:flex items-center gap-1.5 w-[90px] shrink-0">
+                      <div className="flex-1 h-1.5 rounded-full bg-surface overflow-hidden">
+                        <div className={`h-1.5 rounded-full ${progressColor(avanceGrupo)}`}
+                          style={{ width: `${avanceGrupo}%` }}
                         />
                       </div>
-                      <input
-                        type="number" min={0} max={100}
-                        value={edit.porcentaje_avance}
-                        disabled={locked}
-                        onChange={e =>
-                          setEdit(
-                            fase.id_fase_proyecto,
-                            'porcentaje_avance',
-                            Number(e.target.value),
-                          )
-                        }
-                        className="w-[42px] h-[26px] font-mono text-[12px] text-right
-                          bg-surface border border-border rounded-[6px] px-1.5
-                          text-ink focus:outline-none focus:ring-2 focus:ring-primary/25
-                          focus:border-primary transition-colors disabled:opacity-60
-                          disabled:cursor-not-allowed
-                          [appearance:textfield]
-                          [&::-webkit-outer-spin-button]:appearance-none
-                          [&::-webkit-inner-spin-button]:appearance-none"
-                      />
-                      <span className="font-mono text-[11px] text-faint">%</span>
+                      <span className="font-mono text-[10.5px] text-muted tabular-nums">{avanceGrupo}%</span>
                     </div>
-
-                    {/* Botón guardar (solo si hay cambios) */}
-                    {dirty && (
-                      <button
-                        onClick={() => handleSave(fase)}
-                        disabled={isSaving}
-                        className="flex items-center gap-1.5 h-[30px] px-3
-                          bg-primary hover:bg-primary-hover disabled:opacity-50
-                          text-white rounded-control font-mono text-[11px]
-                          font-semibold shadow-btn transition-colors shrink-0"
-                      >
-                        <Save size={11} />
-                        {isSaving ? '…' : 'Guardar'}
-                      </button>
+                    {grupo.item_fecha_entrega && (
+                      <span className="font-mono text-[10.5px] text-faint ml-auto shrink-0 hidden md:inline">
+                        Entrega: {fmtFecha(grupo.item_fecha_entrega)}
+                      </span>
                     )}
-                  </div>
-
-                  {/* Fechas (fila secundaria) */}
-                  {(fase.fecha_inicio || fase.fecha_fin) && (
-                    <p className="font-mono text-[10.5px] text-faint mt-1.5 ml-[68px]">
-                      {fmtFecha(fase.fecha_inicio)}
-                      <span className="mx-1.5 text-faint/40">→</span>
-                      {fmtFecha(fase.fecha_fin)}
-                    </p>
-                  )}
-
-                  {/* Nota: fase bajo control automático de Programación */}
-                  {locked && (
-                    <p className="font-mono text-[10px] text-faint mt-1.5 ml-[68px] flex items-center gap-1.5">
-                      Se actualiza automáticamente desde Programación de planta
-                      {' '}({fase.turnos_vinculados} turno{fase.turnos_vinculados !== 1 ? 's' : ''} vinculado{fase.turnos_vinculados !== 1 ? 's' : ''})
-                      <Link to="/programacion" className="text-primary hover:underline">Ver →</Link>
-                    </p>
+                  </button>
+                  {abierto && (
+                    <div className="divide-y divide-border">
+                      {grupo.fases.map((fase, idx) => renderFilaFase(fase, idx))}
+                    </div>
                   )}
                 </div>
               )

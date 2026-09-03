@@ -1,4 +1,5 @@
 import pool from '../config/db.js'
+import { resolveUsuarioPorRol } from '../utils/resolveUsuarioPorRol.js'
 
 const BASE_QUERY = `
   SELECT p.id_proyecto, p.nombre, p.objetivo, p.prioridad,
@@ -34,12 +35,16 @@ export const getOne = async (req, res) => {
 
     const [fases] = await pool.query(`
       SELECT fp.*, fe.nombre AS fase_nombre, fe.orden,
+             dp.producto AS item_producto, dp.fecha_entrega_estimada AS item_fecha_entrega,
+             ua.nombre AS usuario_asignado_nombre,
              (SELECT COUNT(*) FROM programacion_planta pp
               WHERE pp.id_fase_proyecto = fp.id_fase_proyecto AND pp.estado != 'cancelado') AS turnos_vinculados
       FROM fases_proyecto fp
       JOIN fases_estandar fe ON fp.id_fase_estandar = fe.id_fase_estandar
+      LEFT JOIN detalle_pedido dp ON fp.id_detalle_pedido = dp.id_detalle
+      LEFT JOIN usuarios ua        ON fp.id_usuario_asignado = ua.id_usuario
       WHERE fp.id_proyecto = ?
-      ORDER BY fe.orden`, [req.params.id])
+      ORDER BY fe.orden, dp.id_detalle`, [req.params.id])
 
     res.json({ ...rows[0], fases })
   } catch (err) {
@@ -53,25 +58,81 @@ export const create = async (req, res) => {
   if (!nombre) return res.status(400).json({ message: 'El nombre es requerido' })
 
   try {
+    // Un pedido solo puede tener un proyecto asociado — evita duplicar el
+    // proyecto (y sus fases por ítem) a partir de un pedido ya vinculado.
+    if (id_pedido) {
+      const [[existente]] = await pool.query(
+        'SELECT id_proyecto, nombre FROM proyectos WHERE id_pedido = ? LIMIT 1', [id_pedido])
+      if (existente) {
+        return res.status(409).json({
+          message: `El pedido #${id_pedido} ya está asociado al proyecto "${existente.nombre}"`,
+        })
+      }
+    }
+
     const [result] = await pool.query(`
       INSERT INTO proyectos (nombre, objetivo, prioridad, fecha_inicio, fecha_fin_estimada, id_pedido, id_usuario_responsable, created_by)
       VALUES (?,?,?,?,?,?,?,?)`,
       [nombre, objetivo || null, prioridad || 'media', fecha_inicio || null,
        fecha_fin_estimada || null, id_pedido || null, id_usuario_responsable || null, req.user.id])
+    const id_proyecto = result.insertId
 
-    // Aplicar automáticamente todas las fases estándar al nuevo proyecto
-    const [fases] = await pool.query(
-      'SELECT id_fase_estandar FROM fases_estandar ORDER BY orden')
-    if (fases.length > 0) {
-      const values = fases.map(f => [result.insertId, f.id_fase_estandar, 'pendiente', 0])
+    // El pedido pasa a 'en_proceso' automáticamente al quedar asociado a un
+    // proyecto — el estado del pedido no se edita manualmente (ver pedidos.controller.js).
+    if (id_pedido) {
       await pool.query(
-        'INSERT INTO fases_proyecto (id_proyecto, id_fase_estandar, estado, porcentaje_avance) VALUES ?',
-        [values])
+        `UPDATE pedidos SET estado='en_proceso' WHERE id_pedido=? AND estado='pendiente'`,
+        [id_pedido])
     }
 
-    const [rows] = await pool.query(`${BASE_QUERY} HAVING p.id_proyecto = ?`, [result.insertId])
+    // Fases estándar: orden 1 (Diseño, render e ingeniería) y orden 2 (Compra de
+    // materiales) son fases únicas del proyecto, asignadas automáticamente por rol.
+    // De la fase 3 en adelante ("Corte" → "Despacho"), se crea una copia por cada
+    // ítem del pedido para poder llevar avance y fecha de entrega independientes;
+    // si el proyecto no tiene pedido o el pedido no tiene ítems, se crea una sola
+    // fila sin ítem asociado (comportamiento anterior, sin cambios).
+    const [fasesEstandar] = await pool.query(
+      'SELECT id_fase_estandar, orden FROM fases_estandar ORDER BY orden')
+
+    let items = []
+    if (id_pedido) {
+      const [rows] = await pool.query(
+        'SELECT id_detalle FROM detalle_pedido WHERE id_pedido = ? ORDER BY id_detalle', [id_pedido])
+      items = rows
+    }
+
+    const [idDisenador, idCompras] = await Promise.all([
+      resolveUsuarioPorRol(pool, 'Gerente General'),
+      resolveUsuarioPorRol(pool, 'Coordinador de Producción'),
+    ])
+
+    const values = []
+    for (const fase of fasesEstandar) {
+      if (fase.orden === 1) {
+        values.push([id_proyecto, fase.id_fase_estandar, null, idDisenador, 'pendiente', 0])
+      } else if (fase.orden === 2) {
+        values.push([id_proyecto, fase.id_fase_estandar, null, idCompras, 'pendiente', 0])
+      } else if (items.length > 0) {
+        for (const item of items) {
+          values.push([id_proyecto, fase.id_fase_estandar, item.id_detalle, null, 'pendiente', 0])
+        }
+      } else {
+        values.push([id_proyecto, fase.id_fase_estandar, null, null, 'pendiente', 0])
+      }
+    }
+    if (values.length > 0) {
+      await pool.query(
+        `INSERT INTO fases_proyecto
+         (id_proyecto, id_fase_estandar, id_detalle_pedido, id_usuario_asignado, estado, porcentaje_avance)
+         VALUES ?`, [values])
+    }
+
+    const [rows] = await pool.query(`${BASE_QUERY} HAVING p.id_proyecto = ?`, [id_proyecto])
     res.status(201).json(rows[0])
   } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ message: 'Ese pedido ya está asociado a otro proyecto' })
+    }
     console.error('[proyectos.create]', err)
     res.status(500).json({ message: 'Error al crear proyecto' })
   }
@@ -80,6 +141,17 @@ export const create = async (req, res) => {
 export const update = async (req, res) => {
   const { nombre, objetivo, prioridad, fecha_inicio, fecha_fin_estimada, id_pedido, id_usuario_responsable } = req.body
   try {
+    if (id_pedido) {
+      const [[existente]] = await pool.query(
+        'SELECT id_proyecto, nombre FROM proyectos WHERE id_pedido = ? AND id_proyecto <> ? LIMIT 1',
+        [id_pedido, req.params.id])
+      if (existente) {
+        return res.status(409).json({
+          message: `El pedido #${id_pedido} ya está asociado al proyecto "${existente.nombre}"`,
+        })
+      }
+    }
+
     const [result] = await pool.query(`
       UPDATE proyectos SET nombre=?, objetivo=?, prioridad=?, fecha_inicio=?,
         fecha_fin_estimada=?, id_pedido=?, id_usuario_responsable=?, updated_at=NOW()
@@ -91,6 +163,9 @@ export const update = async (req, res) => {
     const [rows] = await pool.query(`${BASE_QUERY} HAVING p.id_proyecto = ?`, [req.params.id])
     res.json(rows[0])
   } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ message: 'Ese pedido ya está asociado a otro proyecto' })
+    }
     console.error('[proyectos.update]', err)
     res.status(500).json({ message: 'Error al actualizar proyecto' })
   }
@@ -99,6 +174,17 @@ export const update = async (req, res) => {
 export const updateFase = async (req, res) => {
   const { estado, porcentaje_avance } = req.body
   try {
+    const [[fase]] = await pool.query(
+      `SELECT id_usuario_asignado FROM fases_proyecto WHERE id_fase_proyecto = ? AND id_proyecto = ?`,
+      [req.params.faseId, req.params.id])
+    if (!fase) return res.status(404).json({ message: 'Fase no encontrada' })
+
+    // Fases únicas (Diseño, Compra) solo las gestiona la persona asignada o el admin
+    if (fase.id_usuario_asignado && fase.id_usuario_asignado !== req.user.id
+      && req.user.rol !== 'Administrador Sistema') {
+      return res.status(403).json({ message: 'Solo la persona asignada a esta fase puede actualizarla' })
+    }
+
     const [[{ turnos_vinculados }]] = await pool.query(
       `SELECT COUNT(*) AS turnos_vinculados FROM programacion_planta
        WHERE id_fase_proyecto = ? AND estado != 'cancelado'`,
@@ -121,6 +207,19 @@ export const updateFase = async (req, res) => {
 
 export const remove = async (req, res) => {
   try {
+    // Flujo correcto: eliminar primero las actividades de Programación
+    // asociadas (o su fase) y solo entonces el proyecto queda libre para borrarse.
+    const [[{ total_actividades }]] = await pool.query(
+      `SELECT COUNT(*) AS total_actividades FROM programacion_planta pp
+       WHERE pp.id_proyecto = ?
+          OR pp.id_fase_proyecto IN (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto = ?)`,
+      [req.params.id, req.params.id])
+    if (total_actividades > 0) {
+      return res.status(409).json({
+        message: `No se puede eliminar: el proyecto tiene ${total_actividades} actividad${total_actividades !== 1 ? 'es' : ''} de Programación asociada${total_actividades !== 1 ? 's' : ''}. Elimínalas primero desde Programación de planta.`,
+      })
+    }
+
     const [result] = await pool.query('DELETE FROM proyectos WHERE id_proyecto=?', [req.params.id])
     if (result.affectedRows === 0) return res.status(404).json({ message: 'Proyecto no encontrado' })
     res.json({ message: 'Proyecto eliminado' })

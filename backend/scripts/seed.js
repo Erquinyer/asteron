@@ -122,19 +122,23 @@ const seed = async () => {
   // ── FASES ESTÁNDAR adaptadas a Macromet ───────────
   await pool.query(`DELETE FROM fases_estandar`)
   await pool.query(`ALTER TABLE fases_estandar AUTO_INCREMENT = 1`)
+  // Fase 1 (Diseño, render e ingeniería) y fase 2 (Compra de materiales) son "fases
+  // únicas": una sola por proyecto, asignadas automáticamente a una persona por rol
+  // (ver resolveUsuarioPorRol en proyectos.controller.js), sin turno de planta ni
+  // máquina. De la fase 3 en adelante, cada fase se repite una vez por ítem del
+  // pedido (ver proyectos.controller.js create).
   await pool.query(`INSERT INTO fases_estandar (nombre, descripcion, orden) VALUES
-    ('Diseño y render',          'Diseño 3D, renderizado y aprobación por el cliente',             1),
-    ('Ingeniería y planos',      'Planos técnicos, despiece y especificaciones de fabricación',    2),
-    ('Compra de materiales',     'Adquisición de lámina, tubería, platina y demás insumos',       3),
-    ('Corte',                    'Tronzado, cizallado y corte de piezas según planos',             4),
-    ('Doblez y conformado',      'Doblado de lámina y tubo según geometría del diseño',           5),
-    ('Soldadura MIG',            'Unión de componentes metálicos en puestos de soldadura',        6),
-    ('Lijado y preparación',     'Esmerilado, lijado y preparación de superficies',               7),
-    ('Pintura y acabados',       'Pintura electrostática, anodizado o acabado final',             8),
-    ('Instalación de elementos', 'Montaje de acrílico, viniles, branding e iluminación',          9),
-    ('Ensamble final',           'Ensamble y ajuste de todos los componentes del exhibidor',     10),
-    ('Control de calidad',       'Revisión dimensional, visual y funcional del producto',        11),
-    ('Despacho e instalación',   'Empaque, transporte e instalación en el punto de venta',       12)`)
+    ('Diseño, render e ingeniería', 'Diseño 3D, renderizado, aprobación por el cliente, planos técnicos y despiece', 1),
+    ('Compra de materiales',     'Adquisición de lámina, tubería, platina y demás insumos',       2),
+    ('Corte',                    'Tronzado, cizallado y corte de piezas según planos',             3),
+    ('Doblez y conformado',      'Doblado de lámina y tubo según geometría del diseño',           4),
+    ('Soldadura MIG',            'Unión de componentes metálicos en puestos de soldadura',        5),
+    ('Lijado y preparación',     'Esmerilado, lijado y preparación de superficies',               6),
+    ('Pintura y acabados',       'Pintura electrostática, anodizado o acabado final',             7),
+    ('Instalación de elementos', 'Montaje de acrílico, viniles, branding e iluminación',          8),
+    ('Ensamble final',           'Ensamble y ajuste de todos los componentes del exhibidor',      9),
+    ('Control de calidad',       'Revisión dimensional, visual y funcional del producto',        10),
+    ('Despacho e instalación',   'Empaque, transporte e instalación en el punto de venta',       11)`)
   console.log('✅ Fases estándar (adaptadas al proceso real de Macromet)')
 
   // ── MAQUINARIA REAL del inventario ────────────────
@@ -221,37 +225,41 @@ const seed = async () => {
   console.log('✅ Proyectos (basados en clientes reales de Macromet)')
 
   // ── FASES DE PROYECTO ──────────────────────────────
+  // Fase 1 = "Diseño, render e ingeniería" fusionada (fase única del proyecto).
   const fases = [
-    // P1 Castrol — muy avanzado (fase 8 en curso)
-    [1,1,'2026-01-10','2026-01-14','completada',100],[1,2,'2026-01-15','2026-01-20','completada',100],
-    [1,3,'2026-01-21','2026-01-30','completada',100],[1,4,'2026-01-31','2026-02-08','completada',100],
-    [1,5,'2026-02-09','2026-02-15','completada',100],[1,6,'2026-02-16','2026-02-28','completada',100],
-    [1,7,'2026-03-01','2026-03-05','completada',100],[1,8,'2026-03-06','2026-03-12','en_curso',70],
-    [1,9,'2026-03-13','2026-03-15','pendiente',0],
-    // P2 Bosch — fase 6 soldadura en curso
-    [2,1,'2026-01-20','2026-01-25','completada',100],[2,2,'2026-01-26','2026-02-03','completada',100],
-    [2,3,'2026-02-04','2026-02-15','completada',100],[2,4,'2026-02-16','2026-02-25','completada',100],
-    [2,5,'2026-02-26','2026-03-05','completada',100],[2,6,'2026-03-06','2026-03-20','en_curso',55],
-    [2,7,'2026-03-21','2026-03-28','pendiente',0],
-    // P3 Alpina — inicio, fase 2
-    [3,1,'2026-02-05','2026-02-12','completada',100],[3,2,'2026-02-13','2026-02-24','en_curso',60],
-    [3,3,'2026-02-25','2026-03-10','pendiente',0],
+    // P1 Castrol — muy avanzado (fase 7 pintura en curso)
+    [1,1,'2026-01-10','2026-01-20','completada',100],
+    [1,2,'2026-01-21','2026-01-30','completada',100],[1,3,'2026-01-31','2026-02-08','completada',100],
+    [1,4,'2026-02-09','2026-02-15','completada',100],[1,5,'2026-02-16','2026-02-28','completada',100],
+    [1,6,'2026-03-01','2026-03-05','completada',100],[1,7,'2026-03-06','2026-03-12','en_curso',70],
+    [1,8,'2026-03-13','2026-03-15','pendiente',0],
+    // P2 Bosch — fase 5 soldadura en curso
+    [2,1,'2026-01-20','2026-02-03','completada',100],
+    [2,2,'2026-02-04','2026-02-15','completada',100],[2,3,'2026-02-16','2026-02-25','completada',100],
+    [2,4,'2026-02-26','2026-03-05','completada',100],[2,5,'2026-03-06','2026-03-20','en_curso',55],
+    [2,6,'2026-03-21','2026-03-28','pendiente',0],
+    // P3 Alpina — inicio, ingeniería (parte de la fase 1) aún en curso
+    [3,1,'2026-02-05','2026-02-24','en_curso',60],
+    [3,2,'2026-02-25','2026-03-10','pendiente',0],
     // P4 Juan Valdez — COMPLETADO
-    [4,1,'2025-11-20','2025-11-25','completada',100],[4,2,'2025-11-26','2025-12-03','completada',100],
-    [4,3,'2025-12-04','2025-12-10','completada',100],[4,4,'2025-12-11','2025-12-18','completada',100],
-    [4,5,'2025-12-19','2025-12-22','completada',100],[4,6,'2025-12-23','2026-01-05','completada',100],
-    [4,7,'2026-01-06','2026-01-10','completada',100],[4,8,'2026-01-11','2026-01-15','completada',100],
-    [4,9,'2026-01-16','2026-01-20','completada',100],[4,10,'2026-01-21','2026-01-23','completada',100],
-    [4,11,'2026-01-24','2026-01-25','completada',100],[4,12,'2026-01-26','2026-01-30','completada',100],
-    // P5 LEGO — fase 5 doblez
-    [5,1,'2026-02-22','2026-02-27','completada',100],[5,2,'2026-02-28','2026-03-07','completada',100],
-    [5,3,'2026-03-08','2026-03-18','completada',100],[5,4,'2026-03-19','2026-03-28','completada',100],
-    [5,5,'2026-03-29','2026-04-08','en_curso',40],[5,6,'2026-04-09','2026-04-20','pendiente',0],
+    [4,1,'2025-11-20','2025-12-03','completada',100],
+    [4,2,'2025-12-04','2025-12-10','completada',100],[4,3,'2025-12-11','2025-12-18','completada',100],
+    [4,4,'2025-12-19','2025-12-22','completada',100],[4,5,'2025-12-23','2026-01-05','completada',100],
+    [4,6,'2026-01-06','2026-01-10','completada',100],[4,7,'2026-01-11','2026-01-15','completada',100],
+    [4,8,'2026-01-16','2026-01-20','completada',100],[4,9,'2026-01-21','2026-01-23','completada',100],
+    [4,10,'2026-01-24','2026-01-25','completada',100],[4,11,'2026-01-26','2026-01-30','completada',100],
+    // P5 LEGO — fase 4 doblez
+    [5,1,'2026-02-22','2026-03-07','completada',100],
+    [5,2,'2026-03-08','2026-03-18','completada',100],[5,3,'2026-03-19','2026-03-28','completada',100],
+    [5,4,'2026-03-29','2026-04-08','en_curso',40],[5,5,'2026-04-09','2026-04-20','pendiente',0],
   ]
+  // Fase 1 (Diseño) y fase 2 (Compra) son fases únicas asignadas automáticamente
+  // por rol — igual que hace proyectos.controller.js al crear un proyecto nuevo.
   for (const [p,f,fi,ff,est,av] of fases) {
+    const id_usuario_asignado = f === 1 ? admin : f === 2 ? coord_prod : null
     await pool.query(
-      `INSERT INTO fases_proyecto (id_proyecto,id_fase_estandar,fecha_inicio,fecha_fin,estado,porcentaje_avance)
-       VALUES (?,?,?,?,?,?)`, [p,f,fi,ff,est,av])
+      `INSERT INTO fases_proyecto (id_proyecto,id_fase_estandar,fecha_inicio,fecha_fin,estado,porcentaje_avance,id_usuario_asignado)
+       VALUES (?,?,?,?,?,?,?)`, [p,f,fi,ff,est,av,id_usuario_asignado])
   }
   console.log('✅ Fases de proyecto')
 
@@ -267,22 +275,22 @@ const seed = async () => {
     (fecha, id_operario, id_maquina, id_proyecto, id_fase_proyecto, tiempo_estimado, tiempo_real, porcentaje_avance, estado, observaciones) VALUES
     -- P1 Castrol · fase "Pintura y acabados" (en_curso, 70%) = promedio de estos 2 turnos
     (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='EM-01'),
-     1, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=1 AND id_fase_estandar=8),
+     1, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=1 AND id_fase_estandar=7),
      480, 460, 100, 'completado', 'Aplicación de base — marco exhibidor Castrol'),
     (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='EM-01'),
-     1, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=1 AND id_fase_estandar=8),
+     1, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=1 AND id_fase_estandar=7),
      480, NULL, 40, 'en_proceso', 'Pintura electrostática — segunda mano'),
     -- P2 Bosch · fase "Soldadura MIG" (en_curso, 55%) = este único turno
     (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='EM-02'),
-     2, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=2 AND id_fase_estandar=6),
+     2, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=2 AND id_fase_estandar=5),
      480, NULL, 55, 'en_proceso', 'Soldadura laterales display Bosch'),
     -- P2 Bosch · fase "Lijado y preparación" (pendiente, 0%) — turno aún sin iniciar
     (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='TZ-01'),
-     2, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=2 AND id_fase_estandar=7),
+     2, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=2 AND id_fase_estandar=6),
      240, NULL, 0, 'programado', 'Corte de perfilería cuadrada 20x20'),
     -- P5 LEGO · fase "Soldadura MIG" (pendiente, 0%) — turno aún sin iniciar
     (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='TZ-02'),
-     5, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=5 AND id_fase_estandar=6),
+     5, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=5 AND id_fase_estandar=5),
      300, NULL, 0, 'programado', 'Preparación de piezas antes de soldadura')`,
     [today, uid['soldador1@macromet.com.co'],
      today, uid['soldador2@macromet.com.co'],
