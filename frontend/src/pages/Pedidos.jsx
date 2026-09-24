@@ -38,6 +38,9 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
   const [items,  setItems]  = useState([{ ...EMPTY_ITEM }])
   const [loadingItems, setLoadingItems] = useState(!!pedido)
   const [saving, setSaving] = useState(false)
+  // Solo se exige "no puede ser pasada" al crear un pedido nuevo — al editar
+  // uno existente no se bloquea el datepicker de un ítem cuya entrega ya venció.
+  const hoy = new Date().toISOString().slice(0, 10)
 
   // Clientes más recientes primero (por defecto se muestran los 5 más
   // nuevos en el selector; si el que se busca no aparece, se filtra por texto).
@@ -220,6 +223,7 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
                       value={item.fecha_entrega_estimada}
                       onChange={e => setItem(i, 'fecha_entrega_estimada', e.target.value)}
                       title="Fecha de entrega estimada de este ítem"
+                      min={!pedido ? hoy : undefined}
                       className={`col-span-2 ${itemInputCls}`}
                     />
                     <button type="button" onClick={() => removeItem(i)}

@@ -1,7 +1,7 @@
-import { useState } from 'react'
-import { Plus, Pencil, Trash2, Building2, ShoppingBag, X } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, Pencil, Trash2, Building2, ShoppingBag, X, MapPin } from 'lucide-react'
 import { useFetch }    from '../hooks/useFetch'
-import { getClientes, createCliente, updateCliente, deleteCliente } from '../api/clientes.service'
+import { getClientes, getCliente, createCliente, updateCliente, deleteCliente } from '../api/clientes.service'
 import { canDo }       from '../utils/auth'
 import Spinner     from '../components/ui/Spinner'
 import EmptyState  from '../components/ui/EmptyState'
@@ -26,7 +26,8 @@ const AVATAR_COLORS = [
 const initials = (n) =>
   (n || '?').split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
 
-const EMPTY = { nombre: '', nit: '', codigo_cliente: '', direccion: '' }
+const EMPTY_DIRECCION = () => ({ etiqueta: '', direccion: '' })
+const EMPTY = { nombre: '', nit: '', codigo_cliente: '', direcciones: [EMPTY_DIRECCION()] }
 
 const inputCls = `w-full h-10 border border-border rounded-control px-3 text-[13px]
   bg-surface2 text-ink placeholder:text-faint
@@ -38,11 +39,39 @@ function ClienteModal({ cliente, onClose, onSaved }) {
     nombre:         cliente.nombre         || '',
     nit:            cliente.nit            || '',
     codigo_cliente: cliente.codigo_cliente || '',
-    direccion:      cliente.direccion      || '',
+    direcciones:    [EMPTY_DIRECCION()],
   } : EMPTY)
-  const [saving, setSaving] = useState(false)
+  const [saving,          setSaving]          = useState(false)
+  const [loadingDirecciones, setLoadingDirecciones] = useState(!!cliente)
+
+  // El listado no trae todas las direcciones del cliente (solo la principal) —
+  // se cargan aparte al abrir el modal de edición.
+  useEffect(() => {
+    if (!cliente) return
+    getCliente(cliente.id_cliente)
+      .then(({ data }) => setForm(f => ({
+        ...f,
+        direcciones: data.direcciones?.length
+          ? data.direcciones.map(d => ({ etiqueta: d.etiqueta || '', direccion: d.direccion }))
+          : [EMPTY_DIRECCION()],
+      })))
+      .catch(() => {})
+      .finally(() => setLoadingDirecciones(false))
+  }, [cliente])
 
   const handleChange = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
+
+  const setDireccion = (i, field, value) => setForm(f => ({
+    ...f,
+    direcciones: f.direcciones.map((d, idx) => idx === i ? { ...d, [field]: value } : d),
+  }))
+  const addDireccion = () => setForm(f => ({
+    ...f,
+    direcciones: [...f.direcciones, { etiqueta: `Dirección ${f.direcciones.length + 1}`, direccion: '' }],
+  }))
+  const removeDireccion = (i) => setForm(f => ({
+    ...f, direcciones: f.direcciones.filter((_, idx) => idx !== i),
+  }))
 
   const handleSubmit = async e => {
     e.preventDefault()
@@ -58,10 +87,9 @@ function ClienteModal({ cliente, onClose, onSaved }) {
   }
 
   const fields = [
-    { name: 'nombre',         label: 'Nombre *',          placeholder: 'Ej: Castrol Colombia' },
-    { name: 'nit',            label: 'NIT',               placeholder: 'Ej: 900112233-1' },
-    { name: 'codigo_cliente', label: 'Código cliente',     placeholder: 'Ej: CLI-009' },
-    { name: 'direccion',      label: 'Dirección / Ciudad', placeholder: 'Ej: Bogotá, Colombia' },
+    { name: 'nombre',         label: 'Nombre *',      placeholder: 'Ej: Castrol Colombia' },
+    { name: 'nit',            label: 'NIT',           placeholder: 'Ej: 900112233-1' },
+    { name: 'codigo_cliente', label: 'Código cliente', placeholder: 'Ej: CLI-009' },
   ]
 
   return (
@@ -100,7 +128,7 @@ function ClienteModal({ cliente, onClose, onSaved }) {
         </div>
 
         {/* Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
           {fields.map(f => (
             <div key={f.name}>
               <label className={labelCls}>{f.label}</label>
@@ -110,6 +138,48 @@ function ClienteModal({ cliente, onClose, onSaved }) {
               />
             </div>
           ))}
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className={labelCls + ' mb-0'}>Direcciones</label>
+              <button type="button" onClick={addDireccion}
+                className="flex items-center gap-1 text-[11.5px] font-semibold
+                  text-primary hover:underline"
+              >
+                <Plus size={12} /> Agregar dirección
+              </button>
+            </div>
+            {loadingDirecciones ? (
+              <p className="font-mono text-[11px] text-faint">Cargando direcciones…</p>
+            ) : (
+              <div className="space-y-2">
+                {form.direcciones.map((d, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      value={d.etiqueta}
+                      onChange={e => setDireccion(i, 'etiqueta', e.target.value)}
+                      placeholder={`Dirección ${i + 1}`}
+                      className={`${inputCls} w-[110px] shrink-0`}
+                    />
+                    <input
+                      value={d.direccion}
+                      onChange={e => setDireccion(i, 'direccion', e.target.value)}
+                      placeholder="Ej: Calle 10 # 5-20, Bogotá"
+                      className={inputCls}
+                    />
+                    {form.direcciones.length > 1 && (
+                      <button type="button" onClick={() => removeDireccion(i)}
+                        className="w-8 h-8 shrink-0 flex items-center justify-center rounded-badge
+                          text-faint hover:bg-error/10 hover:text-error transition-colors"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </form>
 
         {/* Footer */}
@@ -271,8 +341,20 @@ export default function Clientes() {
 
                         {/* Dirección */}
                         <td className="px-[18px] py-[13px] hidden lg:table-cell">
-                          <p className="text-[13px] text-muted truncate max-w-[220px]">
-                            {c.direccion || <span className="text-faint italic">Sin dirección</span>}
+                          <p className="flex items-center gap-1.5 text-[13px] text-muted truncate max-w-[220px]">
+                            {c.direccion_principal ? (
+                              <>
+                                <MapPin size={12} className="text-faint shrink-0" />
+                                <span className="truncate">{c.direccion_principal}</span>
+                                {c.total_direcciones > 1 && (
+                                  <span className="font-mono text-[10.5px] text-primary shrink-0">
+                                    +{c.total_direcciones - 1}
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-faint italic">Sin dirección</span>
+                            )}
                           </p>
                         </td>
 

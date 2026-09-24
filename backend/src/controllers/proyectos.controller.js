@@ -1,5 +1,16 @@
 import pool from '../config/db.js'
 import { resolveUsuarioPorRol } from '../utils/resolveUsuarioPorRol.js'
+import { esFechaPasada } from '../utils/dates.js'
+
+const validarFechas = (fecha_inicio, fecha_fin_estimada) => {
+  if (esFechaPasada(fecha_inicio)) {
+    return 'La fecha de inicio no puede ser anterior a hoy'
+  }
+  if (fecha_inicio && fecha_fin_estimada && fecha_fin_estimada < fecha_inicio) {
+    return 'La fecha de entrega estimada no puede ser anterior a la fecha de inicio'
+  }
+  return null
+}
 
 const BASE_QUERY = `
   SELECT p.id_proyecto, p.nombre, p.objetivo, p.prioridad,
@@ -56,6 +67,8 @@ export const getOne = async (req, res) => {
 export const create = async (req, res) => {
   const { nombre, objetivo, prioridad, fecha_inicio, fecha_fin_estimada, id_pedido, id_usuario_responsable } = req.body
   if (!nombre) return res.status(400).json({ message: 'El nombre es requerido' })
+  const errorFechas = validarFechas(fecha_inicio, fecha_fin_estimada)
+  if (errorFechas) return res.status(400).json({ message: errorFechas })
 
   try {
     // Un pedido solo puede tener un proyecto asociado — evita duplicar el
@@ -141,6 +154,20 @@ export const create = async (req, res) => {
 export const update = async (req, res) => {
   const { nombre, objetivo, prioridad, fecha_inicio, fecha_fin_estimada, id_pedido, id_usuario_responsable } = req.body
   try {
+    // "No puede ser pasada" solo se exige si la fecha de inicio realmente
+    // cambió: no debe bloquear la edición de un proyecto ya en curso cuyo
+    // inicio quedó, legítimamente, en el pasado. fin >= inicio sí se valida siempre.
+    const [[actual]] = await pool.query(
+      'SELECT fecha_inicio FROM proyectos WHERE id_proyecto = ?', [req.params.id])
+    if (!actual) return res.status(404).json({ message: 'Proyecto no encontrado' })
+    const fechaInicioCambio = (actual.fecha_inicio ? actual.fecha_inicio.toISOString().slice(0, 10) : null) !== (fecha_inicio || null)
+    if (fechaInicioCambio && esFechaPasada(fecha_inicio)) {
+      return res.status(400).json({ message: 'La fecha de inicio no puede ser anterior a hoy' })
+    }
+    if (fecha_inicio && fecha_fin_estimada && fecha_fin_estimada < fecha_inicio) {
+      return res.status(400).json({ message: 'La fecha de entrega estimada no puede ser anterior a la fecha de inicio' })
+    }
+
     if (id_pedido) {
       const [[existente]] = await pool.query(
         'SELECT id_proyecto, nombre FROM proyectos WHERE id_pedido = ? AND id_proyecto <> ? LIMIT 1',

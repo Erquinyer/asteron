@@ -1,4 +1,8 @@
 import pool from '../config/db.js'
+import { esFechaPasada } from '../utils/dates.js'
+
+const fechaEntregaPasada = (items = []) =>
+  items.some(it => esFechaPasada(it.fecha_entrega_estimada))
 
 const BASE = `
   SELECT p.*, c.nombre AS cliente,
@@ -46,6 +50,9 @@ const insertItems = async (conn, id_pedido, items) => {
 export const create = async (req, res) => {
   const { id_cliente, descripcion, items = [] } = req.body
   if (!id_cliente) return res.status(400).json({ message: 'El cliente es requerido' })
+  if (fechaEntregaPasada(items)) {
+    return res.status(400).json({ message: 'La fecha de entrega estimada de un ítem no puede ser anterior a hoy' })
+  }
   const conn = await pool.getConnection()
   try {
     await conn.beginTransaction()

@@ -56,6 +56,13 @@ function ProyectoModal({ proyecto, pedidos, proyectos, usuarios, onClose, onSave
 
   const handleChange = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
 
+  // Solo se impone "no puede ser pasada" al crear, o al editar un proyecto
+  // cuyo inicio ya estaba en el futuro — no bloquea el datepicker de un
+  // proyecto ya en curso cuyo inicio quedó, legítimamente, en el pasado.
+  const hoy = new Date().toISOString().slice(0, 10)
+  const fechaInicioOriginal = proyecto?.fecha_inicio?.slice(0, 10) || null
+  const minFechaInicio = (!fechaInicioOriginal || fechaInicioOriginal >= hoy) ? hoy : undefined
+
   // Un pedido solo puede vincularse a un proyecto: se ocultan los que ya
   // tienen proyecto asociado (salvo el del proyecto que se está editando).
   const pedidosOcupados = new Set(
@@ -183,12 +190,12 @@ function ProyectoModal({ proyecto, pedidos, proyectos, usuarios, onClose, onSave
             <div>
               <label className={labelCls}>Fecha inicio</label>
               <input type="date" name="fecha_inicio" value={form.fecha_inicio}
-                onChange={handleChange} className={inputCls} />
+                onChange={handleChange} min={minFechaInicio} className={inputCls} />
             </div>
             <div>
               <label className={labelCls}>Fecha límite</label>
               <input type="date" name="fecha_fin_estimada" value={form.fecha_fin_estimada}
-                onChange={handleChange} className={inputCls} />
+                onChange={handleChange} min={form.fecha_inicio || hoy} className={inputCls} />
             </div>
           </div>
         </form>

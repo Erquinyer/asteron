@@ -121,6 +121,7 @@ programacion_planta (operario + maquina + proyecto + fecha)
 - `maquinaria.categoria`: `maquinaria_pesada | equipo_mig | herramienta_electrica`
 - `usuarios.password_hash` (renamed from `contraseña` in v2 schema)
 - Soft deletes not used — `ON DELETE SET NULL` for most FKs, `ON DELETE CASCADE` for `mantenimientos → maquinaria`
+- `fases_proyecto.id_detalle_pedido` (nullable FK → `detalle_pedido.id_detalle`): project-level phases (Diseño, Compra de materiales) are created once with `NULL`; when a project's pedido has 2+ items, the remaining phases are cloned **once per item** so each product's progress/estado is tracked independently — a phase name (e.g. "Corte") legitimately repeats once per item. Controllers expose the item via `LEFT JOIN detalle_pedido ... AS item_producto` (`proyectos.controller.js getOne`, `programacion.controller.js`); the UI must group/label by `item_producto` wherever it lists phases for a multi-item project (done in `TurnoModal.jsx` via `<optgroup>`, `ProyectoDetalle.jsx` via a per-item accordion) instead of showing them as a flat list.
 
 ## Notifications system
 `GET /api/notificaciones` returns real-time alerts:

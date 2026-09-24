@@ -84,7 +84,6 @@ CREATE TABLE clientes (
   nombre          VARCHAR(120) NOT NULL,
   nit             VARCHAR(20)  DEFAULT NULL,
   codigo_cliente  VARCHAR(20)  DEFAULT NULL,
-  direccion       VARCHAR(255) DEFAULT NULL,
   created_at      DATETIME     DEFAULT CURRENT_TIMESTAMP,
   updated_at      DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id_cliente),
@@ -101,6 +100,17 @@ CREATE TABLE contactos_cliente (
   principal    TINYINT(1)   DEFAULT 0  COMMENT '1 = contacto principal de ese tipo',
   PRIMARY KEY (id_contacto),
   CONSTRAINT fk_contacto_cliente FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Resuelve 1FN: cada dirección en su propia fila (Dirección 1, Dirección 2, ...)
+CREATE TABLE direcciones_cliente (
+  id_direccion INT          NOT NULL AUTO_INCREMENT,
+  id_cliente   INT          NOT NULL,
+  etiqueta     VARCHAR(40)  DEFAULT NULL COMMENT 'Ej: Dirección 1, Bodega, Sede principal',
+  direccion    VARCHAR(255) NOT NULL,
+  principal    TINYINT(1)   DEFAULT 0,
+  PRIMARY KEY (id_direccion),
+  CONSTRAINT fk_direccion_cliente FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ============================================================
@@ -146,10 +156,12 @@ CREATE TABLE maquinaria (
   descripcion  VARCHAR(255) DEFAULT NULL,
   ubicacion    VARCHAR(100) DEFAULT NULL,
   estado       ENUM('activa','inactiva','en_mantenimiento','sin_asignar','guardada','dado_de_baja') NOT NULL DEFAULT 'activa',
+  id_responsable INT        DEFAULT NULL COMMENT 'Usuario encargado del equipo',
   created_at   DATETIME     DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id_maquina),
-  UNIQUE KEY uq_maquina_codigo (codigo)
+  UNIQUE KEY uq_maquina_codigo (codigo),
+  CONSTRAINT fk_maquina_responsable FOREIGN KEY (id_responsable) REFERENCES usuarios(id_usuario) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE mantenimientos (
