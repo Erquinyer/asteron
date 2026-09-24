@@ -1,0 +1,12 @@
+{
+  "appId": "com.alejo.asteron",
+  "appName": "Asteron",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
+  "ios": {
+    "contentInset": "always"
+  }
+}
