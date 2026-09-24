@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Plus, Pencil, Trash2, X, Filter, ChevronRight, Users, List } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Plus, Pencil, Trash2, X, Filter, ChevronRight, Users, List, ChevronDown, Check } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useFetch }      from '../hooks/useFetch'
 import { getProyectos, createProyecto, updateProyecto, deleteProyecto } from '../api/proyectos.service'
@@ -333,9 +333,18 @@ export default function Proyectos() {
   const [modal,  setModal]  = useState(null)
   const [prefillPedido, setPrefillPedido] = useState('')
   const [viewMode, setViewMode] = useState('lista') // 'lista' | 'cliente'
+  const [prioridadFiltro, setPrioridadFiltro] = useState('todas') // 'todas' | 'alta' | 'media' | 'baja'
+  const [prioridadOpen,   setPrioridadOpen]   = useState(false)
+  const prioridadRef = useRef(null)
   // Grupos abiertos manualmente (por defecto todos colapsados; al buscar se
   // autoexpanden los que tengan coincidencias, sin tocar este estado).
   const [expandedClientes, setExpandedClientes] = useState(new Set())
+
+  useEffect(() => {
+    const h = (e) => { if (prioridadRef.current && !prioridadRef.current.contains(e.target)) setPrioridadOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
 
   const toggleCliente = (key) => setExpandedClientes(prev => {
     const next = new Set(prev)
@@ -376,6 +385,7 @@ export default function Proyectos() {
   const searchActive = search.trim().length > 0
   const q = search.trim().toLowerCase()
   const filtrados = (proyectos || []).filter(p => {
+    if (prioridadFiltro !== 'todas' && p.prioridad !== prioridadFiltro) return false
     if (!q) return true
     if (searchField === 'cliente')     return (p.cliente || '').toLowerCase().includes(q)
     if (searchField === 'responsable') return (p.responsable || '').toLowerCase().includes(q)
@@ -421,13 +431,51 @@ export default function Proyectos() {
           className="flex-1 min-w-[240px] max-w-sm"
         />
 
-        {/* Filtro placeholder */}
-        <button className="h-[38px] flex items-center gap-2 px-3 bg-surface border border-border
-          rounded-control text-[13px] text-muted hover:bg-hover hover:text-ink transition-colors"
-        >
-          <Filter size={14} />
-          Prioridad
-        </button>
+        {/* Filtro de prioridad */}
+        <div className="relative" ref={prioridadRef}>
+          <button
+            onClick={() => setPrioridadOpen(o => !o)}
+            className={`h-[38px] flex items-center gap-2 px-3 rounded-control text-[13px]
+              border transition-colors
+              ${prioridadFiltro !== 'todas'
+                ? 'bg-primary/5 border-primary/40 text-primary'
+                : 'bg-surface border-border text-muted hover:bg-hover hover:text-ink'
+              }`}
+          >
+            <Filter size={14} className="shrink-0" />
+            <span>{prioridadFiltro === 'todas' ? 'Prioridad' : prioridadCfg[prioridadFiltro].label}</span>
+            <ChevronDown size={12} className={`text-faint transition-transform ${prioridadOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {prioridadOpen && (
+            <div className="absolute top-[44px] left-0 z-20 w-48 bg-surface border border-border
+              rounded-card shadow-modal overflow-hidden animate-md-in"
+            >
+              {['todas', 'alta', 'media', 'baja'].map(p => (
+                <button
+                  key={p}
+                  onClick={() => { setPrioridadFiltro(p); setPrioridadOpen(false) }}
+                  className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-left
+                    transition-colors
+                    ${prioridadFiltro === p
+                      ? 'text-primary bg-primary/5'
+                      : 'text-muted hover:bg-hover hover:text-ink'
+                    }`}
+                >
+                  {p !== 'todas' && (
+                    <span className={`w-1.5 h-1.5 rounded-full ${prioridadCfg[p].dot}`} />
+                  )}
+                  <span className="flex-1">
+                    {p === 'todas' ? 'Todas las prioridades' : prioridadCfg[p].label}
+                  </span>
+                  {prioridadFiltro === p && (
+                    <Check size={13} className="text-primary shrink-0" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Toggle de vista: Lista / Por cliente */}
         <div className="flex gap-0.5 p-0.5 bg-surface2 border border-border rounded-control h-[38px]">

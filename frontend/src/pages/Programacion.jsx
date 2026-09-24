@@ -1025,7 +1025,7 @@ export default function Programacion() {
           onFieldChange={setSearchField}
           value={search}
           onValueChange={setSearch}
-          className="flex-1 min-w-[220px] max-w-xs"
+          className="flex-1 min-w-[260px] max-w-md"
         />
 
         <div className="flex-1" />

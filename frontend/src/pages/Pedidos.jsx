@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Pencil, Trash2, Package, X, PlusCircle, MinusCircle } from 'lucide-react'
 import { useFetch }   from '../hooks/useFetch'
 import { getPedidos, getPedido, createPedido, updatePedido, deletePedido } from '../api/pedidos.service'
-import { getClientes } from '../api/clientes.service'
+import { getClientes, getCliente } from '../api/clientes.service'
 import { canDo }       from '../utils/auth'
 import Spinner          from '../components/ui/Spinner'
 import EmptyState       from '../components/ui/EmptyState'
@@ -38,6 +38,8 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
   const [items,  setItems]  = useState([{ ...EMPTY_ITEM }])
   const [loadingItems, setLoadingItems] = useState(!!pedido)
   const [saving, setSaving] = useState(false)
+  const [direcciones,        setDirecciones]        = useState([])
+  const [loadingDirecciones, setLoadingDirecciones] = useState(false)
   // Solo se exige "no puede ser pasada" al crear un pedido nuevo — al editar
   // uno existente no se bloquea el datepicker de un ítem cuya entrega ya venció.
   // Componentes locales, no toISOString(): esa convierte a UTC y en zonas
@@ -70,6 +72,17 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
       .catch(() => toast.error('No se pudieron cargar los ítems del pedido'))
       .finally(() => setLoadingItems(false))
   }, [pedido])
+
+  // Direcciones del cliente elegido — el punto de entrega se elige de esta
+  // lista (config. en la ficha del cliente), no se escribe a mano.
+  useEffect(() => {
+    if (!form.id_cliente) { setDirecciones([]); return }
+    setLoadingDirecciones(true)
+    getCliente(form.id_cliente)
+      .then(({ data }) => setDirecciones(data.direcciones || []))
+      .catch(() => setDirecciones([]))
+      .finally(() => setLoadingDirecciones(false))
+  }, [form.id_cliente])
 
   const setField = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
   const setItem  = (i, field, value) =>
@@ -186,6 +199,11 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
                 <PlusCircle size={14} /> Agregar item
               </button>
             </div>
+            {form.id_cliente && !loadingDirecciones && direcciones.length === 0 && (
+              <p className="text-[11.5px] text-warning mb-2">
+                Este cliente no tiene direcciones registradas — agrégalas desde Clientes para poder elegir un punto de entrega.
+              </p>
+            )}
             {loadingItems ? (
               <p className="font-mono text-[11px] text-faint py-2">Cargando ítems…</p>
             ) : (
@@ -216,12 +234,32 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
                       placeholder="Cantidad"
                       className={`col-span-2 ${itemInputCls} text-center`}
                     />
-                    <input
+                    <select
                       value={item.punto_descargue}
                       onChange={e => setItem(i, 'punto_descargue', e.target.value)}
-                      placeholder="Punto entrega"
-                      className={`col-span-3 ${itemInputCls}`}
-                    />
+                      disabled={!form.id_cliente || loadingDirecciones}
+                      title={!form.id_cliente ? 'Selecciona primero un cliente' : undefined}
+                      className={`col-span-3 ${itemInputCls} disabled:opacity-60 disabled:cursor-not-allowed`}
+                    >
+                      <option value="">
+                        {!form.id_cliente
+                          ? 'Selecciona un cliente'
+                          : loadingDirecciones
+                            ? 'Cargando direcciones…'
+                            : 'Sin punto de entrega'}
+                      </option>
+                      {/* Si el valor actual no coincide con ninguna dirección vigente del
+                          cliente (dato antiguo o cliente cambiado), se preserva como opción
+                          aparte para no perderlo silenciosamente. */}
+                      {item.punto_descargue && !direcciones.some(d => d.direccion === item.punto_descargue) && (
+                        <option value={item.punto_descargue}>{item.punto_descargue} (actual)</option>
+                      )}
+                      {direcciones.map(d => (
+                        <option key={d.id_direccion} value={d.direccion}>
+                          {d.etiqueta ? `${d.etiqueta} — ${d.direccion}` : d.direccion}
+                        </option>
+                      ))}
+                    </select>
                     <input type="date"
                       value={item.fecha_entrega_estimada}
                       onChange={e => setItem(i, 'fecha_entrega_estimada', e.target.value)}
