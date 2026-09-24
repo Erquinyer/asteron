@@ -270,3 +270,4 @@ Y en el navegador del celular abre `http://IP_DEL_MAC:5173`.
 | 2026-09-23 | Ajuste `ios.contentInset` para que la app no quede debajo de la barra de estado del iPhone. |
 | 2026-09-23 | Se agrega la plataforma Android (`frontend/android/`) y los ajustes de red para `http` en pruebas locales. |
 | 2026-09-23 | Guía para generar instaladores (`.apk` en Android y opciones en iPhone). |
+| 2026-09-23 | Checklist de pruebas por módulo en `CHECKLIST_PRUEBAS_MOVIL.md`. |
