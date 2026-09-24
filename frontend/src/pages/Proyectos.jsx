@@ -59,7 +59,10 @@ function ProyectoModal({ proyecto, pedidos, proyectos, usuarios, onClose, onSave
   // Solo se impone "no puede ser pasada" al crear, o al editar un proyecto
   // cuyo inicio ya estaba en el futuro — no bloquea el datepicker de un
   // proyecto ya en curso cuyo inicio quedó, legítimamente, en el pasado.
-  const hoy = new Date().toISOString().slice(0, 10)
+  // Componentes locales, no toISOString(): esa convierte a UTC y en zonas
+  // horarias negativas adelanta un día durante la tarde/noche.
+  const hoyDate = new Date()
+  const hoy = `${hoyDate.getFullYear()}-${String(hoyDate.getMonth() + 1).padStart(2, '0')}-${String(hoyDate.getDate()).padStart(2, '0')}`
   const fechaInicioOriginal = proyecto?.fecha_inicio?.slice(0, 10) || null
   const minFechaInicio = (!fechaInicioOriginal || fechaInicioOriginal >= hoy) ? hoy : undefined
 

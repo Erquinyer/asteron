@@ -1,6 +1,6 @@
 import pool from '../config/db.js'
 import { resolveUsuarioPorRol } from '../utils/resolveUsuarioPorRol.js'
-import { esFechaPasada } from '../utils/dates.js'
+import { esFechaPasada, fechaColumnaISO } from '../utils/dates.js'
 
 const validarFechas = (fecha_inicio, fecha_fin_estimada) => {
   if (esFechaPasada(fecha_inicio)) {
@@ -160,7 +160,7 @@ export const update = async (req, res) => {
     const [[actual]] = await pool.query(
       'SELECT fecha_inicio FROM proyectos WHERE id_proyecto = ?', [req.params.id])
     if (!actual) return res.status(404).json({ message: 'Proyecto no encontrado' })
-    const fechaInicioCambio = (actual.fecha_inicio ? actual.fecha_inicio.toISOString().slice(0, 10) : null) !== (fecha_inicio || null)
+    const fechaInicioCambio = fechaColumnaISO(actual.fecha_inicio) !== (fecha_inicio || null)
     if (fechaInicioCambio && esFechaPasada(fecha_inicio)) {
       return res.status(400).json({ message: 'La fecha de inicio no puede ser anterior a hoy' })
     }

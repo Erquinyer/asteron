@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   ChevronLeft, ChevronRight, ChevronDown, Plus, Trash2, X,
-  Play, Check, CheckCircle, Wrench, Pencil, Ban, List, LayoutGrid,
+  Play, Check, CheckCircle, Wrench, Pencil, Ban, List, LayoutGrid, Upload,
 } from 'lucide-react'
 import { useFetch }          from '../hooks/useFetch'
 import { getProgramacion, updateEstadoTurno, updateAvanceTurno, deleteProgramacion } from '../api/programacion.service'
@@ -12,11 +12,15 @@ import { canDo, canManagePlanta } from '../utils/auth'
 import Spinner     from '../components/ui/Spinner'
 import EmptyState  from '../components/ui/EmptyState'
 import FieldFilter from '../components/ui/FieldFilter'
-import TurnoModal   from '../components/programacion/TurnoModal'
+import TurnoModal    from '../components/programacion/TurnoModal'
+import ImportarModal from '../components/programacion/ImportarModal'
 import toast      from 'react-hot-toast'
 
 // ── Helpers de fecha ──────────────────────────────────────────────────────────
-const toISO = d => d.toISOString().split('T')[0]
+// Componentes locales, no toISOString(): esa convierte a UTC y en zonas
+// horarias negativas adelanta un día durante la tarde/noche.
+const toISO = d =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 const DAYS_SHORT   = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']
 const DAYS_LONG    = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']
@@ -747,6 +751,7 @@ export default function Programacion() {
   const [modo,            setModo]            = useState('dia') // 'dia' | 'semana' | 'mes'
   const [modoMenu,        setModoMenu]        = useState(false)
   const [modalTurno,      setModalTurno]      = useState(null) // null | 'new' | <turno a editar>
+  const [showImportar,    setShowImportar]    = useState(false)
   const [selectedItem,    setSelectedItem]    = useState(null)
   const [vista,           setVista]           = useState('lista') // 'lista' | 'kanban'
   const [activeTab,       setActiveTab]       = useState('todas')
@@ -1041,16 +1046,27 @@ export default function Programacion() {
           ))}
         </div>
 
-        {/* Botón primario — solo líder de planta / coordinación de producción */}
+        {/* Acciones — solo líder de planta / coordinación de producción */}
         {canManagePlanta() && (
-          <button onClick={() => setModalTurno('new')}
-            className="h-[38px] flex items-center gap-2 px-4
-              bg-primary hover:bg-primary-hover text-white
-              text-[13px] font-semibold rounded-control shadow-btn transition-colors"
-          >
-            <Plus size={15} />
-            Programar actividad
-          </button>
+          <>
+            <button onClick={() => setShowImportar(true)}
+              className="h-[38px] flex items-center gap-2 px-4
+                bg-surface border border-border text-muted
+                hover:bg-hover hover:text-ink
+                text-[13px] font-semibold rounded-control transition-colors"
+            >
+              <Upload size={15} />
+              Importar
+            </button>
+            <button onClick={() => setModalTurno('new')}
+              className="h-[38px] flex items-center gap-2 px-4
+                bg-primary hover:bg-primary-hover text-white
+                text-[13px] font-semibold rounded-control shadow-btn transition-colors"
+            >
+              <Plus size={15} />
+              Programar actividad
+            </button>
+          </>
         )}
       </div>
 
@@ -1154,6 +1170,13 @@ export default function Programacion() {
           onCancelar={handleCancelar}
           onDelete={handleDelete}
           onAvance={handleAvance}
+        />
+      )}
+
+      {showImportar && (
+        <ImportarModal
+          onClose={() => setShowImportar(false)}
+          onImported={refresh}
         />
       )}
     </div>

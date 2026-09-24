@@ -10,7 +10,12 @@ const inputCls = `w-full h-10 border border-border rounded-control px-3 text-[13
   transition-colors`
 const labelCls = 'block text-[11.5px] font-medium text-muted mb-1.5'
 const isoDia   = v => String(v ?? '').slice(0, 10)
-const hoyISO   = () => new Date().toISOString().slice(0, 10)
+// Componentes locales, no toISOString(): esa convierte a UTC y en zonas
+// horarias negativas adelanta un día durante la tarde/noche.
+const hoyISO   = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 // Modal de creación / edición de una actividad de planta (turno). Compartido
 // entre la página de Programación y el botón "Programar turno" del Dashboard.
