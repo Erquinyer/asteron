@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   ChevronLeft, ChevronRight, ChevronDown, Plus, Trash2, X,
-  Play, Check, CheckCircle, Wrench,
+  Play, Check, CheckCircle, Wrench, Pencil, Ban, List, LayoutGrid, Upload,
 } from 'lucide-react'
 import { useFetch }          from '../hooks/useFetch'
 import { getProgramacion, updateEstadoTurno, updateAvanceTurno, deleteProgramacion } from '../api/programacion.service'
@@ -12,11 +12,15 @@ import { canDo, canManagePlanta } from '../utils/auth'
 import Spinner     from '../components/ui/Spinner'
 import EmptyState  from '../components/ui/EmptyState'
 import FieldFilter from '../components/ui/FieldFilter'
-import TurnoModal   from '../components/programacion/TurnoModal'
+import TurnoModal    from '../components/programacion/TurnoModal'
+import ImportarModal from '../components/programacion/ImportarModal'
 import toast      from 'react-hot-toast'
 
 // ── Helpers de fecha ──────────────────────────────────────────────────────────
-const toISO = d => d.toISOString().split('T')[0]
+// Componentes locales, no toISOString(): esa convierte a UTC y en zonas
+// horarias negativas adelanta un día durante la tarde/noche.
+const toISO = d =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 const DAYS_SHORT   = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']
 const DAYS_LONG    = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']
@@ -150,7 +154,7 @@ function StateBadge({ estado }) {
 }
 
 // ── Fila compacta de actividad ────────────────────────────────────────────────
-function ActivityRow({ item, onClick, onIniciar, onCompletar, onDelete, showProyecto = false }) {
+function ActivityRow({ item, onClick, onIniciar, onCompletar, onEditar, onCancelar, onDelete, showProyecto = false }) {
   const isLive    = item.estado === 'en_proceso'
   const isDone    = item.estado === 'completado' || item.estado === 'cancelado'
   const elapsed   = useTimer(item.updated_at, isLive)
@@ -232,11 +236,34 @@ function ActivityRow({ item, onClick, onIniciar, onCompletar, onDelete, showProy
       {/* Acciones — solo líder de planta / coordinación de producción */}
       {!isDone && canManagePlanta() && (
         <div className="flex items-center gap-1.5 ml-auto" onClick={e => e.stopPropagation()}>
+          {item.estado === 'programado' && canDo('programacion', 'editar') && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onEditar(item) }}
+              className="w-7 h-7 flex items-center justify-center rounded-badge
+                text-faint hover:bg-primary/10 hover:text-primary transition-colors"
+              title="Editar"
+            >
+              <Pencil size={13} />
+            </button>
+          )}
+
+          {canDo('programacion', 'eliminar') && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onCancelar(item) }}
+              className="w-7 h-7 flex items-center justify-center rounded-badge
+                text-faint hover:bg-warning/10 hover:text-warning transition-colors"
+              title="Cancelar"
+            >
+              <Ban size={13} />
+            </button>
+          )}
+
           {canDo('programacion', 'eliminar') && (
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(item) }}
               className="w-7 h-7 flex items-center justify-center rounded-badge
                 text-faint hover:bg-error/10 hover:text-error transition-colors"
+              title="Eliminar"
             >
               <Trash2 size={13} />
             </button>
@@ -297,7 +324,7 @@ function ResumenDia({ total, enCurso, completados, sinOperario, periodoLabel = '
 }
 
 // ── Grupo de actividades por proyecto (desplegable) ───────────────────────────
-function ProjectGroup({ nombre, items, collapsed, onToggle, onSelect, onIniciar, onCompletar, onDelete, showProyecto = false }) {
+function ProjectGroup({ nombre, items, collapsed, onToggle, onSelect, onIniciar, onCompletar, onEditar, onCancelar, onDelete, showProyecto = false }) {
   return (
     <div className="bg-surface border border-border rounded-card shadow-card dark:shadow-card-dk overflow-hidden">
       <button onClick={onToggle}
@@ -317,7 +344,8 @@ function ProjectGroup({ nombre, items, collapsed, onToggle, onSelect, onIniciar,
           {items.map(item => (
             <ActivityRow key={item.id_programacion} item={item}
               onClick={() => onSelect(item)}
-              onIniciar={onIniciar} onCompletar={onCompletar} onDelete={onDelete}
+              onIniciar={onIniciar} onCompletar={onCompletar}
+              onEditar={onEditar} onCancelar={onCancelar} onDelete={onDelete}
               showProyecto={showProyecto}
             />
           ))}
@@ -372,7 +400,7 @@ function ConfirmModal({ item, onConfirm, onCancel }) {
 }
 
 // ── Modal de detalle de actividad ─────────────────────────────────────────────
-function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onDelete, onAvance }) {
+function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCancelar, onDelete, onAvance }) {
   const [showConfirm,   setShowConfirm]   = useState(false)
   const [loadingAction, setLoadingAction] = useState(false)
   const [avance,        setAvance]        = useState(item.porcentaje_avance ?? 0)
@@ -553,11 +581,32 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onDelete, onAv
           <div className="px-6 py-4 border-t border-border bg-surface2">
             {!isDone && canManagePlanta() ? (
               <div className="flex gap-3">
+                {item.estado === 'programado' && canDo('programacion', 'editar') && (
+                  <button
+                    onClick={() => { onEditar(item); onClose() }}
+                    className="w-10 h-10 flex items-center justify-center rounded-control
+                      border border-border text-primary hover:bg-primary/10 transition-colors"
+                    title="Editar"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                )}
+                {canDo('programacion', 'eliminar') && (
+                  <button
+                    onClick={() => { onCancelar(item); onClose() }}
+                    className="w-10 h-10 flex items-center justify-center rounded-control
+                      border border-border text-warning hover:bg-warning/10 transition-colors"
+                    title="Cancelar"
+                  >
+                    <Ban size={16} />
+                  </button>
+                )}
                 {canDo('programacion', 'eliminar') && (
                   <button
                     onClick={() => { onDelete(item); onClose() }}
                     className="w-10 h-10 flex items-center justify-center rounded-control
                       border border-border text-error hover:bg-error/10 transition-colors"
+                    title="Eliminar"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -608,13 +657,103 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onDelete, onAv
   )
 }
 
+// ── Tablero Kanban de turnos (arrastrar y soltar entre columnas de estado) ────
+const KANBAN_ESTADOS = ['programado', 'en_proceso', 'completado', 'cancelado']
+
+function KanbanCard({ item, draggable, onDragStart, onClick }) {
+  return (
+    <div
+      draggable={draggable}
+      onDragStart={draggable ? onDragStart : undefined}
+      onClick={onClick}
+      className={`bg-surface border border-border rounded-control p-3 shadow-card
+        dark:shadow-card-dk transition-colors hover:bg-hover
+        ${draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
+        ${item.estado === 'cancelado' ? 'opacity-60' : ''}`}
+    >
+      <p className="text-[12.5px] font-medium text-ink truncate">
+        {item.fase_nombre || item.observaciones?.split('\n')[0] || 'Sin fase asignada'}
+      </p>
+      <p className="text-[11px] text-faint truncate mt-0.5">
+        {item.proyecto || 'Sin proyecto'}
+      </p>
+      <div className="flex items-center justify-between mt-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <div className="w-5 h-5 rounded-badge shrink-0 bg-primary/10 text-primary
+            text-[8px] font-bold flex items-center justify-center"
+          >
+            {initials(item.operario)}
+          </div>
+          <span className="text-[11px] text-muted truncate">{item.operario || 'Sin asignar'}</span>
+        </div>
+        {item.estado === 'en_proceso' && (
+          <span className="font-mono text-[10.5px] text-primary tabular-nums shrink-0">
+            {item.porcentaje_avance}%
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function KanbanBoard({ items, onSelect, onDrop }) {
+  const [dragId, setDragId] = useState(null)
+  const puedeArrastrar = canManagePlanta()
+
+  const handleDropColumn = (estado) => {
+    if (dragId == null) return
+    const item = items.find(i => i.id_programacion === dragId)
+    setDragId(null)
+    if (item) onDrop(item, estado)
+  }
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {KANBAN_ESTADOS.map(estado => {
+        const cfg = estadoConfig[estado]
+        const cards = items.filter(i => i.estado === estado)
+        return (
+          <div key={estado}
+            onDragOver={e => puedeArrastrar && e.preventDefault()}
+            onDrop={() => handleDropColumn(estado)}
+            className="bg-surface2 border border-border rounded-card p-2.5 min-h-[120px]"
+          >
+            <div className="flex items-center justify-between px-1 pb-2">
+              <span className="inline-flex items-center gap-1.5 font-mono text-[11px]
+                font-semibold text-ink"
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                {cfg.label}
+              </span>
+              <span className="font-mono text-[10.5px] text-faint">{cards.length}</span>
+            </div>
+            <div className="space-y-2">
+              {cards.map(item => (
+                <KanbanCard
+                  key={item.id_programacion}
+                  item={item}
+                  draggable={puedeArrastrar}
+                  onDragStart={() => setDragId(item.id_programacion)}
+                  onClick={() => onSelect(item)}
+                />
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function Programacion() {
   const [fecha,           setFecha]           = useState(toISO(new Date()))
   const [modo,            setModo]            = useState('dia') // 'dia' | 'semana' | 'mes'
   const [modoMenu,        setModoMenu]        = useState(false)
-  const [showModal,       setShowModal]       = useState(false)
+  const [modalTurno,      setModalTurno]      = useState(null) // null | 'new' | <turno a editar>
+  const [showImportar,    setShowImportar]    = useState(false)
   const [selectedItem,    setSelectedItem]    = useState(null)
+  const [vista,           setVista]           = useState('lista') // 'lista' | 'kanban'
   const [activeTab,       setActiveTab]       = useState('todas')
   const [search,          setSearch]          = useState('')
   const [searchField,     setSearchField]     = useState('todos') // 'todos' | 'operario' | 'proyecto' | 'cliente'
@@ -691,6 +830,34 @@ export default function Programacion() {
     } catch { toast.error('Error al eliminar') }
   }
 
+  const handleCancelar = async (item) => {
+    if (!confirm('¿Cancelar esta actividad?')) return
+    try {
+      await updateEstadoTurno(item.id_programacion, { estado: 'cancelado' })
+      toast.success('Actividad cancelada')
+      refresh()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error al cancelar')
+    }
+  }
+
+  // Cambio de estado arrastrando una card en la vista Kanban. Reusa los mismos
+  // handlers que la vista lista; a "completado" no pide tiempo real (se puede
+  // ajustar luego desde el detalle) y a "programado" se llama directo al backend.
+  const handleKanbanDrop = async (item, estado) => {
+    if (item.estado === estado) return
+    if (estado === 'en_proceso') return handleIniciar(item)
+    if (estado === 'completado') return handleCompletar(item, null)
+    if (estado === 'cancelado')  return handleCancelar(item)
+    try {
+      await updateEstadoTurno(item.id_programacion, { estado })
+      toast.success('Actividad actualizada')
+      refresh()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error al mover la actividad')
+    }
+  }
+
   // Conteo por estado
   const stats = {
     programado: (data || []).filter(r => r.estado === 'programado').length,
@@ -714,7 +881,8 @@ export default function Programacion() {
 
   const searchActive = search.trim().length > 0
   const q = search.trim().toLowerCase()
-  const filtradasPorSearch = !q ? filtradasPorTab : filtradasPorTab.filter(item => {
+  const matchesSearch = item => {
+    if (!q) return true
     if (searchField === 'operario') return (item.operario || '').toLowerCase().includes(q)
     if (searchField === 'proyecto') return (item.proyecto || '').toLowerCase().includes(q)
     if (searchField === 'cliente')  return (item.cliente || '').toLowerCase().includes(q)
@@ -722,7 +890,12 @@ export default function Programacion() {
       (item.proyecto || '').toLowerCase().includes(q) ||
       (item.cliente || '').toLowerCase().includes(q) ||
       (item.fase_nombre || '').toLowerCase().includes(q)
-  })
+  }
+  // Vista Kanban: todas las actividades del periodo (sin filtrar por pestaña de
+  // estado, ya que cada estado es una columna), solo respetando el buscador.
+  const kanbanItems = (data || []).filter(matchesSearch)
+
+  const filtradasPorSearch = filtradasPorTab.filter(matchesSearch)
 
   // En vista día se agrupa por proyecto; en semana / mes por fecha.
   const agruparPorFecha = modo !== 'dia'
@@ -857,16 +1030,43 @@ export default function Programacion() {
 
         <div className="flex-1" />
 
-        {/* Botón primario — solo líder de planta / coordinación de producción */}
+        {/* Alternar Lista / Kanban */}
+        <div className="flex items-center gap-1 h-[38px] p-[3px] bg-surface border border-border rounded-control">
+          {[
+            { value: 'lista',  label: 'Lista',  icon: List },
+            { value: 'kanban', label: 'Kanban', icon: LayoutGrid },
+          ].map(({ value, label, icon: Icon }) => (
+            <button key={value} onClick={() => setVista(value)}
+              className={`flex items-center gap-1.5 h-[30px] px-3 rounded-[7px] text-[12px]
+                font-semibold transition-colors
+                ${vista === value ? 'bg-primary text-white' : 'text-muted hover:bg-hover hover:text-ink'}`}
+            >
+              <Icon size={13} /> {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Acciones — solo líder de planta / coordinación de producción */}
         {canManagePlanta() && (
-          <button onClick={() => setShowModal(true)}
-            className="h-[38px] flex items-center gap-2 px-4
-              bg-primary hover:bg-primary-hover text-white
-              text-[13px] font-semibold rounded-control shadow-btn transition-colors"
-          >
-            <Plus size={15} />
-            Programar actividad
-          </button>
+          <>
+            <button onClick={() => setShowImportar(true)}
+              className="h-[38px] flex items-center gap-2 px-4
+                bg-surface border border-border text-muted
+                hover:bg-hover hover:text-ink
+                text-[13px] font-semibold rounded-control transition-colors"
+            >
+              <Upload size={15} />
+              Importar
+            </button>
+            <button onClick={() => setModalTurno('new')}
+              className="h-[38px] flex items-center gap-2 px-4
+                bg-primary hover:bg-primary-hover text-white
+                text-[13px] font-semibold rounded-control shadow-btn transition-colors"
+            >
+              <Plus size={15} />
+              Programar actividad
+            </button>
+          </>
         )}
       </div>
 
@@ -894,55 +1094,68 @@ export default function Programacion() {
             sinOperario={sinOperario}
           />
 
-          {/* ── Pestañas por estado ── */}
-          <div className="flex flex-wrap gap-1.5">
-            {TABS.map(t => (
-              <button key={t.key} onClick={() => setActiveTab(t.key)}
-                className={`h-[34px] px-3.5 rounded-control font-mono text-[12px]
-                  font-semibold transition-colors border
-                  ${activeTab === t.key
-                    ? 'bg-primary text-white border-primary'
-                    : 'bg-surface border-border text-muted hover:bg-hover hover:text-ink'}`}
-              >
-                {t.label} {t.count}
-              </button>
-            ))}
-          </div>
-
-          {/* ── Actividades agrupadas por proyecto ── */}
-          {grupos.length === 0 ? (
-            <EmptyState title="Sin actividades" description={
-              searchActive
-                ? 'No hay coincidencias con el filtro de búsqueda.'
-                : 'No hay turnos en este estado para la fecha seleccionada.'
-            } />
+          {vista === 'kanban' ? (
+            <KanbanBoard
+              items={kanbanItems}
+              onSelect={setSelectedItem}
+              onDrop={handleKanbanDrop}
+            />
           ) : (
-            <div className="space-y-3">
-              {grupos.map(g => (
-                <ProjectGroup key={g.key} nombre={g.nombre} items={g.items}
-                  showProyecto={agruparPorFecha}
-                  collapsed={searchActive ? false
-                    : agruparPorFecha ? expandedGroups.has(g.key) : !expandedGroups.has(g.key)}
-                  onToggle={() => toggleGroup(g.key)}
-                  onSelect={setSelectedItem}
-                  onIniciar={handleIniciar}
-                  onCompletar={handleCompletar}
-                  onDelete={handleDelete}
-                />
-              ))}
-            </div>
+            <>
+              {/* ── Pestañas por estado ── */}
+              <div className="flex flex-wrap gap-1.5">
+                {TABS.map(t => (
+                  <button key={t.key} onClick={() => setActiveTab(t.key)}
+                    className={`h-[34px] px-3.5 rounded-control font-mono text-[12px]
+                      font-semibold transition-colors border
+                      ${activeTab === t.key
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-surface border-border text-muted hover:bg-hover hover:text-ink'}`}
+                  >
+                    {t.label} {t.count}
+                  </button>
+                ))}
+              </div>
+
+              {/* ── Actividades agrupadas por proyecto ── */}
+              {grupos.length === 0 ? (
+                <EmptyState title="Sin actividades" description={
+                  searchActive
+                    ? 'No hay coincidencias con el filtro de búsqueda.'
+                    : 'No hay turnos en este estado para la fecha seleccionada.'
+                } />
+              ) : (
+                <div className="space-y-3">
+                  {grupos.map(g => (
+                    <ProjectGroup key={g.key} nombre={g.nombre} items={g.items}
+                      showProyecto={agruparPorFecha}
+                      collapsed={searchActive ? false
+                        : agruparPorFecha ? expandedGroups.has(g.key) : !expandedGroups.has(g.key)}
+                      onToggle={() => toggleGroup(g.key)}
+                      onSelect={setSelectedItem}
+                      onIniciar={handleIniciar}
+                      onCompletar={handleCompletar}
+                      onEditar={setModalTurno}
+                      onCancelar={handleCancelar}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </>
       )}
 
       {/* ── Modales ── */}
-      {showModal && (
+      {modalTurno && (
         <TurnoModal
           fecha={fecha}
+          turno={modalTurno === 'new' ? null : modalTurno}
           usuarios={usuarios || []}
           maquinas={maquinas || []}
           proyectos={proyectos || []}
-          onClose={() => setShowModal(false)}
+          onClose={() => setModalTurno(null)}
           onSaved={refresh}
         />
       )}
@@ -953,8 +1166,17 @@ export default function Programacion() {
           onClose={() => setSelectedItem(null)}
           onIniciar={handleIniciar}
           onCompletar={handleCompletar}
+          onEditar={setModalTurno}
+          onCancelar={handleCancelar}
           onDelete={handleDelete}
           onAvance={handleAvance}
+        />
+      )}
+
+      {showImportar && (
+        <ImportarModal
+          onClose={() => setShowImportar(false)}
+          onImported={refresh}
         />
       )}
     </div>

@@ -1,4 +1,10 @@
+import ExcelJS from 'exceljs'
 import pool from '../config/db.js'
+import { esFechaPasada, hoyISO, fechaColumnaISO } from '../utils/dates.js'
+import {
+  leerFilas, cargarContexto, resolverFila, valoresParaMostrar, COLUMNAS_PLANTILLA,
+  crearRegistroSimulado, estaOcupadoSimulado, marcarOcupadoSimulado,
+} from '../utils/importProgramacion.js'
 
 // Recalcula estado + porcentaje_avance de una fase a partir de sus turnos vinculados
 // (no cancelados). Se llama después de cualquier cambio en programacion_planta que
@@ -35,12 +41,20 @@ export const recomputeFase = async (id_fase_proyecto) => {
     [id_fase_proyecto, fase.estado, estado, avance, 'Actualizado automáticamente desde Programación de planta'])
 }
 
-// Operarios y máquinas con una actividad en_proceso ahora mismo — no pueden
-// tomar una actividad nueva hasta que esa termine o se cancele.
-export const getOcupados = async (_req, res) => {
+// Operarios y máquinas no disponibles para una actividad nueva: los que tienen
+// una actividad en_proceso ahora mismo (bloqueo en tiempo real, sin importar la
+// fecha) más, si se indica ?fecha=, los que ya tienen un turno programado o en
+// proceso ese mismo día (evita doble-reserva en fechas futuras).
+export const getOcupados = async (req, res) => {
+  const { fecha } = req.query
   try {
     const [rows] = await pool.query(
-      `SELECT id_operario, id_maquina FROM programacion_planta WHERE estado = 'en_proceso'`)
+      fecha
+        ? `SELECT id_operario, id_maquina FROM programacion_planta
+           WHERE estado = 'en_proceso'
+              OR (fecha = ? AND estado IN ('programado','en_proceso'))`
+        : `SELECT id_operario, id_maquina FROM programacion_planta WHERE estado = 'en_proceso'`,
+      fecha ? [fecha] : [])
     res.json({
       operarios: [...new Set(rows.map(r => r.id_operario).filter(Boolean))],
       maquinas:  [...new Set(rows.map(r => r.id_maquina).filter(Boolean))],
@@ -54,7 +68,7 @@ export const getOcupados = async (_req, res) => {
 export const getAll = async (req, res) => {
   // Rango de fechas: ?desde=YYYY-MM-DD&hasta=YYYY-MM-DD (vista semana / mes) o
   // ?fecha=YYYY-MM-DD (vista día, comportamiento por defecto).
-  const hoy = new Date().toISOString().split('T')[0]
+  const hoy = hoyISO()
   const desde = req.query.desde || req.query.fecha || hoy
   const hasta = req.query.hasta || req.query.fecha || desde
   try {
@@ -109,44 +123,295 @@ export const getByFase = async (req, res) => {
   }
 }
 
+// Reglas de negocio de un turno (fecha, disponibilidad de operario/máquina ese
+// día, estado de la fase) SIN escribir en la BD — solo lectura. La usan
+// `crearTurnoInterno` antes de insertar y `previsualizarImportar` para el
+// dry-run de la importación masiva. Devuelve { ok: true } o { ok: false, status, message }.
+export const validarTurnoInterno = async ({ fecha, id_operario, id_maquina, id_fase_proyecto }) => {
+  if (!fecha || !id_operario || !id_maquina) {
+    return { ok: false, status: 400, message: 'Fecha, operario y máquina son requeridos' }
+  }
+  if (esFechaPasada(fecha)) {
+    return { ok: false, status: 400, message: 'No se puede programar una actividad en una fecha pasada' }
+  }
+
+  const [[operarioOcupado]] = await pool.query(
+    `SELECT 1 FROM programacion_planta
+     WHERE id_operario=? AND (estado='en_proceso' OR (fecha=? AND estado IN ('programado','en_proceso'))) LIMIT 1`,
+    [id_operario, fecha])
+  if (operarioOcupado) {
+    return { ok: false, status: 409, message: 'El operario ya tiene una actividad asignada ese día' }
+  }
+
+  const [[maquinaOcupada]] = await pool.query(
+    `SELECT 1 FROM programacion_planta
+     WHERE id_maquina=? AND (estado='en_proceso' OR (fecha=? AND estado IN ('programado','en_proceso'))) LIMIT 1`,
+    [id_maquina, fecha])
+  if (maquinaOcupada) {
+    return { ok: false, status: 409, message: 'La máquina ya está reservada ese día en otra actividad' }
+  }
+
+  // No se pueden programar actividades sobre una fase ya completada.
+  if (id_fase_proyecto) {
+    const [[fase]] = await pool.query(
+      'SELECT estado FROM fases_proyecto WHERE id_fase_proyecto = ?', [id_fase_proyecto])
+    if (!fase) {
+      return { ok: false, status: 404, message: 'La fase indicada no existe' }
+    }
+    if (fase.estado === 'completada') {
+      return { ok: false, status: 409, message: 'Esa fase ya está completada; no admite nuevas actividades' }
+    }
+  }
+
+  return { ok: true }
+}
+
+// Crea el turno: valida con `validarTurnoInterno` y, si pasa, inserta.
+// Compartida entre el endpoint POST individual y el importador masivo
+// (backend/src/utils/importProgramacion.js) — así ambos caminos quedan
+// siempre en sincro. Devuelve { ok: true, turno } o { ok: false, status, message }.
+export const crearTurnoInterno = async (datos) => {
+  const { fecha, id_operario, id_maquina, id_proyecto, id_fase_proyecto, tiempo_estimado, observaciones } = datos
+
+  const validacion = await validarTurnoInterno(datos)
+  if (!validacion.ok) return validacion
+
+  const [result] = await pool.query(
+    `INSERT INTO programacion_planta (fecha, id_operario, id_maquina, id_proyecto, id_fase_proyecto, tiempo_estimado, estado, porcentaje_avance, observaciones)
+     VALUES (?,?,?,?,?,?,?,?,?)`,
+    [fecha, id_operario, id_maquina, id_proyecto || null,
+     id_fase_proyecto || null, tiempo_estimado || 480, 'programado', 0, observaciones || null])
+
+  if (id_fase_proyecto) await recomputeFase(id_fase_proyecto)
+
+  const [[turno]] = await pool.query(`
+    SELECT pp.*, u.nombre AS operario, m.nombre AS maquina, m.codigo AS maquina_codigo,
+           pr.nombre AS proyecto, fe.nombre AS fase_nombre,
+           dp.producto AS item_producto
+    FROM programacion_planta pp
+    LEFT JOIN usuarios       u  ON pp.id_operario      = u.id_usuario
+    LEFT JOIN maquinaria     m  ON pp.id_maquina       = m.id_maquina
+    LEFT JOIN proyectos      pr ON pp.id_proyecto      = pr.id_proyecto
+    LEFT JOIN fases_proyecto fp ON pp.id_fase_proyecto = fp.id_fase_proyecto
+    LEFT JOIN fases_estandar fe ON fp.id_fase_estandar = fe.id_fase_estandar
+    LEFT JOIN detalle_pedido dp ON fp.id_detalle_pedido = dp.id_detalle
+    WHERE pp.id_programacion = ?`, [result.insertId])
+
+  return { ok: true, turno }
+}
+
 export const create = async (req, res) => {
+  try {
+    const resultado = await crearTurnoInterno(req.body)
+    if (!resultado.ok) return res.status(resultado.status).json({ message: resultado.message })
+    res.status(201).json(resultado.turno)
+  } catch (err) {
+    console.error('[programacion.create]', err)
+    res.status(500).json({ message: 'Error al crear programación' })
+  }
+}
+
+// GET /plantilla — plantilla .xlsx para cargar varios turnos a la vez, con
+// hojas de referencia de operarios/máquinas vigentes para reducir errores.
+export const getPlantilla = async (_req, res) => {
+  try {
+    const workbook = new ExcelJS.Workbook()
+
+    const hoja = workbook.addWorksheet('Programación')
+    hoja.columns = [
+      { header: 'Fecha', key: 'Fecha', width: 14 },
+      { header: 'Operario', key: 'Operario', width: 22 },
+      { header: 'Maquina', key: 'Maquina', width: 14 },
+      { header: 'Proyecto', key: 'Proyecto', width: 32 },
+      { header: 'Item', key: 'Item', width: 26 },
+      { header: 'Fase', key: 'Fase', width: 22 },
+      { header: 'TiempoEstimado', key: 'TiempoEstimado', width: 16 },
+      { header: 'Observaciones', key: 'Observaciones', width: 32 },
+    ]
+    hoja.getRow(1).font = { bold: true }
+    hoja.addRow({
+      Fecha: hoyISO(),
+      Operario: 'Nombre o código del operario (ver hoja Operarios)',
+      Maquina: 'Código de la máquina (ver hoja Maquinas)',
+      Proyecto: '',
+      Item: '',
+      Fase: '',
+      TiempoEstimado: 480,
+      Observaciones: 'Fila de ejemplo — bórrala antes de importar',
+    })
+
+    const ctx = await cargarContexto()
+
+    const hojaOperarios = workbook.addWorksheet('Operarios')
+    hojaOperarios.columns = [{ header: 'Codigo', key: 'c', width: 14 }, { header: 'Nombre', key: 'n', width: 28 }]
+    hojaOperarios.getRow(1).font = { bold: true }
+    ctx.operarios.forEach(o => hojaOperarios.addRow({ c: o.codigo_empleado, n: o.nombre }))
+
+    const hojaMaquinas = workbook.addWorksheet('Maquinas')
+    hojaMaquinas.columns = [{ header: 'Codigo', key: 'c', width: 14 }, { header: 'Nombre', key: 'n', width: 28 }]
+    hojaMaquinas.getRow(1).font = { bold: true }
+    ctx.maquinas.forEach(m => hojaMaquinas.addRow({ c: m.codigo, n: m.nombre }))
+
+    const buffer = await workbook.xlsx.writeBuffer()
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.setHeader('Content-Disposition', 'attachment; filename="plantilla_programacion.xlsx"')
+    res.send(Buffer.from(buffer))
+  } catch (err) {
+    console.error('[programacion.getPlantilla]', err)
+    res.status(500).json({ message: 'Error al generar la plantilla' })
+  }
+}
+
+// POST /importar — crea varios turnos a partir de un .xlsx/.csv (campo "archivo").
+// Reusa crearTurnoInterno fila por fila (secuencial) para que las mismas reglas
+// de disponibilidad/fecha/fase apliquen, incluso entre filas del propio archivo.
+export const importar = async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'Debes adjuntar un archivo .xlsx o .csv' })
+  }
+  try {
+    const { filas } = await leerFilas(req.file.buffer, req.file.originalname)
+    if (filas.length === 0) {
+      return res.status(400).json({ message: 'El archivo no tiene filas con datos para importar' })
+    }
+
+    const ctx = await cargarContexto()
+    const fasesCache = new Map()
+    const errores = []
+    let creados = 0
+
+    for (const row of filas) {
+      const { payload, error } = await resolverFila(row, ctx, fasesCache)
+      if (error) { errores.push({ fila: row.__fila, motivo: error }); continue }
+
+      const resultado = await crearTurnoInterno(payload)
+      if (!resultado.ok) { errores.push({ fila: row.__fila, motivo: resultado.message }); continue }
+      creados++
+    }
+
+    res.json({ total: filas.length, creados, errores })
+  } catch (err) {
+    console.error('[programacion.importar]', err)
+    res.status(400).json({ message: err.message || 'No se pudo leer el archivo. Verifica que sea un .xlsx o .csv válido.' })
+  }
+}
+
+// POST /importar/preview — dry-run: parsea y valida el archivo (misma lógica
+// que `importar`, incluyendo disponibilidad) pero no crea nada. Además del
+// chequeo contra la BD, lleva un registro simulado de lo que "iría quedando
+// ocupado" fila a fila dentro del propio archivo — la BD sola no detecta que
+// dos filas del mismo archivo reserven el mismo operario/máquina el mismo día,
+// porque ninguna de las dos existe todavía.
+export const previsualizarImportar = async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'Debes adjuntar un archivo .xlsx o .csv' })
+  }
+  try {
+    const { filas } = await leerFilas(req.file.buffer, req.file.originalname)
+    if (filas.length === 0) {
+      return res.status(400).json({ message: 'El archivo no tiene filas con datos para importar' })
+    }
+
+    const ctx = await cargarContexto()
+    const fasesCache = new Map()
+    const simulado = crearRegistroSimulado()
+    const resultado = []
+
+    for (const row of filas) {
+      const valores = valoresParaMostrar(row)
+      const { payload, error } = await resolverFila(row, ctx, fasesCache)
+      if (error) { resultado.push({ fila: row.__fila, valores, estado: 'error', motivo: error }); continue }
+
+      if (estaOcupadoSimulado(simulado, 'operarios', payload.id_operario, payload.fecha)) {
+        resultado.push({ fila: row.__fila, valores, estado: 'error', motivo: 'El operario ya está asignado ese día en otra fila de este archivo' })
+        continue
+      }
+      if (estaOcupadoSimulado(simulado, 'maquinas', payload.id_maquina, payload.fecha)) {
+        resultado.push({ fila: row.__fila, valores, estado: 'error', motivo: 'La máquina ya está reservada ese día en otra fila de este archivo' })
+        continue
+      }
+
+      const validacion = await validarTurnoInterno(payload)
+      if (!validacion.ok) { resultado.push({ fila: row.__fila, valores, estado: 'error', motivo: validacion.message }); continue }
+
+      marcarOcupadoSimulado(simulado, 'operarios', payload.id_operario, payload.fecha)
+      marcarOcupadoSimulado(simulado, 'maquinas', payload.id_maquina, payload.fecha)
+      resultado.push({ fila: row.__fila, valores, estado: 'ok', motivo: null })
+    }
+
+    res.json({
+      columnas: COLUMNAS_PLANTILLA,
+      filas: resultado,
+      total: resultado.length,
+      validas: resultado.filter(r => r.estado === 'ok').length,
+    })
+  } catch (err) {
+    console.error('[programacion.previsualizarImportar]', err)
+    res.status(400).json({ message: err.message || 'No se pudo leer el archivo. Verifica que sea un .xlsx o .csv válido.' })
+  }
+}
+
+// PUT /:id — edita un turno que aún no inició (fecha, operario, máquina,
+// proyecto/fase, tiempo estimado, observaciones). Una vez en_proceso o
+// completado, ya no se puede reprogramar: solo estado/avance.
+export const update = async (req, res) => {
+  const { id } = req.params
   const { fecha, id_operario, id_maquina, id_proyecto, id_fase_proyecto, tiempo_estimado, observaciones } = req.body
   if (!fecha || !id_operario || !id_maquina) {
     return res.status(400).json({ message: 'Fecha, operario y máquina son requeridos' })
   }
   try {
+    const [[actual]] = await pool.query(
+      'SELECT estado, fecha, id_fase_proyecto FROM programacion_planta WHERE id_programacion=?', [id])
+    if (!actual) return res.status(404).json({ message: 'Registro no encontrado' })
+    if (actual.estado !== 'programado') {
+      return res.status(409).json({ message: 'Solo se puede editar una actividad que aún no ha iniciado' })
+    }
+
+    // "No puede ser pasada" solo se exige si la fecha realmente cambió: no debe
+    // bloquear la edición de otros campos de un turno cuya fecha ya quedó atrás.
+    const fechaCambio = fechaColumnaISO(actual.fecha) !== fecha
+    if (fechaCambio && esFechaPasada(fecha)) {
+      return res.status(400).json({ message: 'No se puede programar una actividad en una fecha pasada' })
+    }
+
     const [[operarioOcupado]] = await pool.query(
-      `SELECT 1 FROM programacion_planta WHERE id_operario=? AND estado='en_proceso' LIMIT 1`,
-      [id_operario])
+      `SELECT 1 FROM programacion_planta
+       WHERE id_operario=? AND id_programacion!=?
+         AND (estado='en_proceso' OR (fecha=? AND estado IN ('programado','en_proceso'))) LIMIT 1`,
+      [id_operario, id, fecha])
     if (operarioOcupado) {
-      return res.status(409).json({ message: 'El operario ya tiene una actividad en curso' })
+      return res.status(409).json({ message: 'El operario ya tiene una actividad asignada ese día' })
     }
 
     const [[maquinaOcupada]] = await pool.query(
-      `SELECT 1 FROM programacion_planta WHERE id_maquina=? AND estado='en_proceso' LIMIT 1`,
-      [id_maquina])
+      `SELECT 1 FROM programacion_planta
+       WHERE id_maquina=? AND id_programacion!=?
+         AND (estado='en_proceso' OR (fecha=? AND estado IN ('programado','en_proceso'))) LIMIT 1`,
+      [id_maquina, id, fecha])
     if (maquinaOcupada) {
-      return res.status(409).json({ message: 'La máquina ya está en uso en otra actividad' })
+      return res.status(409).json({ message: 'La máquina ya está reservada ese día en otra actividad' })
     }
 
-    // No se pueden programar actividades sobre una fase ya completada.
     if (id_fase_proyecto) {
       const [[fase]] = await pool.query(
         'SELECT estado FROM fases_proyecto WHERE id_fase_proyecto = ?', [id_fase_proyecto])
-      if (!fase) {
-        return res.status(404).json({ message: 'La fase indicada no existe' })
-      }
+      if (!fase) return res.status(404).json({ message: 'La fase indicada no existe' })
       if (fase.estado === 'completada') {
         return res.status(409).json({ message: 'Esa fase ya está completada; no admite nuevas actividades' })
       }
     }
 
-    const [result] = await pool.query(
-      `INSERT INTO programacion_planta (fecha, id_operario, id_maquina, id_proyecto, id_fase_proyecto, tiempo_estimado, estado, porcentaje_avance, observaciones)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
+    await pool.query(
+      `UPDATE programacion_planta SET fecha=?, id_operario=?, id_maquina=?, id_proyecto=?,
+       id_fase_proyecto=?, tiempo_estimado=?, observaciones=? WHERE id_programacion=?`,
       [fecha, id_operario, id_maquina, id_proyecto || null,
-       id_fase_proyecto || null, tiempo_estimado || 480, 'programado', 0, observaciones || null])
+       id_fase_proyecto || null, tiempo_estimado || 480, observaciones || null, id])
 
+    // Recalcula ambas fases si el turno cambió de fase (o se desvinculó de una)
+    if (actual.id_fase_proyecto && actual.id_fase_proyecto !== id_fase_proyecto) {
+      await recomputeFase(actual.id_fase_proyecto)
+    }
     if (id_fase_proyecto) await recomputeFase(id_fase_proyecto)
 
     const [[row]] = await pool.query(`
@@ -160,12 +425,12 @@ export const create = async (req, res) => {
       LEFT JOIN fases_proyecto fp ON pp.id_fase_proyecto = fp.id_fase_proyecto
       LEFT JOIN fases_estandar fe ON fp.id_fase_estandar = fe.id_fase_estandar
       LEFT JOIN detalle_pedido dp ON fp.id_detalle_pedido = dp.id_detalle
-      WHERE pp.id_programacion = ?`, [result.insertId])
+      WHERE pp.id_programacion = ?`, [id])
 
-    res.status(201).json(row)
+    res.json(row)
   } catch (err) {
-    console.error('[programacion.create]', err)
-    res.status(500).json({ message: 'Error al crear programación' })
+    console.error('[programacion.update]', err)
+    res.status(500).json({ message: 'Error al actualizar programación' })
   }
 }
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Calendar, X } from 'lucide-react'
 import { getProyecto } from '../../api/proyectos.service'
-import { createProgramacion, getOcupados } from '../../api/programacion.service'
+import { createProgramacion, updateProgramacion, getOcupados } from '../../api/programacion.service'
 import toast from 'react-hot-toast'
 
 const inputCls = `w-full h-10 border border-border rounded-control px-3 text-[13px]
@@ -9,11 +9,28 @@ const inputCls = `w-full h-10 border border-border rounded-control px-3 text-[13
   focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary
   transition-colors`
 const labelCls = 'block text-[11.5px] font-medium text-muted mb-1.5'
+const isoDia   = v => String(v ?? '').slice(0, 10)
+// Componentes locales, no toISOString(): esa convierte a UTC y en zonas
+// horarias negativas adelanta un día durante la tarde/noche.
+const hoyISO   = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
-// Modal de creación de una actividad de planta (turno). Compartido entre la
-// página de Programación y el botón "Programar turno" del Dashboard.
-export default function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClose, onSaved }) {
-  const [form, setForm] = useState({
+// Modal de creación / edición de una actividad de planta (turno). Compartido
+// entre la página de Programación y el botón "Programar turno" del Dashboard.
+// Si se pasa `turno`, edita ese registro en vez de crear uno nuevo — solo
+// permitido mientras esté en estado "programado" (lo valida también el backend).
+export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos, onClose, onSaved }) {
+  const [form, setForm] = useState(turno ? {
+    fecha:             isoDia(turno.fecha),
+    id_operario:       turno.id_operario ?? '',
+    id_maquina:        turno.id_maquina ?? '',
+    id_proyecto:       turno.id_proyecto ?? '',
+    id_fase_proyecto:  turno.id_fase_proyecto ?? '',
+    tiempo_estimado:   turno.tiempo_estimado ?? 480,
+    observaciones:     turno.observaciones ?? '',
+  } : {
     fecha,
     id_operario: '', id_maquina: '', id_proyecto: '', id_fase_proyecto: '',
     tiempo_estimado: 480, observaciones: '',
@@ -25,19 +42,32 @@ export default function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClo
 
   const set = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
 
-  // Operarios/máquinas con una actividad en_proceso ahora mismo: no se pueden
-  // asignar a una actividad nueva hasta que esa termine o se cancele.
+  // Igual que al crear: no se exige "no puede ser pasada" si la fecha original
+  // del turno que se edita ya estaba en el pasado (no bloquea el datepicker).
+  const fechaOriginal = turno ? isoDia(turno.fecha) : null
+  const minFecha = (!fechaOriginal || fechaOriginal >= hoyISO()) ? hoyISO() : undefined
+
+  // Operarios/máquinas no disponibles ese día: con una actividad en curso ahora
+  // mismo, o ya con un turno programado/en proceso para la fecha elegida.
   useEffect(() => {
-    getOcupados()
+    if (!form.fecha) { setOcupados({ operarios: [], maquinas: [] }); return }
+    getOcupados(form.fecha)
       .then(({ data }) => setOcupados(data))
       .catch(() => {})
-  }, [])
+  }, [form.fecha])
 
   useEffect(() => {
     if (!form.id_proyecto) { setFases([]); setForm(f => ({ ...f, id_fase_proyecto: '' })); return }
     setLoadingFases(true)
     getProyecto(form.id_proyecto)
-      .then(({ data }) => { setFases(data.fases || []); setForm(f => ({ ...f, id_fase_proyecto: '' })) })
+      .then(({ data }) => {
+        const nuevasFases = data.fases || []
+        setFases(nuevasFases)
+        setForm(f => {
+          const sigueValida = nuevasFases.some(fa => String(fa.id_fase_proyecto) === String(f.id_fase_proyecto))
+          return { ...f, id_fase_proyecto: sigueValida ? f.id_fase_proyecto : '' }
+        })
+      })
       .catch(() => setFases([]))
       .finally(() => setLoadingFases(false))
   }, [form.id_proyecto])
@@ -49,16 +79,34 @@ export default function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClo
     }
     setSaving(true)
     try {
-      await createProgramacion(form)
-      toast.success('Actividad programada')
+      turno ? await updateProgramacion(turno.id_programacion, form) : await createProgramacion(form)
+      toast.success(turno ? 'Actividad actualizada' : 'Actividad programada')
       onSaved(); onClose()
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Error al programar')
+      toast.error(err.response?.data?.message || 'Error al guardar')
     } finally { setSaving(false) }
   }
 
-  const operarios  = usuarios.filter(u => u.estado === 1)
-  const maqActivas = maquinas.filter(m => ['activa', 'sin_asignar'].includes(m.estado))
+  // El propio turno que se está editando no debe excluirse a sí mismo de las
+  // opciones (aparece en `ocupados` porque ya tiene reservado ese operario/máquina).
+  const esOcupadoOperario = (id) => ocupados.operarios.includes(id) && id !== (turno?.id_operario ?? null)
+  const esOcupadaMaquina  = (id) => ocupados.maquinas.includes(id)  && id !== (turno?.id_maquina  ?? null)
+
+  const operarios  = usuarios.filter(u => u.estado === 1 && u.rol === 'Operario' && !esOcupadoOperario(u.id_usuario))
+  const maqActivas = maquinas.filter(m => ['activa', 'sin_asignar'].includes(m.estado) && !esOcupadaMaquina(m.id_maquina))
+
+  // Cuando el proyecto tiene 2+ productos, fases_proyecto trae una fila por
+  // ítem (mismo fase_nombre repetido) — se separan las de nivel de proyecto
+  // (sin ítem) de las que sí pertenecen a un producto, y estas últimas se
+  // agrupan por ítem para el <optgroup>.
+  const fasesGenerales = fases.filter(f => !f.item_producto)
+  const fasesPorItem   = Object.entries(
+    fases.filter(f => f.item_producto).reduce((acc, f) => {
+      (acc[f.item_producto] ||= []).push(f)
+      return acc
+    }, {})
+  )
+  const faseSeleccionada = fases.find(f => String(f.id_fase_proyecto) === String(form.id_fase_proyecto))
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto
@@ -77,8 +125,12 @@ export default function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClo
               <Calendar size={18} className="text-primary" />
             </div>
             <div>
-              <h3 className="text-[16px] font-semibold text-ink">Nueva actividad</h3>
-              <p className="text-[12px] text-muted">Programar un turno de trabajo</p>
+              <h3 className="text-[16px] font-semibold text-ink">
+                {turno ? 'Editar actividad' : 'Nueva actividad'}
+              </h3>
+              <p className="text-[12px] text-muted">
+                {turno ? 'Modificar un turno de trabajo' : 'Programar un turno de trabajo'}
+              </p>
             </div>
           </div>
           <button onClick={onClose}
@@ -94,7 +146,7 @@ export default function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClo
           <div>
             <label className={labelCls}>Fecha</label>
             <input type="date" name="fecha" value={form.fecha} onChange={set}
-              className={inputCls} />
+              min={minFecha} className={inputCls} />
           </div>
 
           <div>
@@ -103,14 +155,9 @@ export default function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClo
               required className={inputCls}
             >
               <option value="">Seleccionar operario</option>
-              {operarios.map(u => {
-                const ocupado = ocupados.operarios.includes(u.id_usuario)
-                return (
-                  <option key={u.id_usuario} value={u.id_usuario} disabled={ocupado}>
-                    {u.nombre} — {u.rol}{ocupado ? ' (ocupado, en curso)' : ''}
-                  </option>
-                )
-              })}
+              {operarios.map(u => (
+                <option key={u.id_usuario} value={u.id_usuario}>{u.nombre}</option>
+              ))}
             </select>
           </div>
 
@@ -120,17 +167,14 @@ export default function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClo
               required className={inputCls}
             >
               <option value="">Seleccionar equipo</option>
-              {maqActivas.map(m => {
-                const ocupada = ocupados.maquinas.includes(m.id_maquina)
-                return (
-                  <option key={m.id_maquina} value={m.id_maquina} disabled={ocupada}>
-                    {m.codigo ? `[${m.codigo}] ` : ''}{m.nombre}{ocupada ? ' (en uso)' : ''}
-                  </option>
-                )
-              })}
+              {maqActivas.map(m => (
+                <option key={m.id_maquina} value={m.id_maquina}>
+                  {m.codigo ? `[${m.codigo}] ` : ''}{m.nombre}
+                </option>
+              ))}
             </select>
             <p className="text-[11px] text-faint mt-1">
-              Los operarios o equipos marcados no se pueden seleccionar: ya tienen una actividad en curso.
+              Solo se muestran los operarios y equipos disponibles ese día.
             </p>
           </div>
 
@@ -153,16 +197,36 @@ export default function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClo
                 onChange={set} disabled={loadingFases} className={inputCls}
               >
                 <option value="">{loadingFases ? 'Cargando fases…' : 'Sin fase específica'}</option>
-                {fases.map(f => {
+                {/* Fases sin ítem (Diseño, Compra) son a nivel de proyecto: van sueltas.
+                    Cuando el proyecto tiene 2+ productos, cada uno repite el mismo set de
+                    fases — se agrupan por ítem (optgroup) para que quede inequívoco a cuál
+                    producto pertenece cada una, en vez de una lista plana con nombres repetidos. */}
+                {fasesGenerales.map(f => {
                   const completada = f.estado === 'completada'
                   return (
                     <option key={f.id_fase_proyecto} value={f.id_fase_proyecto} disabled={completada}>
-                      {f.fase_nombre}{f.item_producto ? ` — ${f.item_producto}` : ''}
-                      {completada ? ' (completada)' : ` (${f.estado})`}
+                      {f.fase_nombre}{completada ? ' (completada)' : ` (${f.estado})`}
                     </option>
                   )
                 })}
+                {fasesPorItem.map(([item, itemFases]) => (
+                  <optgroup key={item} label={`Ítem: ${item}`}>
+                    {itemFases.map(f => {
+                      const completada = f.estado === 'completada'
+                      return (
+                        <option key={f.id_fase_proyecto} value={f.id_fase_proyecto} disabled={completada}>
+                          {f.fase_nombre}{completada ? ' (completada)' : ` (${f.estado})`}
+                        </option>
+                      )
+                    })}
+                  </optgroup>
+                ))}
               </select>
+              {faseSeleccionada?.item_producto && (
+                <p className="text-[11.5px] font-semibold text-primary mt-1.5">
+                  Esta actividad quedará asociada al ítem "{faseSeleccionada.item_producto}".
+                </p>
+              )}
               <p className="text-[11.5px] font-semibold text-muted mt-1">
                 El avance de la fase se recalcula automáticamente a partir de sus turnos.
                 Las fases ya completadas no admiten nuevas actividades.
@@ -201,7 +265,7 @@ export default function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClo
             className="flex-1 h-10 bg-primary hover:bg-primary-hover disabled:opacity-50
               text-white rounded-control text-[13px] font-semibold shadow-btn transition-colors"
           >
-            {saving ? 'Guardando…' : 'Programar actividad'}
+            {saving ? 'Guardando…' : turno ? 'Guardar cambios' : 'Programar actividad'}
           </button>
         </div>
       </div>

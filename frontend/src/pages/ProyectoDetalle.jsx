@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Calendar, User, Flag,
   CheckCircle2, Clock3, Circle, Save, Lock, Package, ChevronRight, Wrench,
+  List, LayoutGrid,
 } from 'lucide-react'
 import { useFetch }    from '../hooks/useFetch'
 import { getProyecto, updateFase } from '../api/proyectos.service'
@@ -134,6 +135,85 @@ function ActividadesFase({ faseId }) {
   )
 }
 
+// ── Tablero Kanban de fases (arrastrar y soltar entre Pendiente/En curso/Completada) ──
+function FaseKanbanCard({ fase, draggable, onDragStart, mostrarItem }) {
+  const locked = fase.turnos_vinculados > 0
+  return (
+    <div
+      draggable={draggable && !locked}
+      onDragStart={draggable && !locked ? onDragStart : undefined}
+      className={`bg-surface border border-border rounded-control p-3 shadow-card
+        dark:shadow-card-dk transition-colors
+        ${draggable && !locked ? 'cursor-grab active:cursor-grabbing hover:bg-hover' : ''}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[12.5px] font-medium text-ink truncate">{fase.fase_nombre}</p>
+        {locked && <Lock size={12} className="text-faint shrink-0 mt-0.5" />}
+      </div>
+      {mostrarItem && fase.item_producto && (
+        <span className="inline-block mt-1 font-mono text-[10px] font-semibold text-secondary
+          bg-secondary/10 px-1.5 py-[1px] rounded-badge"
+        >
+          {fase.item_producto}
+        </span>
+      )}
+      <div className="flex items-center gap-2 mt-2">
+        <div className="flex-1 bg-surface2 border border-border rounded-full h-1.5 overflow-hidden">
+          <div className={`${progressColor(fase.porcentaje_avance)} h-1.5 rounded-full`}
+            style={{ width: `${fase.porcentaje_avance}%` }}
+          />
+        </div>
+        <span className="font-mono text-[10.5px] text-faint tabular-nums">{fase.porcentaje_avance}%</span>
+      </div>
+    </div>
+  )
+}
+
+function FasesKanban({ fases, mostrarItem, onDrop }) {
+  const [dragId, setDragId] = useState(null)
+
+  const handleDropColumn = (estado) => {
+    if (dragId == null) return
+    const fase = fases.find(f => f.id_fase_proyecto === dragId)
+    setDragId(null)
+    if (fase) onDrop(fase, estado)
+  }
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4">
+      {ESTADOS_FASE.map(estado => {
+        const cfg   = faseCfg[estado]
+        const cards = fases.filter(f => f.estado === estado)
+        return (
+          <div key={estado}
+            onDragOver={e => e.preventDefault()}
+            onDrop={() => handleDropColumn(estado)}
+            className="bg-surface2 border border-border rounded-card p-2.5 min-h-[120px]"
+          >
+            <div className="flex items-center justify-between px-1 pb-2">
+              <span className={`font-mono text-[11px] font-semibold ${cfg.iconColor}`}>
+                {estadoLabel[estado]}
+              </span>
+              <span className="font-mono text-[10.5px] text-faint">{cards.length}</span>
+            </div>
+            <div className="space-y-2">
+              {cards.map(fase => (
+                <FaseKanbanCard
+                  key={fase.id_fase_proyecto}
+                  fase={fase}
+                  mostrarItem={mostrarItem}
+                  draggable
+                  onDragStart={() => setDragId(fase.id_fase_proyecto)}
+                />
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function ProyectoDetalle() {
   const { id }   = useParams()
   const navigate = useNavigate()
@@ -144,6 +224,7 @@ export default function ProyectoDetalle() {
   const [saving,     setSaving]     = useState(null)
   const [openItems,  setOpenItems]  = useState(new Set())
   const [openTurnos, setOpenTurnos] = useState(new Set())
+  const [vista,      setVista]      = useState('lista') // 'lista' | 'kanban'
 
   const toggleTurnos = (faseId) => setOpenTurnos(prev => {
     const next = new Set(prev)
@@ -226,6 +307,21 @@ export default function ProyectoDetalle() {
       e.estado !== fase.estado ||
       Number(e.porcentaje_avance) !== fase.porcentaje_avance
     )
+  }
+
+  // Cambio de estado arrastrando una card en la vista Kanban.
+  const handleKanbanDrop = async (fase, estado) => {
+    if (fase.estado === estado || fase.turnos_vinculados > 0) return
+    const porcentaje_avance = estado === 'completada' ? 100
+      : estado === 'pendiente' ? 0
+      : fase.porcentaje_avance
+    try {
+      await updateFase(proyecto.id_proyecto, fase.id_fase_proyecto, { estado, porcentaje_avance })
+      toast.success(`Fase "${fase.fase_nombre}" actualizada`)
+      refresh()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error al guardar')
+    }
   }
 
   const completadas = fases.filter(f => f.estado === 'completada').length
@@ -568,12 +664,30 @@ export default function ProyectoDetalle() {
           flex items-center justify-between"
         >
           <h2 className="text-[14px] font-semibold text-ink">Fases del proyecto</h2>
+          {fasesResto.length > 0 && (
+            <div className="flex items-center gap-1 p-[3px] bg-surface border border-border rounded-control">
+              {[
+                { value: 'lista',  label: 'Lista',  icon: List },
+                { value: 'kanban', label: 'Kanban', icon: LayoutGrid },
+              ].map(({ value, label, icon: Icon }) => (
+                <button key={value} type="button" onClick={() => setVista(value)}
+                  className={`flex items-center gap-1.5 h-[26px] px-2.5 rounded-[6px] text-[11.5px]
+                    font-semibold transition-colors
+                    ${vista === value ? 'bg-primary text-white' : 'text-muted hover:bg-hover hover:text-ink'}`}
+                >
+                  <Icon size={12} /> {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {fasesResto.length === 0 ? (
           <div className="p-10 text-center font-mono text-[13px] text-faint">
             No hay fases registradas.
           </div>
+        ) : vista === 'kanban' ? (
+          <FasesKanban fases={fasesResto} mostrarItem={mostrarPorItem} onDrop={handleKanbanDrop} />
         ) : !mostrarPorItem ? (
           <div className="divide-y divide-border">
             {fasesResto.map((fase, idx) => renderFilaFase(fase, idx))}

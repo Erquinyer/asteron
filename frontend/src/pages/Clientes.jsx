@@ -1,7 +1,7 @@
-import { useState } from 'react'
-import { Plus, Pencil, Trash2, Building2, ShoppingBag, X } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, Pencil, Trash2, Building2, ShoppingBag, X, MapPin } from 'lucide-react'
 import { useFetch }    from '../hooks/useFetch'
-import { getClientes, createCliente, updateCliente, deleteCliente } from '../api/clientes.service'
+import { getClientes, getCliente, createCliente, updateCliente, deleteCliente } from '../api/clientes.service'
 import { canDo }       from '../utils/auth'
 import Spinner     from '../components/ui/Spinner'
 import EmptyState  from '../components/ui/EmptyState'
@@ -26,7 +26,8 @@ const AVATAR_COLORS = [
 const initials = (n) =>
   (n || '?').split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
 
-const EMPTY = { nombre: '', nit: '', codigo_cliente: '', direccion: '' }
+const EMPTY_DIRECCION = () => ({ etiqueta: '', direccion: '' })
+const EMPTY = { nombre: '', nit: '', codigo_cliente: '', direcciones: [EMPTY_DIRECCION()] }
 
 const inputCls = `w-full h-10 border border-border rounded-control px-3 text-[13px]
   bg-surface2 text-ink placeholder:text-faint
@@ -38,11 +39,40 @@ function ClienteModal({ cliente, onClose, onSaved }) {
     nombre:         cliente.nombre         || '',
     nit:            cliente.nit            || '',
     codigo_cliente: cliente.codigo_cliente || '',
-    direccion:      cliente.direccion      || '',
+    direcciones:    [EMPTY_DIRECCION()],
   } : EMPTY)
-  const [saving, setSaving] = useState(false)
+  const [saving,          setSaving]          = useState(false)
+  const [loadingDirecciones, setLoadingDirecciones] = useState(!!cliente)
+  const [tab, setTab] = useState('general') // 'general' | 'direcciones'
+
+  // El listado no trae todas las direcciones del cliente (solo la principal) —
+  // se cargan aparte al abrir el modal de edición.
+  useEffect(() => {
+    if (!cliente) return
+    getCliente(cliente.id_cliente)
+      .then(({ data }) => setForm(f => ({
+        ...f,
+        direcciones: data.direcciones?.length
+          ? data.direcciones.map(d => ({ etiqueta: d.etiqueta || '', direccion: d.direccion }))
+          : [EMPTY_DIRECCION()],
+      })))
+      .catch(() => {})
+      .finally(() => setLoadingDirecciones(false))
+  }, [cliente])
 
   const handleChange = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
+
+  const setDireccion = (i, field, value) => setForm(f => ({
+    ...f,
+    direcciones: f.direcciones.map((d, idx) => idx === i ? { ...d, [field]: value } : d),
+  }))
+  const addDireccion = () => setForm(f => ({
+    ...f,
+    direcciones: [...f.direcciones, { etiqueta: `Dirección ${f.direcciones.length + 1}`, direccion: '' }],
+  }))
+  const removeDireccion = (i) => setForm(f => ({
+    ...f, direcciones: f.direcciones.filter((_, idx) => idx !== i),
+  }))
 
   const handleSubmit = async e => {
     e.preventDefault()
@@ -58,10 +88,9 @@ function ClienteModal({ cliente, onClose, onSaved }) {
   }
 
   const fields = [
-    { name: 'nombre',         label: 'Nombre *',          placeholder: 'Ej: Castrol Colombia' },
-    { name: 'nit',            label: 'NIT',               placeholder: 'Ej: 900112233-1' },
-    { name: 'codigo_cliente', label: 'Código cliente',     placeholder: 'Ej: CLI-009' },
-    { name: 'direccion',      label: 'Dirección / Ciudad', placeholder: 'Ej: Bogotá, Colombia' },
+    { name: 'nombre',         label: 'Nombre *',      placeholder: 'Ej: Castrol Colombia' },
+    { name: 'nit',            label: 'NIT',           placeholder: 'Ej: 900112233-1' },
+    { name: 'codigo_cliente', label: 'Código cliente', placeholder: 'Ej: CLI-009' },
   ]
 
   return (
@@ -99,9 +128,28 @@ function ClienteModal({ cliente, onClose, onSaved }) {
           </button>
         </div>
 
+        {/* Pestañas */}
+        <div className="px-6 pt-4">
+          <div className="flex gap-1 p-1 bg-surface2 border border-border rounded-[12px] w-fit">
+            {[
+              { id: 'general',     label: 'Datos generales' },
+              { id: 'direcciones', label: `Direcciones${form.direcciones.length ? ` (${form.direcciones.length})` : ''}` },
+            ].map(t => (
+              <button key={t.id} type="button" onClick={() => setTab(t.id)}
+                className={`px-3.5 py-1.5 rounded-[9px] text-[12.5px] font-medium transition-all
+                  ${tab === t.id
+                    ? 'bg-surface text-ink shadow-sm border border-border'
+                    : 'text-muted hover:text-ink hover:bg-hover'}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {fields.map(f => (
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
+          {tab === 'general' && fields.map(f => (
             <div key={f.name}>
               <label className={labelCls}>{f.label}</label>
               <input name={f.name} value={form[f.name]}
@@ -110,6 +158,58 @@ function ClienteModal({ cliente, onClose, onSaved }) {
               />
             </div>
           ))}
+
+          {tab === 'direcciones' && (
+            loadingDirecciones ? (
+              <p className="font-mono text-[11px] text-faint">Cargando direcciones…</p>
+            ) : form.direcciones.length === 0 ? (
+              <div className="text-center py-8">
+                <MapPin size={22} className="text-faint mx-auto mb-2" />
+                <p className="text-[13px] text-muted mb-3">Sin direcciones registradas</p>
+                <button type="button" onClick={addDireccion}
+                  className="inline-flex items-center gap-1.5 h-8 px-3
+                    border border-primary/30 bg-primary/5 hover:bg-primary/10
+                    text-primary rounded-control text-[12px] font-semibold transition-colors"
+                >
+                  <Plus size={12} /> Agregar dirección
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {form.direcciones.map((d, i) => (
+                  <div key={i} className="border border-border rounded-control p-2.5 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={d.etiqueta}
+                        onChange={e => setDireccion(i, 'etiqueta', e.target.value)}
+                        placeholder={`Dirección ${i + 1}`}
+                        className={`${inputCls} h-8 flex-1 min-w-0`}
+                      />
+                      <button type="button" onClick={() => removeDireccion(i)}
+                        title="Eliminar dirección"
+                        className="w-8 h-8 shrink-0 flex items-center justify-center rounded-badge
+                          text-faint hover:bg-error/10 hover:text-error transition-colors"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <input
+                      value={d.direccion}
+                      onChange={e => setDireccion(i, 'direccion', e.target.value)}
+                      placeholder="Ej: Calle 10 # 5-20, Bogotá"
+                      className={`${inputCls} h-8 w-full`}
+                    />
+                  </div>
+                ))}
+                <button type="button" onClick={addDireccion}
+                  className="flex items-center gap-1 text-[11.5px] font-semibold
+                    text-primary hover:underline"
+                >
+                  <Plus size={12} /> Agregar dirección
+                </button>
+              </div>
+            )
+          )}
         </form>
 
         {/* Footer */}
@@ -271,8 +371,20 @@ export default function Clientes() {
 
                         {/* Dirección */}
                         <td className="px-[18px] py-[13px] hidden lg:table-cell">
-                          <p className="text-[13px] text-muted truncate max-w-[220px]">
-                            {c.direccion || <span className="text-faint italic">Sin dirección</span>}
+                          <p className="flex items-center gap-1.5 text-[13px] text-muted truncate max-w-[220px]">
+                            {c.direccion_principal ? (
+                              <>
+                                <MapPin size={12} className="text-faint shrink-0" />
+                                <span className="truncate">{c.direccion_principal}</span>
+                                {c.total_direcciones > 1 && (
+                                  <span className="font-mono text-[10.5px] text-primary shrink-0">
+                                    +{c.total_direcciones - 1}
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-faint italic">Sin dirección</span>
+                            )}
                           </p>
                         </td>
 

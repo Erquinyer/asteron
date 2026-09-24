@@ -35,6 +35,14 @@ backend/
     middlewares/requireAdmin.js   ← Gate for 'Administrador Sistema' role only
     controllers/                  ← One file per domain entity (incl. admin, recovery)
     routes/                       ← One file per domain entity (incl. admin)
+    utils/
+      dates.js                    ← hoyISO()/esFechaPasada()/fechaColumnaISO() — always build "today" from local
+                                     Date components, never toISOString().slice(0,10): that converts to UTC and
+                                     shifts the date by one day during evening hours in negative-UTC timezones
+                                     (this server runs UTC-5) — apply the same rule in any new frontend "today" helper
+      importProgramacion.js       ← Excel/CSV bulk-import for programación: parses rows (exceljs) and resolves
+                                     Operario/Maquina/Proyecto/Item/Fase by name or código to IDs
+      resolveUsuarioPorRol.js
   scripts/seed.js                 ← Full Macromet real data seed
   .env                            ← DB creds, JWT_SECRET, PORT, SMTP creds (Nodemailer)
 
@@ -45,9 +53,10 @@ frontend/
     pages/         ← One page per module (incl. Landing, AdminPanel, ForgotPassword, ResetPassword, NotFound)
     config/permissions.js ← canAccess(rol, module) — frontend RBAC lookup
     components/
-      dashboard/   ← StatCard, RecentProjects, PlantToday
-      layout/      ← Sidebar, TopBar, AppLayout
-      ui/          ← Spinner, EmptyState
+      dashboard/     ← StatCard, RecentProjects, PlantToday
+      layout/        ← Sidebar, TopBar, AppLayout
+      programacion/  ← TurnoModal (create/edit a turno), ImportarModal (bulk Excel/CSV upload)
+      ui/            ← Spinner, EmptyState
     router/        ← ProtectedRoute (auth), PublicRoute (guest-only), RoleRoute (per-module RBAC)
     utils/auth.js  ← localStorage session helpers
 ```
@@ -81,12 +90,12 @@ All pages use `useFetch(serviceFn, deps)` hook — returns `{ data, loading, err
 |---|---|---|
 | `/dashboard` | Stats + charts (recharts) | — |
 | `/proyectos` | Project list | Full CRUD |
-| `/proyectos/:id` | Phase-by-phase detail, edit avance inline | — |
+| `/proyectos/:id` | Phase-by-phase detail (list or Kanban view), edit avance inline | — |
 | `/pedidos` | Orders with items | Full CRUD |
-| `/clientes` | Client cards | Full CRUD |
-| `/maquinaria` | Equipment inventory with category filter | Full CRUD |
+| `/clientes` | Client cards, multiple direcciones per client | Full CRUD |
+| `/maquinaria` | Equipment inventory with category filter, responsable, en-uso-hoy badge | Full CRUD |
 | `/mantenimientos` | Maintenance history | Create + Delete |
-| `/programacion` | Daily plant schedule with date nav | Create + Estado + Delete |
+| `/programacion` | Daily/weekly/monthly plant schedule (list or Kanban view); bulk-load via Excel/CSV import | Create + Edit + Estado + Cancel + Delete + Import |
 | `/usuarios` | Team cards | Create + Edit + Toggle estado |
 | `/perfil` | Own profile + change password | — |
 | `/admin` | `AdminPanel.jsx` — roles CRUD, per-module permissions, per-module actions (granular RBAC), user role assignment | Full CRUD (roles); restricted to `Administrador Sistema` via `requireAdmin` |
@@ -106,21 +115,30 @@ node backend/scripts/seed.js   # loads Macromet real data
 
 ### Core domain model
 ```
-clientes → pedidos → detalle_pedido
+clientes → direcciones_cliente
+        └→ pedidos → detalle_pedido
                   └→ proyectos → fases_proyecto (from fases_estandar templates)
 usuarios ──── roles
 maquinaria → mantenimientos
-programacion_planta (operario + maquina + proyecto + fecha)
+maquinaria → usuarios (id_responsable, nullable)
+programacion_planta (operario + maquina + proyecto + fase_proyecto + fecha)
 ```
 
 ### Key design decisions
 - `proyectos.prioridad`: `'alta' | 'media' | 'baja'`
 - `proyectos` has no `estado` column — estado is computed from `fases_proyecto.estado`
 - `maquinaria.estado` ENUM: `activa | inactiva | en_mantenimiento | sin_asignar | guardada | dado_de_baja`
-- `maquinaria` extra columns (added via ALTER): `codigo, categoria, marca, referencia, serial, ubicacion`
+- `maquinaria` extra columns (added via ALTER): `codigo, categoria, marca, referencia, serial, ubicacion, id_responsable` (nullable FK → `usuarios`, "encargado del equipo")
 - `maquinaria.categoria`: `maquinaria_pesada | equipo_mig | herramienta_electrica`
 - `usuarios.password_hash` (renamed from `contraseña` in v2 schema)
 - Soft deletes not used — `ON DELETE SET NULL` for most FKs, `ON DELETE CASCADE` for `mantenimientos → maquinaria`
+- `fases_proyecto.id_detalle_pedido` (nullable FK → `detalle_pedido.id_detalle`): project-level phases (Diseño, Compra de materiales) are created once with `NULL`; when a project's pedido has 2+ items, the remaining phases are cloned **once per item** so each product's progress/estado is tracked independently — a phase name (e.g. "Corte") legitimately repeats once per item. Controllers expose the item via `LEFT JOIN detalle_pedido ... AS item_producto` (`proyectos.controller.js getOne`, `programacion.controller.js`); the UI must group/label by `item_producto` wherever it lists phases for a multi-item project (done in `TurnoModal.jsx` via `<optgroup>`, `ProyectoDetalle.jsx` via a per-item accordion) instead of showing them as a flat list.
+- `clientes` has no `direccion` column — normalized into `direcciones_cliente` (1FN, same pattern as `contactos_cliente`: `id_cliente, etiqueta, direccion, principal`). `clientes.controller.js` fully replaces a client's address list on every create/update (`guardarDirecciones`); `getAll`/`getOne` expose a `direccion_principal` computed column plus a `direcciones` array on `getOne`.
+- **No-backdating rule**: `proyectos.fecha_inicio`, `programacion_planta.fecha`, and new `detalle_pedido` items reject past dates on create (`esFechaPasada` in `backend/src/utils/dates.js`). On **update**, the check only fires if that specific date field actually changed from its stored value — editing unrelated fields on an already-in-progress record (whose start date is legitimately in the past) must not be blocked. See `proyectos.controller.js update` and `programacion.controller.js update` for the "did it change" comparison pattern (uses `fechaColumnaISO()` to read the stored DATE column safely).
+- **Turno availability** (`programacion_planta`): an operario/máquina is unavailable if (a) they have any turno `en_proceso` right now, regardless of date, or (b) they already have a turno `programado`/`en_proceso` for that *specific* date (`GET /programacion/ocupados?fecha=`). Frontend (`TurnoModal.jsx`) excludes unavailable options from the selects entirely rather than just disabling them, and re-queries whenever the chosen fecha changes.
+- `programacion.controller.js` exports `crearTurnoInterno()` — the actual "create a turno" business logic (date/availability/fase validation) — used by both the single `POST /programacion` endpoint and the bulk Excel/CSV importer (`POST /programacion/importar`), so both paths enforce identical rules.
+- Kanban board views (`ProyectoDetalle.jsx` fases, `Programacion.jsx` turnos) use the native HTML5 Drag and Drop API — no drag-and-drop library is installed in `frontend/package.json`, keep it that way unless a real need arises.
+- `xlsx`/SheetJS is intentionally **not** used for spreadsheet parsing — its npm package has unpatched prototype-pollution/ReDoS advisories, exactly the wrong tradeoff for a parser fed user-uploaded files. Use `exceljs` instead (already a backend dependency).
 
 ## Notifications system
 `GET /api/notificaciones` returns real-time alerts:

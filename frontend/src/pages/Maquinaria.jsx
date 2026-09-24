@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import { Search, Plus, Pencil, Trash2, Wrench, Cpu, Zap, Eye, X, Filter, ChevronDown, Check } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, Wrench, Cpu, Zap, Eye, X, Filter, ChevronDown, Check, User } from 'lucide-react'
 import { useFetch }    from '../hooks/useFetch'
 import { getMaquinaria, createMaquina, updateMaquina, deleteMaquina } from '../api/maquinaria.service'
+import { getUsuarios } from '../api/usuarios.service'
 import { canDo }       from '../utils/auth'
 import Spinner    from '../components/ui/Spinner'
 import EmptyState from '../components/ui/EmptyState'
@@ -36,6 +37,7 @@ const CATEGORIAS = ['todas', 'maquinaria_pesada', 'equipo_mig', 'herramienta_ele
 const EMPTY_FORM = {
   nombre: '', codigo: '', categoria: 'maquinaria_pesada',
   marca: '', referencia: '', serial: '', descripcion: '', ubicacion: '', estado: 'activa',
+  id_responsable: '',
 }
 
 const inputCls = `w-full h-10 border border-border rounded-control px-3 text-[13px]
@@ -47,17 +49,20 @@ const labelCls = 'block text-[11.5px] font-medium text-muted mb-1.5'
 // ── Modal ─────────────────────────────────────────────────────────────────────
 function MaquinaModal({ maquina, onClose, onSaved }) {
   const [form, setForm] = useState(maquina ? {
-    nombre:      maquina.nombre      || '',
-    codigo:      maquina.codigo      || '',
-    categoria:   maquina.categoria   || 'maquinaria_pesada',
-    marca:       maquina.marca       || '',
-    referencia:  maquina.referencia  || '',
-    serial:      maquina.serial      || '',
-    descripcion: maquina.descripcion || '',
-    ubicacion:   maquina.ubicacion   || '',
-    estado:      maquina.estado      || 'activa',
+    nombre:         maquina.nombre         || '',
+    codigo:         maquina.codigo         || '',
+    categoria:      maquina.categoria      || 'maquinaria_pesada',
+    marca:          maquina.marca          || '',
+    referencia:     maquina.referencia     || '',
+    serial:         maquina.serial         || '',
+    descripcion:    maquina.descripcion    || '',
+    ubicacion:      maquina.ubicacion      || '',
+    estado:         maquina.estado         || 'activa',
+    id_responsable: maquina.id_responsable || '',
   } : EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+  const { data: usuarios } = useFetch(getUsuarios)
+  const encargados = (usuarios || []).filter(u => u.estado === 1)
 
   const set = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
 
@@ -152,6 +157,16 @@ function MaquinaModal({ maquina, onClose, onSaved }) {
           </div>
 
           <div>
+            <label className={labelCls}>Encargado / Responsable</label>
+            <select name="id_responsable" value={form.id_responsable} onChange={set} className={inputCls}>
+              <option value="">Sin asignar</option>
+              {encargados.map(u => (
+                <option key={u.id_usuario} value={u.id_usuario}>{u.nombre} — {u.rol}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
             <label className={labelCls}>Descripción</label>
             <textarea name="descripcion" value={form.descripcion} onChange={set} rows={2}
               placeholder="Descripción breve del equipo"
@@ -225,6 +240,8 @@ export default function Maquinaria() {
 
   const activas = (data || []).filter(m => m.estado === 'activa').length
   const mantto  = (data || []).filter(m => m.estado === 'en_mantenimiento').length
+  const enUso   = (data || []).filter(m => m.estado === 'activa' && Number(m.en_uso_hoy) > 0).length
+  const sinUso  = (data || []).filter(m => m.estado === 'activa' && !(Number(m.en_uso_hoy) > 0)).length
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
@@ -234,6 +251,7 @@ export default function Maquinaria() {
         <h1 className="text-[20px] font-semibold text-ink">Maquinaria e inventario</h1>
         <p className="font-mono text-[11px] text-faint mt-0.5 uppercase tracking-[.06em]">
           {data?.length || 0} equipos · {activas} activos · {mantto} en mantenimiento
+          {' '}· {enUso} en uso hoy · {sinUso} sin uso
         </p>
       </div>
 
@@ -398,16 +416,42 @@ export default function Maquinaria() {
                           <span className="text-[12.5px] text-muted">
                             {m.ubicacion || '—'}
                           </span>
+                          {m.responsable && (
+                            <p className="flex items-center gap-1 text-[10.5px] text-faint mt-0.5">
+                              <User size={10} /> {m.responsable}
+                            </p>
+                          )}
                         </td>
 
                         {/* Estado */}
                         <td className="px-[18px] py-[13px]">
-                          <span className={`inline-flex items-center gap-1.5 font-mono text-[11px]
-                            font-semibold px-[9px] py-[5px] rounded-badge ${cfg.badge}`}
-                          >
-                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
-                            {cfg.label}
-                          </span>
+                          <div className="flex flex-col items-start gap-1">
+                            <span className={`inline-flex items-center gap-1.5 font-mono text-[11px]
+                              font-semibold px-[9px] py-[5px] rounded-badge ${cfg.badge}`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
+                              {cfg.label}
+                            </span>
+                            {m.estado === 'activa' && (
+                              Number(m.en_uso_hoy) > 0 ? (
+                                <span className="inline-flex items-center gap-1.5 font-mono text-[10px]
+                                  font-semibold px-[7px] py-[3px] rounded-badge bg-primary/10 text-primary"
+                                >
+                                  <span className="relative flex w-1.5 h-1.5">
+                                    <span className="absolute w-full h-full rounded-full bg-primary animate-ping" />
+                                    <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                                  </span>
+                                  En uso hoy
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 font-mono text-[10px]
+                                  font-semibold px-[7px] py-[3px] rounded-badge bg-surface2 text-faint"
+                                >
+                                  Sin uso
+                                </span>
+                              )
+                            )}
+                          </div>
                         </td>
 
                         {/* Acciones */}
