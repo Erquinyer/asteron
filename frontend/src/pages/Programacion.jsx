@@ -674,8 +674,16 @@ function KanbanCard({ item, draggable, onDragStart, onClick }) {
       <p className="text-[12.5px] font-medium text-ink truncate">
         {item.fase_nombre || item.observaciones?.split('\n')[0] || 'Sin fase asignada'}
       </p>
-      <p className="text-[11px] text-faint truncate mt-0.5">
+      {item.item_producto && (
+        <span className="inline-block mt-1 font-mono text-[10px] font-semibold text-secondary
+          bg-secondary/10 px-1.5 py-[1px] rounded-badge max-w-full truncate align-middle"
+        >
+          {item.item_producto}
+        </span>
+      )}
+      <p className="text-[11px] text-faint truncate mt-1">
         {item.proyecto || 'Sin proyecto'}
+        {item.cliente ? ` · ${item.cliente}` : ''}
       </p>
       <div className="flex items-center justify-between mt-2">
         <div className="flex items-center gap-1.5 min-w-0">

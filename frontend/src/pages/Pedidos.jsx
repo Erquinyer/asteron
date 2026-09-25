@@ -40,8 +40,10 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
   const [saving, setSaving] = useState(false)
   const [direcciones,        setDirecciones]        = useState([])
   const [loadingDirecciones, setLoadingDirecciones] = useState(false)
-  // Solo se exige "no puede ser pasada" al crear un pedido nuevo — al editar
-  // uno existente no se bloquea el datepicker de un ítem cuya entrega ya venció.
+  // "No puede ser pasada" se exige por ítem, no por pedido: un ítem que se
+  // está registrando ahora (sin id_detalle, sea en un pedido nuevo o agregado
+  // en una edición) no puede quedar con fecha vencida; uno que ya existía
+  // conserva su fecha aunque ya haya vencido, sin bloquear el datepicker.
   // Componentes locales, no toISOString(): esa convierte a UTC y en zonas
   // horarias negativas adelanta un día durante la tarde/noche.
   const hoyDate = new Date()
@@ -264,7 +266,7 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
                       value={item.fecha_entrega_estimada}
                       onChange={e => setItem(i, 'fecha_entrega_estimada', e.target.value)}
                       title="Fecha de entrega estimada de este ítem"
-                      min={!pedido ? hoy : undefined}
+                      min={!item.id_detalle ? hoy : undefined}
                       className={`col-span-2 ${itemInputCls}`}
                     />
                     <button type="button" onClick={() => removeItem(i)}
