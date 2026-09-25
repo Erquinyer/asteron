@@ -63,6 +63,31 @@ export const create = async (req, res) => {
   }
 }
 
+export const update = async (req, res) => {
+  const { fecha, tipo, descripcion } = req.body
+  try {
+    const [result] = await pool.query(
+      `UPDATE mantenimientos SET fecha = ?, tipo = ?, descripcion = ? WHERE id_mantenimiento = ?`,
+      [fecha, tipo, descripcion || null, req.params.id])
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Registro no encontrado' })
+    }
+
+    const [[row]] = await pool.query(`
+      SELECT mt.*, u.nombre AS tecnico, m.nombre AS maquina, m.codigo AS maquina_codigo
+      FROM mantenimientos mt
+      LEFT JOIN usuarios   u ON u.id_usuario = mt.realizado_por
+      LEFT JOIN maquinaria m ON m.id_maquina  = mt.id_maquina
+      WHERE mt.id_mantenimiento = ?`, [req.params.id])
+
+    res.json(row)
+  } catch (err) {
+    console.error('[mantenimientos.update]', err)
+    res.status(500).json({ message: 'Error al actualizar mantenimiento' })
+  }
+}
+
 export const remove = async (req, res) => {
   try {
     const [result] = await pool.query(
