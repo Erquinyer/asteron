@@ -127,12 +127,38 @@ export const getByFase = async (req, res) => {
 // día, estado de la fase) SIN escribir en la BD — solo lectura. La usan
 // `crearTurnoInterno` antes de insertar y `previsualizarImportar` para el
 // dry-run de la importación masiva. Devuelve { ok: true } o { ok: false, status, message }.
-export const validarTurnoInterno = async ({ fecha, id_operario, id_maquina, id_fase_proyecto }) => {
-  if (!fecha || !id_operario || !id_maquina) {
-    return { ok: false, status: 400, message: 'Fecha, operario y máquina son requeridos' }
+export const validarTurnoInterno = async ({ fecha, id_operario, id_maquina, id_proyecto, id_fase_proyecto }) => {
+  if (!fecha || !id_operario) {
+    return { ok: false, status: 400, message: 'Fecha y operario son requeridos' }
   }
   if (esFechaPasada(fecha)) {
     return { ok: false, status: 400, message: 'No se puede programar una actividad en una fecha pasada' }
+  }
+  if (id_proyecto && !id_fase_proyecto) {
+    return { ok: false, status: 400, message: 'Selecciona la fase específica del proyecto' }
+  }
+
+  // La fase determina si esta actividad necesita equipo: si no se indica fase,
+  // se sigue exigiendo máquina como antes (turno "suelto", sin contexto de proyecto).
+  let maquinaRequerida = true
+  if (id_fase_proyecto) {
+    const [[fase]] = await pool.query(`
+      SELECT fp.estado, fe.requiere_turno, fe.categoria_equipo
+      FROM fases_proyecto fp JOIN fases_estandar fe ON fp.id_fase_estandar = fe.id_fase_estandar
+      WHERE fp.id_fase_proyecto = ?`, [id_fase_proyecto])
+    if (!fase) {
+      return { ok: false, status: 404, message: 'La fase indicada no existe' }
+    }
+    if (!fase.requiere_turno) {
+      return { ok: false, status: 400, message: 'Esa fase no se programa desde Programación de planta' }
+    }
+    if (fase.estado === 'completada') {
+      return { ok: false, status: 409, message: 'Esa fase ya está completada; no admite nuevas actividades' }
+    }
+    maquinaRequerida = fase.categoria_equipo !== null
+  }
+  if (maquinaRequerida && !id_maquina) {
+    return { ok: false, status: 400, message: 'Esta fase requiere seleccionar un equipo' }
   }
 
   const [[operarioOcupado]] = await pool.query(
@@ -143,23 +169,13 @@ export const validarTurnoInterno = async ({ fecha, id_operario, id_maquina, id_f
     return { ok: false, status: 409, message: 'El operario ya tiene una actividad asignada ese día' }
   }
 
-  const [[maquinaOcupada]] = await pool.query(
-    `SELECT 1 FROM programacion_planta
-     WHERE id_maquina=? AND (estado='en_proceso' OR (fecha=? AND estado IN ('programado','en_proceso'))) LIMIT 1`,
-    [id_maquina, fecha])
-  if (maquinaOcupada) {
-    return { ok: false, status: 409, message: 'La máquina ya está reservada ese día en otra actividad' }
-  }
-
-  // No se pueden programar actividades sobre una fase ya completada.
-  if (id_fase_proyecto) {
-    const [[fase]] = await pool.query(
-      'SELECT estado FROM fases_proyecto WHERE id_fase_proyecto = ?', [id_fase_proyecto])
-    if (!fase) {
-      return { ok: false, status: 404, message: 'La fase indicada no existe' }
-    }
-    if (fase.estado === 'completada') {
-      return { ok: false, status: 409, message: 'Esa fase ya está completada; no admite nuevas actividades' }
+  if (id_maquina) {
+    const [[maquinaOcupada]] = await pool.query(
+      `SELECT 1 FROM programacion_planta
+       WHERE id_maquina=? AND (estado='en_proceso' OR (fecha=? AND estado IN ('programado','en_proceso'))) LIMIT 1`,
+      [id_maquina, fecha])
+    if (maquinaOcupada) {
+      return { ok: false, status: 409, message: 'La máquina ya está reservada ese día en otra actividad' }
     }
   }
 
@@ -179,7 +195,7 @@ export const crearTurnoInterno = async (datos) => {
   const [result] = await pool.query(
     `INSERT INTO programacion_planta (fecha, id_operario, id_maquina, id_proyecto, id_fase_proyecto, tiempo_estimado, estado, porcentaje_avance, observaciones)
      VALUES (?,?,?,?,?,?,?,?,?)`,
-    [fecha, id_operario, id_maquina, id_proyecto || null,
+    [fecha, id_operario, id_maquina || null, id_proyecto || null,
      id_fase_proyecto || null, tiempo_estimado || 480, 'programado', 0, observaciones || null])
 
   if (id_fase_proyecto) await recomputeFase(id_fase_proyecto)
@@ -357,8 +373,11 @@ export const previsualizarImportar = async (req, res) => {
 export const update = async (req, res) => {
   const { id } = req.params
   const { fecha, id_operario, id_maquina, id_proyecto, id_fase_proyecto, tiempo_estimado, observaciones } = req.body
-  if (!fecha || !id_operario || !id_maquina) {
-    return res.status(400).json({ message: 'Fecha, operario y máquina son requeridos' })
+  if (!fecha || !id_operario) {
+    return res.status(400).json({ message: 'Fecha y operario son requeridos' })
+  }
+  if (id_proyecto && !id_fase_proyecto) {
+    return res.status(400).json({ message: 'Selecciona la fase específica del proyecto' })
   }
   try {
     const [[actual]] = await pool.query(
@@ -375,6 +394,26 @@ export const update = async (req, res) => {
       return res.status(400).json({ message: 'No se puede programar una actividad en una fecha pasada' })
     }
 
+    // La fase determina si hace falta máquina — igual que al crear (ver validarTurnoInterno).
+    let maquinaRequerida = true
+    if (id_fase_proyecto) {
+      const [[fase]] = await pool.query(`
+        SELECT fp.estado, fe.requiere_turno, fe.categoria_equipo
+        FROM fases_proyecto fp JOIN fases_estandar fe ON fp.id_fase_estandar = fe.id_fase_estandar
+        WHERE fp.id_fase_proyecto = ?`, [id_fase_proyecto])
+      if (!fase) return res.status(404).json({ message: 'La fase indicada no existe' })
+      if (!fase.requiere_turno) {
+        return res.status(400).json({ message: 'Esa fase no se programa desde Programación de planta' })
+      }
+      if (fase.estado === 'completada') {
+        return res.status(409).json({ message: 'Esa fase ya está completada; no admite nuevas actividades' })
+      }
+      maquinaRequerida = fase.categoria_equipo !== null
+    }
+    if (maquinaRequerida && !id_maquina) {
+      return res.status(400).json({ message: 'Esta fase requiere seleccionar un equipo' })
+    }
+
     const [[operarioOcupado]] = await pool.query(
       `SELECT 1 FROM programacion_planta
        WHERE id_operario=? AND id_programacion!=?
@@ -384,28 +423,21 @@ export const update = async (req, res) => {
       return res.status(409).json({ message: 'El operario ya tiene una actividad asignada ese día' })
     }
 
-    const [[maquinaOcupada]] = await pool.query(
-      `SELECT 1 FROM programacion_planta
-       WHERE id_maquina=? AND id_programacion!=?
-         AND (estado='en_proceso' OR (fecha=? AND estado IN ('programado','en_proceso'))) LIMIT 1`,
-      [id_maquina, id, fecha])
-    if (maquinaOcupada) {
-      return res.status(409).json({ message: 'La máquina ya está reservada ese día en otra actividad' })
-    }
-
-    if (id_fase_proyecto) {
-      const [[fase]] = await pool.query(
-        'SELECT estado FROM fases_proyecto WHERE id_fase_proyecto = ?', [id_fase_proyecto])
-      if (!fase) return res.status(404).json({ message: 'La fase indicada no existe' })
-      if (fase.estado === 'completada') {
-        return res.status(409).json({ message: 'Esa fase ya está completada; no admite nuevas actividades' })
+    if (id_maquina) {
+      const [[maquinaOcupada]] = await pool.query(
+        `SELECT 1 FROM programacion_planta
+         WHERE id_maquina=? AND id_programacion!=?
+           AND (estado='en_proceso' OR (fecha=? AND estado IN ('programado','en_proceso'))) LIMIT 1`,
+        [id_maquina, id, fecha])
+      if (maquinaOcupada) {
+        return res.status(409).json({ message: 'La máquina ya está reservada ese día en otra actividad' })
       }
     }
 
     await pool.query(
       `UPDATE programacion_planta SET fecha=?, id_operario=?, id_maquina=?, id_proyecto=?,
        id_fase_proyecto=?, tiempo_estimado=?, observaciones=? WHERE id_programacion=?`,
-      [fecha, id_operario, id_maquina, id_proyecto || null,
+      [fecha, id_operario, id_maquina || null, id_proyecto || null,
        id_fase_proyecto || null, tiempo_estimado || 480, observaciones || null, id])
 
     // Recalcula ambas fases si el turno cambió de fase (o se desvinculó de una)

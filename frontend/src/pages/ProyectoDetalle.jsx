@@ -393,7 +393,9 @@ export default function ProyectoDetalle() {
     // Sin ninguna actividad programada no tiene sentido marcarla "en curso":
     // ese estado debe reflejar trabajo real (turnos) en marcha, no un arrastre
     // manual sin nada detrás — queda bloqueada hasta que se le programe algo.
-    if (estado === 'en_curso' && fase.turnos_vinculados === 0) {
+    // No aplica a fases de control manual (ej. Pintura y acabados, la hace un
+    // tercero): esas nunca tienen turnos y su estado siempre se mueve a mano.
+    if (fase.requiere_turno && estado === 'en_curso' && fase.turnos_vinculados === 0) {
       toast.error(`"${fase.fase_nombre}" no tiene actividades programadas — prográmale un turno desde Programación de planta antes de marcarla en curso`)
       return
     }

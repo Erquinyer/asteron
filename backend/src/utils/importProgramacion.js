@@ -120,10 +120,14 @@ export async function resolverFila(row, ctx, fasesCache) {
     norm(u.codigo_empleado) === operarioTxt || norm(u.nombre) === operarioTxt)
   if (!operario) return { error: `Operario "${row.Operario}" no encontrado (debe ser un operario activo)` }
 
+  // La máquina es opcional en el archivo: hay fases (ej. Control de calidad) que
+  // no requieren equipo — validarTurnoInterno decide si hacía falta según la fase.
   const maquinaTxt = norm(row.Maquina)
-  if (!maquinaTxt) return { error: 'Falta la máquina' }
-  const maquina = ctx.maquinas.find(m => norm(m.codigo) === maquinaTxt || norm(m.nombre) === maquinaTxt)
-  if (!maquina) return { error: `Máquina "${row.Maquina}" no encontrada (debe estar activa)` }
+  let maquina = null
+  if (maquinaTxt) {
+    maquina = ctx.maquinas.find(m => norm(m.codigo) === maquinaTxt || norm(m.nombre) === maquinaTxt)
+    if (!maquina) return { error: `Máquina "${row.Maquina}" no encontrada (debe estar activa)` }
+  }
 
   let id_proyecto = null
   let id_fase_proyecto = null
@@ -157,7 +161,7 @@ export async function resolverFila(row, ctx, fasesCache) {
     payload: {
       fecha,
       id_operario: operario.id_usuario,
-      id_maquina: maquina.id_maquina,
+      id_maquina: maquina ? maquina.id_maquina : null,
       id_proyecto,
       id_fase_proyecto,
       tiempo_estimado,
