@@ -63,7 +63,25 @@ En el iPhone, la app se dibujaba por debajo de la barra de estado (hora, baterí
 
 Se solucionó con `"ios": { "contentInset": "always" }` en `frontend/capacitor.config.json`, que hace que la app respete el área segura de la pantalla. **No se modificó ningún componente de React**, así que la web no cambia.
 
-### 3.5 Lo que NO se cambió
+### 3.5 Ícono y pantalla de inicio (splash) con el logo de Asteron
+
+Los íconos y la pantalla de carga de iOS y Android se generan automáticamente desde dos imágenes guardadas en `frontend/assets/`:
+
+| Archivo | Uso |
+|---|---|
+| `frontend/assets/logo.png` | Logo oscuro (1024×1024, fondo transparente). Copia de `frontend/public/logo-icon.png`. Se usa sobre fondo blanco. |
+| `frontend/assets/logo-dark.png` | El mismo logo en blanco, para el modo oscuro del celular. |
+
+Para regenerarlos (por ejemplo, si cambia el logo), desde `frontend/`:
+
+```bash
+npx @capacitor/assets generate --iconBackgroundColor "#ffffff" --iconBackgroundColorDark "#080B14" --splashBackgroundColor "#ffffff" --splashBackgroundColorDark "#080B14"
+npx cap sync
+```
+
+La herramienta reemplaza las imágenes dentro de `frontend/ios/App/App/Assets.xcassets/` y `frontend/android/app/src/main/res/`.
+
+### 3.6 Lo que NO se cambió
 
 - Ninguna pantalla, componente ni lógica del frontend.
 - Ninguna ruta, controlador ni consulta del backend.
@@ -255,7 +273,6 @@ Y en el navegador del celular abre `http://IP_DEL_MAC:5173`.
 
 ## 11. Posibles siguientes pasos
 
-- Ícono y pantalla de inicio (splash) con el logo de Macromet en ambas plataformas.
 - Publicar el backend y la base de datos en un servidor para que la app funcione sin depender del computador.
 - Publicar el backend en un servidor para poder repartir el `.apk` y usar TestFlight en iPhone.
 
@@ -271,3 +288,4 @@ Y en el navegador del celular abre `http://IP_DEL_MAC:5173`.
 | 2026-09-23 | Se agrega la plataforma Android (`frontend/android/`) y los ajustes de red para `http` en pruebas locales. |
 | 2026-09-23 | Guía para generar instaladores (`.apk` en Android y opciones en iPhone). |
 | 2026-09-23 | Checklist de pruebas por módulo en `CHECKLIST_PRUEBAS_MOVIL.md`. |
+| 2026-09-25 | Ícono y pantalla de inicio con el logo de Asteron en iOS y Android (`frontend/assets/`). |
