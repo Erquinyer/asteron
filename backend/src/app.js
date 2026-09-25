@@ -14,7 +14,9 @@ import programacionRoutes     from './routes/programacion.routes.js'
 import perfilRoutes           from './routes/perfil.routes.js'
 import mantenimientosRoutes   from './routes/mantenimientos.routes.js'
 import notificacionesRoutes   from './routes/notificaciones.routes.js'
-import adminRoutes             from './routes/admin.routes.js'
+import adminRoutes            from './routes/admin.routes.js'
+// 1. Importa tus rutas de ERP
+import erpRoutes              from './routes/erp.routes.js'
 
 dotenv.config()
 
@@ -36,16 +38,18 @@ app.use('/api/auth',   authRoutes)
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', sistema: 'Asteron' }))
 
 // ── Rutas protegidas (requieren JWT) ──────────────────
-app.use('/api/dashboard',       verifyToken, dashboardRoutes)
-app.use('/api/proyectos',       verifyToken, proyectosRoutes)
-app.use('/api/pedidos',         verifyToken, pedidosRoutes)
-app.use('/api/clientes',        verifyToken, clientesRoutes)
-app.use('/api/maquinaria',      verifyToken, maquinariaRoutes)
-app.use('/api/usuarios',        verifyToken, usuariosRoutes)
-app.use('/api/programacion',    verifyToken, programacionRoutes)
-app.use('/api/perfil',          verifyToken, perfilRoutes)
-app.use('/api/mantenimientos',  verifyToken, mantenimientosRoutes)
-app.use('/api/notificaciones',  verifyToken, notificacionesRoutes)
-app.use('/api/admin',           verifyToken, adminRoutes)
+app.use('/api/dashboard',      verifyToken, dashboardRoutes)
+app.use('/api/proyectos',      verifyToken, proyectosRoutes)
+app.use('/api/pedidos',        verifyToken, pedidosRoutes)
+app.use('/api/clientes',       verifyToken, clientesRoutes)
+app.use('/api/maquinaria',     verifyToken, maquinariaRoutes)
+app.use('/api/usuarios',       verifyToken, usuariosRoutes)
+app.use('/api/programacion',   verifyToken, programacionRoutes)
+app.use('/api/perfil',         verifyToken, perfilRoutes)
+app.use('/api/mantenimientos', verifyToken, mantenimientosRoutes)
+app.use('/api/notificaciones', verifyToken, notificacionesRoutes)
+app.use('/api/admin',          verifyToken, adminRoutes)
+// 2. Registra la ruta ERP protegida con verifyToken
+app.use('/api/erp',            verifyToken, erpRoutes)
 
 export default app
