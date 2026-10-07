@@ -15,7 +15,6 @@ import perfilRoutes           from './routes/perfil.routes.js'
 import mantenimientosRoutes   from './routes/mantenimientos.routes.js'
 import notificacionesRoutes   from './routes/notificaciones.routes.js'
 import adminRoutes            from './routes/admin.routes.js'
-// 1. Importa tus rutas de ERP
 import erpRoutes              from './routes/erp.routes.js'
 
 dotenv.config()
@@ -49,7 +48,6 @@ app.use('/api/perfil',         verifyToken, perfilRoutes)
 app.use('/api/mantenimientos', verifyToken, mantenimientosRoutes)
 app.use('/api/notificaciones', verifyToken, notificacionesRoutes)
 app.use('/api/admin',          verifyToken, adminRoutes)
-// 2. Registra la ruta ERP protegida con verifyToken
 app.use('/api/erp',            verifyToken, erpRoutes)
 
 export default app

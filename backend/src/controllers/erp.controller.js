@@ -1,6 +1,6 @@
-const db = require('../config/db');
+import db from '../config/db.js';
 
-exports.getCotizaciones = async (req, res) => {
+export const getCotizaciones = async (req, res) => {
     try {
         const [rows] = await db.query('SELECT * FROM cotizaciones ORDER BY created_at DESC');
         res.json(rows);
@@ -10,7 +10,7 @@ exports.getCotizaciones = async (req, res) => {
     }
 };
 
-exports.getRemisiones = async (req, res) => {
+export const getRemisiones = async (req, res) => {
     try {
         const [rows] = await db.query('SELECT * FROM remisiones ORDER BY created_at DESC');
         res.json(rows);

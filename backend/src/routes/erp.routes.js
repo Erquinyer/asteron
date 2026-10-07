@@ -1,8 +1,9 @@
-const express = require('express');
-const router = express.Router();
-const erpController = require('../controllers/erp.controller');
+import { Router } from 'express';
+import * as erpController from '../controllers/erp.controller.js';
+
+const router = Router();
 
 router.get('/cotizaciones', erpController.getCotizaciones);
 router.get('/remisiones', erpController.getRemisiones);
 
-module.exports = router;
+export default router;

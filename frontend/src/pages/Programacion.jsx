@@ -3,7 +3,7 @@ import {
   ChevronLeft, ChevronRight, Plus, Trash2, X,
   Play, Check, CheckCircle, Calendar, Wrench,
 } from 'lucide-react'
-import { useFetch }          from '../hooks/useFetch'
+import { useFetch }              from '../hooks/useFetch'
 import { getProgramacion, createProgramacion, updateEstadoTurno, deleteProgramacion } from '../api/programacion.service'
 import { getUsuarios }       from '../api/usuarios.service'
 import { getMaquinaria }     from '../api/maquinaria.service'
@@ -54,15 +54,15 @@ const estadoConfig = {
   },
   en_proceso: {
     label: 'En proceso', bar: 'bg-primary',
-    badge: 'bg-primary/10 text-primary',     dot: 'bg-primary',
+    badge: 'bg-primary/10 text-primary',    dot: 'bg-primary',
   },
   completado: {
     label: 'Completado', bar: 'bg-success',
-    badge: 'bg-success/10 text-success',     dot: 'bg-success',
+    badge: 'bg-success/10 text-success',    dot: 'bg-success',
   },
   cancelado: {
     label: 'Cancelado',  bar: 'bg-error',
-    badge: 'bg-error/10 text-error',         dot: 'bg-error',
+    badge: 'bg-error/10 text-error',        dot: 'bg-error',
   },
 }
 
@@ -129,11 +129,8 @@ function ActivityCard({ item, onClick, onIniciar, onCompletar, onDelete }) {
         hover:border-border-strong hover:shadow-md transition-all duration-150
         ${item.estado === 'cancelado' ? 'opacity-60' : ''}`}
     >
-      {/* Franja superior de color */}
       <div className={`h-1 w-full ${cfg.bar}`} />
-
       <div className="p-[18px]">
-        {/* ── Header: código + badge ── */}
         <div className="flex items-start justify-between mb-2.5">
           <span className="font-mono text-[10.5px] text-faint">
             ACT-{String(item.id_programacion).padStart(4, '0')}
@@ -141,7 +138,6 @@ function ActivityCard({ item, onClick, onIniciar, onCompletar, onDelete }) {
           <StateBadge estado={item.estado} />
         </div>
 
-        {/* ── Fase + Proyecto ── */}
         <p className="text-[15px] font-semibold text-ink leading-tight">
           {item.fase_nombre || item.observaciones?.split('\n')[0] || 'Sin fase asignada'}
         </p>
@@ -149,10 +145,8 @@ function ActivityCard({ item, onClick, onIniciar, onCompletar, onDelete }) {
           {item.proyecto || 'Sin proyecto'}
         </p>
 
-        {/* ── Divider ── */}
         <div className="my-3 border-t border-border" />
 
-        {/* ── Operario + Máquina ── */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-badge shrink-0
@@ -177,23 +171,18 @@ function ActivityCard({ item, onClick, onIniciar, onCompletar, onDelete }) {
           </div>
         </div>
 
-        {/* ── Divider ── */}
         <div className="my-3 border-t border-border" />
 
-        {/* ── Tiempos + Acción ── */}
         <div className="flex items-end justify-between gap-2">
-          {/* Tiempos */}
           <div className="flex gap-4">
             <div>
-              <p className="font-mono text-[9px] font-semibold uppercase
-                tracking-[.08em] text-faint mb-0.5">Estim.</p>
+              <p className="font-mono text-[9px] font-semibold uppercase tracking-[.08em] text-faint mb-0.5">Estim.</p>
               <p className="font-mono text-[13px] font-semibold text-ink">
                 {fmtTime(item.tiempo_estimado)}
               </p>
             </div>
             <div>
-              <p className="font-mono text-[9px] font-semibold uppercase
-                tracking-[.08em] text-faint mb-0.5">Real</p>
+              <p className="font-mono text-[9px] font-semibold uppercase tracking-[.08em] text-faint mb-0.5">Real</p>
               {item.tiempo_real ? (
                 <p className="font-mono text-[13px] font-semibold text-success">
                   {fmtTime(item.tiempo_real)}
@@ -208,7 +197,6 @@ function ActivityCard({ item, onClick, onIniciar, onCompletar, onDelete }) {
             </div>
           </div>
 
-          {/* Botón de acción inline */}
           {!isDone && (
             <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
               {canDo('programacion', 'eliminar') && (
@@ -269,11 +257,6 @@ function ConfirmModal({ item, onConfirm, onCancel }) {
         <p className="text-[13px] text-muted">
           Esta actividad se marcará como <span className="font-semibold text-success">completada</span>.
         </p>
-        {item.fase_nombre && (
-          <p className="text-[12px] text-primary mt-2 font-medium">
-            La fase "{item.fase_nombre}" también quedará completada.
-          </p>
-        )}
         <div className="flex gap-3 mt-6">
           <button onClick={onCancel}
             className="flex-1 h-10 border border-border rounded-control text-[13px]
@@ -297,10 +280,9 @@ function ConfirmModal({ item, onConfirm, onCancel }) {
 function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onDelete }) {
   const [showConfirm,   setShowConfirm]   = useState(false)
   const [loadingAction, setLoadingAction] = useState(false)
-  const cfg       = estadoConfig[item.estado] || estadoConfig.programado
-  const isLive    = item.estado === 'en_proceso'
-  const elapsed   = useTimer(item.updated_at, isLive)
-  const isDone    = item.estado === 'completado' || item.estado === 'cancelado'
+  const isLive  = item.estado === 'en_proceso'
+  const elapsed = useTimer(item.updated_at, isLive)
+  const isDone  = item.estado === 'completado' || item.estado === 'cancelado'
 
   const handleIniciar = async () => {
     setLoadingAction(true)
@@ -326,7 +308,6 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onDelete }) {
         <div className="bg-surface border border-border rounded-[18px] shadow-modal
           w-full max-w-lg overflow-hidden animate-md-in"
         >
-          {/* Header */}
           <div className="flex items-center justify-between px-6 py-5
             border-b border-border bg-gradient-to-b from-primary/5 to-surface"
           >
@@ -342,12 +323,9 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onDelete }) {
             </button>
           </div>
 
-          {/* Body */}
           <div className="p-6 space-y-4">
-            {/* Proyecto + Fase */}
             <div className="bg-surface2 rounded-[11px] p-4">
-              <p className="font-mono text-[9px] font-semibold uppercase
-                tracking-[.08em] text-faint mb-1">Proyecto</p>
+              <p className="font-mono text-[9px] font-semibold uppercase tracking-[.08em] text-faint mb-1">Proyecto</p>
               <p className="text-[18px] font-bold text-ink">
                 {item.proyecto || 'Sin proyecto asignado'}
               </p>
@@ -358,88 +336,23 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onDelete }) {
               )}
             </div>
 
-            {/* Info grid */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="font-mono text-[9px] font-semibold uppercase
-                  tracking-[.08em] text-faint mb-1">Operario</p>
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-badge bg-primary/10 text-primary
-                    text-[9px] font-bold flex items-center justify-center shrink-0"
-                  >
-                    {initials(item.operario)}
-                  </div>
-                  <p className="text-[13px] font-semibold text-ink">{item.operario}</p>
-                </div>
+                <p className="font-mono text-[9px] font-semibold uppercase tracking-[.08em] text-faint mb-1">Operario</p>
+                <p className="text-[13px] font-semibold text-ink">{item.operario}</p>
               </div>
               <div>
-                <p className="font-mono text-[9px] font-semibold uppercase
-                  tracking-[.08em] text-faint mb-1">Máquina / Equipo</p>
+                <p className="font-mono text-[9px] font-semibold uppercase tracking-[.08em] text-faint mb-1">Máquina / Equipo</p>
                 <p className="text-[13px] font-medium text-ink">
                   {item.maquina_codigo ? `[${item.maquina_codigo}] ` : ''}{item.maquina}
                 </p>
               </div>
-              <div>
-                <p className="font-mono text-[9px] font-semibold uppercase
-                  tracking-[.08em] text-faint mb-1">Tiempo estimado</p>
-                <p className="font-mono text-[13px] font-semibold text-ink">
-                  {fmtTime(item.tiempo_estimado)}
-                </p>
-              </div>
-              <div>
-                <p className="font-mono text-[9px] font-semibold uppercase
-                  tracking-[.08em] text-faint mb-1">Tiempo real</p>
-                {item.tiempo_real ? (
-                  <p className="font-mono text-[13px] font-semibold text-success">
-                    {fmtTime(item.tiempo_real)}
-                  </p>
-                ) : isLive ? (
-                  <p className="font-mono text-[18px] font-bold text-primary tabular-nums">
-                    {fmtElapsed(elapsed)}
-                  </p>
-                ) : (
-                  <p className="font-mono text-[13px] text-faint">—</p>
-                )}
-              </div>
             </div>
-
-            {item.observaciones && (
-              <div>
-                <p className="font-mono text-[9px] font-semibold uppercase
-                  tracking-[.08em] text-faint mb-1">Observaciones</p>
-                <p className="text-[13px] text-muted italic bg-surface2
-                  rounded-[10px] p-3 leading-relaxed">
-                  "{item.observaciones}"
-                </p>
-              </div>
-            )}
-
-            {item.estado === 'completado' && (
-              <div className="flex items-start gap-2 bg-success/8
-                border border-success/20 rounded-[10px] p-3"
-              >
-                <CheckCircle size={15} className="text-success mt-0.5 shrink-0" />
-                <p className="text-[13px] text-success">
-                  Actividad completada.
-                  {item.fase_nombre && ` La fase "${item.fase_nombre}" fue marcada como completada.`}
-                </p>
-              </div>
-            )}
           </div>
 
-          {/* Footer actions */}
           <div className="px-6 py-4 border-t border-border bg-surface2">
             {!isDone ? (
               <div className="flex gap-3">
-                {canDo('programacion', 'eliminar') && (
-                  <button
-                    onClick={() => { onDelete(item); onClose() }}
-                    className="w-10 h-10 flex items-center justify-center rounded-control
-                      border border-border text-error hover:bg-error/10 transition-colors"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                )}
                 {item.estado === 'programado' && (
                   <button
                     onClick={handleIniciar} disabled={loadingAction}
@@ -447,8 +360,7 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onDelete }) {
                       bg-primary hover:bg-primary-hover disabled:opacity-50 text-white
                       rounded-control text-[13px] font-semibold shadow-btn transition-colors"
                   >
-                    <Play size={14} />
-                    {loadingAction ? 'Iniciando…' : 'Iniciar actividad'}
+                    <Play size={14} /> Iniciar actividad
                   </button>
                 )}
                 <button
@@ -458,8 +370,7 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onDelete }) {
                     border border-success/30 rounded-control text-[13px] font-semibold
                     transition-colors"
                 >
-                  <Check size={14} />
-                  Marcar completada
+                  <Check size={14} /> Marcar completada
                 </button>
               </div>
             ) : (
@@ -532,7 +443,6 @@ function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClose, onSaved }) 
       <div className="bg-surface border border-border rounded-[18px] shadow-modal
         w-full max-w-md my-4 overflow-hidden animate-md-in"
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-5
           border-b border-border bg-gradient-to-b from-primary/5 to-surface sticky top-0"
         >
@@ -553,7 +463,6 @@ function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClose, onSaved }) 
           </button>
         </div>
 
-        {/* Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label className={labelCls}>Fecha</label>
@@ -568,9 +477,7 @@ function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClose, onSaved }) 
             >
               <option value="">Seleccionar operario</option>
               {operarios.map(u => (
-                <option key={u.id_usuario} value={u.id_usuario}>
-                  {u.nombre} — {u.rol}
-                </option>
+                <option key={u.id_usuario} value={u.id_usuario}>{u.nombre} — {u.rol}</option>
               ))}
             </select>
           </div>
@@ -591,9 +498,7 @@ function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClose, onSaved }) 
 
           <div>
             <label className={labelCls}>Proyecto</label>
-            <select name="id_proyecto" value={form.id_proyecto} onChange={set}
-              className={inputCls}
-            >
+            <select name="id_proyecto" value={form.id_proyecto} onChange={set} className={inputCls}>
               <option value="">Sin proyecto</option>
               {proyectos.map(p => (
                 <option key={p.id_proyecto} value={p.id_proyecto}>{p.nombre}</option>
@@ -604,53 +509,31 @@ function TurnoModal({ fecha, usuarios, maquinas, proyectos, onClose, onSaved }) 
           {form.id_proyecto && (
             <div>
               <label className={labelCls}>Fase del proyecto</label>
-              <select name="id_fase_proyecto" value={form.id_fase_proyecto}
-                onChange={set} disabled={loadingFases} className={inputCls}
-              >
+              <select name="id_fase_proyecto" value={form.id_fase_proyecto} onChange={set} disabled={loadingFases} className={inputCls}>
                 <option value="">{loadingFases ? 'Cargando fases…' : 'Sin fase específica'}</option>
                 {fases.map(f => (
-                  <option key={f.id_fase_proyecto} value={f.id_fase_proyecto}>
-                    {f.fase_nombre} ({f.estado})
-                  </option>
+                  <option key={f.id_fase_proyecto} value={f.id_fase_proyecto}>{f.fase_nombre} ({f.estado})</option>
                 ))}
               </select>
-              <p className="font-mono text-[10px] text-faint mt-1">
-                Al completar, la fase seleccionada también se marcará como completada.
-              </p>
             </div>
           )}
 
           <div>
             <label className={labelCls}>Tiempo estimado (minutos)</label>
-            <div className="flex items-center gap-2">
-              <input type="number" name="tiempo_estimado" value={form.tiempo_estimado}
-                onChange={set} min={30} step={30} className={inputCls} />
-              <span className="font-mono text-[11px] text-faint whitespace-nowrap shrink-0">
-                = {(form.tiempo_estimado / 60).toFixed(1)}h
-              </span>
-            </div>
+            <input type="number" name="tiempo_estimado" value={form.tiempo_estimado} onChange={set} min={30} step={30} className={inputCls} />
           </div>
 
           <div>
             <label className={labelCls}>Tarea / Observaciones</label>
-            <textarea name="observaciones" value={form.observaciones} onChange={set} rows={3}
-              placeholder="Describe la tarea específica, instrucciones, etc."
-              className={`${inputCls} h-auto py-2.5 resize-none`} />
+            <textarea name="observaciones" value={form.observaciones} onChange={set} rows={3} placeholder="Instrucciones específicas..." className={`${inputCls} h-auto py-2.5 resize-none`} />
           </div>
         </form>
 
-        {/* Footer */}
         <div className="flex gap-3 px-6 py-4 border-t border-border bg-surface2">
-          <button type="button" onClick={onClose}
-            className="flex-1 h-10 border border-border rounded-control text-[13px]
-              text-muted hover:bg-hover hover:text-ink transition-colors"
-          >
+          <button type="button" onClick={onClose} className="flex-1 h-10 border border-border rounded-control text-[13px] text-muted hover:bg-hover transition-colors">
             Cancelar
           </button>
-          <button onClick={handleSubmit} disabled={saving}
-            className="flex-1 h-10 bg-primary hover:bg-primary-hover disabled:opacity-50
-              text-white rounded-control text-[13px] font-semibold shadow-btn transition-colors"
-          >
+          <button onClick={handleSubmit} disabled={saving} className="flex-1 h-10 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white rounded-control text-[13px] font-semibold shadow-btn transition-colors">
             {saving ? 'Guardando…' : 'Programar actividad'}
           </button>
         </div>
@@ -685,9 +568,7 @@ export default function Programacion() {
   const handleCompletar = async (item, tiempoReal) => {
     try {
       await updateEstadoTurno(item.id_programacion, { estado: 'completado', tiempo_real: tiempoReal })
-      toast.success(item.fase_nombre
-        ? `Actividad completada y fase "${item.fase_nombre}" marcada`
-        : 'Actividad marcada como completada')
+      toast.success('Actividad marcada como completada')
       refresh()
     } catch { toast.error('Error al completar') }
   }
@@ -701,7 +582,6 @@ export default function Programacion() {
     } catch { toast.error('Error al eliminar') }
   }
 
-  // Conteo por estado
   const stats = {
     programado: (data || []).filter(r => r.estado === 'programado').length,
     en_proceso: (data || []).filter(r => r.estado === 'en_proceso').length,
@@ -709,17 +589,8 @@ export default function Programacion() {
     cancelado:  (data || []).filter(r => r.estado === 'cancelado').length,
   }
 
-  const stateChips = [
-    { key: 'programado', dot: 'bg-secondary', label: 'Programado' },
-    { key: 'en_proceso', dot: 'bg-primary',   label: 'En proceso' },
-    { key: 'completado', dot: 'bg-success',   label: 'Completado' },
-    { key: 'cancelado',  dot: 'bg-error',     label: 'Cancelado'  },
-  ].filter(c => stats[c.key] > 0)
-
   return (
     <div className="space-y-4 max-w-6xl mx-auto">
-
-      {/* ── Cabecera ── */}
       <div>
         <h1 className="text-[20px] font-semibold text-ink">Programación de planta</h1>
         <p className="font-mono text-[11px] text-faint mt-0.5 uppercase tracking-[.06em]">
@@ -727,41 +598,26 @@ export default function Programacion() {
         </p>
       </div>
 
-      {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center gap-3">
-
-        {/* Navegador de fecha */}
-        <div className="flex items-center gap-1">
+        {/* Navegador de fecha totalmente interactivo */}
+        <div className="flex items-center gap-2 bg-surface border border-border rounded-control p-1">
           <button onClick={prevDay}
-            className="w-[38px] h-[38px] flex items-center justify-center
-              bg-surface border border-border rounded-control
+            className="w-[32px] h-[32px] flex items-center justify-center rounded-control
               text-muted hover:bg-hover hover:text-ink transition-colors"
           >
             <ChevronLeft size={16} />
           </button>
 
-          <div className="flex items-center gap-2 h-[38px] px-4
-            bg-surface border border-border rounded-control"
-          >
-            <input
-              type="date"
-              value={fecha}
-              onChange={e => setFecha(e.target.value)}
-              className="opacity-0 absolute pointer-events-none"
-              id="date-picker-hidden"
-            />
-            <label
-              htmlFor="date-picker-hidden"
-              className="font-mono text-[13px] font-semibold text-ink cursor-pointer
-                whitespace-nowrap select-none"
-            >
-              {fmtFechaCorta(fecha)}
-            </label>
-          </div>
+          {/* Input de fecha nativo visible y limpio */}
+          <input
+            type="date"
+            value={fecha}
+            onChange={e => setFecha(e.target.value)}
+            className="font-mono text-[13px] font-semibold text-ink bg-surface2 px-2 py-1 rounded-control border border-border focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+          />
 
           <button onClick={nextDay}
-            className="w-[38px] h-[38px] flex items-center justify-center
-              bg-surface border border-border rounded-control
+            className="w-[32px] h-[32px] flex items-center justify-center rounded-control
               text-muted hover:bg-hover hover:text-ink transition-colors"
           >
             <ChevronRight size={16} />
@@ -769,7 +625,7 @@ export default function Programacion() {
 
           {!isToday && (
             <button onClick={() => setFecha(toISO(new Date()))}
-              className="h-[38px] px-3 font-mono text-[12px] text-primary
+              className="h-[32px] px-3 font-mono text-[12px] text-primary
                 border border-primary/30 bg-primary/8 hover:bg-primary/15
                 rounded-control transition-colors"
             >
@@ -778,28 +634,12 @@ export default function Programacion() {
           )}
         </div>
 
-        {/* Chips de estado */}
-        {stateChips.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {stateChips.map(c => (
-              <span key={c.key}
-                className="inline-flex items-center gap-1.5 h-[38px] px-3
-                  bg-surface border border-border rounded-control
-                  font-mono text-[11.5px] text-muted"
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
-                {c.label} {stats[c.key]}
-              </span>
-            ))}
-          </div>
-        )}
-
         <div className="flex-1" />
 
-        {/* Botón primario */}
+        {/* Botón primario visible siempre */}
         {canDo('programacion', 'crear') && (
           <button onClick={() => setShowModal(true)}
-            className="h-[38px] flex items-center gap-2 px-4
+            className="h-[38px] flex items-center gap-2 px-4 shrink-0
               bg-primary hover:bg-primary-hover text-white
               text-[13px] font-semibold rounded-control shadow-btn transition-colors"
           >
@@ -809,18 +649,17 @@ export default function Programacion() {
         )}
       </div>
 
-      {/* ── Cards de actividad ── */}
       {loading ? (
-        <Spinner text="Cargando actividades..." />
+        <Spinner text="Cargando programación..." />
       ) : error ? (
         <EmptyState title="Error" description={error} />
-      ) : (data || []).length === 0 ? (
+      ) : (!data || data.length === 0) ? (
         <EmptyState
           title="Sin actividades programadas"
-          description={`No hay actividades para el ${fmtFechaCorta(fecha)}.`}
+          description={`No hay actividades para esta fecha. Usa el botón superior para programar turnos.`}
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {data.map(item => (
             <ActivityCard
               key={item.id_programacion}
@@ -834,7 +673,6 @@ export default function Programacion() {
         </div>
       )}
 
-      {/* ── Modales ── */}
       {showModal && (
         <TurnoModal
           fecha={fecha}

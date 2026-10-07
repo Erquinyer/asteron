@@ -42,13 +42,13 @@ const EMPTY_FORM = {
 
 function ProyectoModal({ proyecto, pedidos, usuarios, onClose, onSaved }) {
   const [form, setForm] = useState(proyecto ? {
-    nombre:                 proyecto.nombre                || '',
-    objetivo:               proyecto.objetivo              || '',
-    prioridad:              proyecto.prioridad             || 'media',
-    fecha_inicio:           proyecto.fecha_inicio?.slice(0,10)          || '',
-    fecha_fin_estimada:     proyecto.fecha_fin_estimada?.slice(0,10)    || '',
-    id_pedido:              proyecto.id_pedido             || '',
-    id_usuario_responsable: proyecto.id_responsable        || '',
+    nombre:                    proyecto.nombre                    || '',
+    objetivo:                  proyecto.objetivo                  || '',
+    prioridad:                 proyecto.prioridad                 || 'media',
+    fecha_inicio:              proyecto.fecha_inicio?.slice(0,10)         || '',
+    fecha_fin_estimada:        proyecto.fecha_fin_estimada?.slice(0,10)   || '',
+    id_pedido:                 proyecto.id_pedido                 || '',
+    id_usuario_responsable:    proyecto.id_responsable            || '',
   } : EMPTY_FORM)
   const [saving, setSaving] = useState(false)
 
@@ -200,6 +200,8 @@ export default function Proyectos() {
   const { data: pedidos }  = useFetch(getPedidos)
   const { data: usuarios } = useFetch(getUsuarios)
   const [search, setSearch] = useState('')
+  const [prioridadFiltro, setPrioridadFiltro] = useState('')
+  const [dropdownPrioridad, setDropdownPrioridad] = useState(false)
   const [modal,  setModal]  = useState(null)
 
   const handleDelete = async (p) => {
@@ -216,10 +218,14 @@ export default function Proyectos() {
   if (loading) return <Spinner text="Cargando proyectos..." />
   if (error)   return <EmptyState title="Error" description={error} />
 
-  const filtrados = (proyectos || []).filter(p =>
-    p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-    (p.cliente || '').toLowerCase().includes(search.toLowerCase())
-  )
+  const filtrados = (proyectos || []).filter(p => {
+    const coincideTexto = 
+      p.nombre.toLowerCase().includes(search.toLowerCase()) ||
+      (p.cliente || '').toLowerCase().includes(search.toLowerCase())
+    
+    const coincidePrioridad = prioridadFiltro ? p.prioridad === prioridadFiltro : true
+    return coincideTexto && coincidePrioridad
+  })
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
@@ -248,13 +254,46 @@ export default function Proyectos() {
           />
         </div>
 
-        {/* Filtro placeholder */}
-        <button className="h-[38px] flex items-center gap-2 px-3 bg-surface border border-border
-          rounded-control text-[13px] text-muted hover:bg-hover hover:text-ink transition-colors"
-        >
-          <Filter size={14} />
-          Prioridad
-        </button>
+        {/* Filtro de Prioridad Interactivo */}
+        <div className="relative">
+          <button 
+            onClick={() => setDropdownPrioridad(!dropdownPrioridad)}
+            className="h-[38px] flex items-center gap-2 px-3 bg-surface border border-border
+              rounded-control text-[13px] text-muted hover:bg-hover hover:text-ink transition-colors"
+          >
+            <Filter size={14} />
+            {prioridadFiltro ? `Prioridad: ${prioridadFiltro.charAt(0).toUpperCase() + prioridadFiltro.slice(1)}` : 'Prioridad'}
+          </button>
+
+          {dropdownPrioridad && (
+            <div className="absolute left-0 mt-2 w-40 bg-surface border border-border rounded-control shadow-lg z-50 py-1">
+              <button 
+                onClick={() => { setPrioridadFiltro(''); setDropdownPrioridad(false); }}
+                className="w-full text-left px-4 py-2 text-[13px] text-ink hover:bg-hover transition-colors"
+              >
+                Todas
+              </button>
+              <button 
+                onClick={() => { setPrioridadFiltro('alta'); setDropdownPrioridad(false); }}
+                className="w-full text-left px-4 py-2 text-[13px] text-ink hover:bg-hover transition-colors"
+              >
+                Alta
+              </button>
+              <button 
+                onClick={() => { setPrioridadFiltro('media'); setDropdownPrioridad(false); }}
+                className="w-full text-left px-4 py-2 text-[13px] text-ink hover:bg-hover transition-colors"
+              >
+                Media
+              </button>
+              <button 
+                onClick={() => { setPrioridadFiltro('baja'); setDropdownPrioridad(false); }}
+                className="w-full text-left px-4 py-2 text-[13px] text-ink hover:bg-hover transition-colors"
+              >
+                Baja
+              </button>
+            </div>
+          )}
+        </div>
 
         <div className="flex-1" />
 
