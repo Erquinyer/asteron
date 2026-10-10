@@ -200,7 +200,7 @@ function UsuarioModal({ usuario, roles, onClose, onSaved }) {
 
         {/* Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Código empleado</label>
               <input name="codigo_empleado" value={form.codigo_empleado} onChange={set}
@@ -242,7 +242,7 @@ function UsuarioModal({ usuario, roles, onClose, onSaved }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Rol</label>
               <select name="id_rol" value={form.id_rol} onChange={set} className={inputCls}>
@@ -357,6 +357,7 @@ function GestionUsuarios({ onNavigateToRole }) {
       </div>
 
       <div className="border border-border rounded-card overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="bg-surface2 border-b border-border">
@@ -467,6 +468,7 @@ function GestionUsuarios({ onNavigateToRole }) {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {modal && (
@@ -637,6 +639,7 @@ function GestionRoles({ onNavigateToRole }) {
       </div>
 
       <div className="border border-border rounded-card overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="bg-surface2 border-b border-border">
@@ -743,6 +746,7 @@ function GestionRoles({ onNavigateToRole }) {
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
       <p className="flex items-center gap-1.5 font-mono text-[10.5px] text-faint">
