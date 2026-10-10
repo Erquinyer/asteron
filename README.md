@@ -424,7 +424,7 @@ docker compose down        # detener (los datos de MySQL persisten en el volumen
 
 | Archivo | Qué hace |
 |---|---|
-| `backend/Dockerfile` | Imagen de Node 20 + pnpm, corre `node server.js`. |
+| `backend/Dockerfile` | Imagen de Node 22 + pnpm (pnpm 11.x exige Node ≥22.13), corre `node server.js`. |
 | `frontend/Dockerfile` | Compila con Vite (`pnpm build`) y sirve `dist/` con nginx — `VITE_API_URL` se "hornea" en el bundle en tiempo de build, no se puede cambiar después sin reconstruir la imagen. |
 | `frontend/nginx.conf` | Redirige cualquier ruta a `index.html` para que funcione el enrutado de React Router (`/proyectos/12`, etc.) en vez de dar 404. |
 | `docker-compose.yml` | Orquesta `mysql` (con el esquema de `Data Base/asteron_v2.sql` precargado), `backend` y `frontend`, en ese orden de arranque. |

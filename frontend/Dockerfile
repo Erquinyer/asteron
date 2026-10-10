@@ -1,7 +1,8 @@
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 
 WORKDIR /app
 
+# pnpm 11.x requires Node >=22.13, hence node:22 and not node:20.
 RUN npm install -g pnpm@11.18.0
 
 # Baked into the static bundle at build time (Vite env vars are compile-time,

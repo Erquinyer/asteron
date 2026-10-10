@@ -11,7 +11,11 @@ services:
       # /var/lib/mysql already has data) — same schema dump used locally.
       - ./Data Base/asteron_v2.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     ports:
-      - "3306:3306"
+      # Host port 3307, not 3306 — many dev machines already have a native
+      # MySQL bound to 3306. The backend container never uses this mapping
+      # (it reaches MySQL over the internal Docker network as "mysql:3306");
+      # 3307 is only there so you can point a GUI client at the Dockerized DB.
+      - "3307:3306"
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pasteron_docker"]
       interval: 5s
