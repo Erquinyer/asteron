@@ -390,6 +390,51 @@ Producción:     git checkout main
 
 ---
 
+## Correr todo con Docker (alternativa a las secciones 2-4)
+
+Si tienes **Docker Desktop** instalado, puedes levantar MySQL + backend + frontend sin instalar Node ni MySQL localmente.
+
+### Primera vez
+
+```bash
+# 1. Crea backend/.env a partir del ejemplo (lo lee el contenedor del backend)
+cp backend/.env.example backend/.env
+
+# 2. Construye e inicia los tres servicios
+docker compose up --build -d
+
+# 3. Solo la PRIMERA vez (o si borraste el volumen de datos): crea el rol
+#    admin, los permisos por módulo y carga los datos de prueba de Macromet
+docker compose exec backend node scripts/migrate_admin_role.js
+docker compose exec backend node scripts/migrate_acciones_modulo.js
+docker compose exec backend pnpm seed
+```
+
+Abre `http://localhost:5173`.
+
+### Uso diario
+
+```bash
+docker compose up -d       # levantar
+docker compose logs -f     # ver logs en vivo
+docker compose down        # detener (los datos de MySQL persisten en el volumen db_data)
+```
+
+### Cómo está armado
+
+| Archivo | Qué hace |
+|---|---|
+| `backend/Dockerfile` | Imagen de Node 20 + pnpm, corre `node server.js`. |
+| `frontend/Dockerfile` | Compila con Vite (`pnpm build`) y sirve `dist/` con nginx — `VITE_API_URL` se "hornea" en el bundle en tiempo de build, no se puede cambiar después sin reconstruir la imagen. |
+| `frontend/nginx.conf` | Redirige cualquier ruta a `index.html` para que funcione el enrutado de React Router (`/proyectos/12`, etc.) en vez de dar 404. |
+| `docker-compose.yml` | Orquesta `mysql` (con el esquema de `Data Base/asteron_v2.sql` precargado), `backend` y `frontend`, en ese orden de arranque. |
+
+> **Nota de la base de datos:** el esquema de `Data Base/asteron_v2.sql` solo se importa la **primera vez** que se crea el volumen `db_data` (es el comportamiento estándar de la imagen oficial de MySQL — si el volumen ya tiene datos, lo ignora). Para empezar desde cero: `docker compose down -v` (borra el volumen) y vuelve a correr los 3 pasos de "Primera vez".
+>
+> **No probado en este equipo:** Docker no está instalado en esta máquina, así que estos archivos no se construyeron/ejecutaron realmente aquí — están escritos con cuidado pero conviene validar el primer `docker compose up --build` juntos por si aparece algo que ajustar (versión de alguna imagen base, alguna dependencia nativa, etc.).
+
+---
+
 ## Estructura del proyecto
 
 ```

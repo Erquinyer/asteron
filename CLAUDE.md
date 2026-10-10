@@ -20,6 +20,8 @@ cd frontend && pnpm dev
 
 Package manager is **pnpm** (pinned via `packageManager` in each `package.json`) — not npm/yarn. Each `package.json` pins exact dependency versions (no `^`/`~` ranges) for reproducible, auditable installs; always run `pnpm install` after pulling changes that touch a `package.json`.
 
+Alternative: `docker compose up --build` runs the whole stack (MySQL + backend + frontend behind nginx) without installing Node/MySQL locally — see the "Correr todo con Docker" section in `README.md` for the one-time migration/seed step. `backend/Dockerfile` and `frontend/Dockerfile` both install pnpm explicitly (no corepack — not available in every Node build); `frontend/Dockerfile` bakes `VITE_API_URL` in at build time via a build ARG, since Vite env vars are compile-time, not runtime.
+
 **Test credentials:**
 - `admin@macromet.com.co` / `admin2026` (Gerente General — Administrador Sistema)
 - `alejandro@macromet.com.co` / `macromet2026` (Gerente General)
