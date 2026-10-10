@@ -4,6 +4,7 @@
   "description": "",
   "main": "server.js",
   "type": "module",
+  "packageManager": "pnpm@11.18.0",
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
