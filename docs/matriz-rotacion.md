@@ -15,7 +15,7 @@ Reglas:
 
 | Integrante (usuario GitHub) | S1 | S2 | S3 | S4 | S5 | S6 | S7 | S8 | S9 |
 |---|---|---|---|---|---|---|---|---|---|
-| @DavidAlejo99 | E2E — login válido | | | | | | | | |
+| @DavidAlejo99 | E2E — login válido | API — utilidades y middlewares del backend | | | | | | | |
 | @nixonhalejo | E2E — login inválido | | | | | | | | |
 | @_usuario-gabriel_ | E2E | | | | | | | | |
 | @_usuario-integrante-4_ | E2E | | | | | | | | |

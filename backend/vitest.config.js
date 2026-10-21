@@ -16,8 +16,9 @@ export default defineConfig({
       // - src/config/mailer.js: envío de correos
       // El arranque (server.js) y los scripts de datos (scripts/) están fuera de src/.
       exclude: ['src/config/**'],
-      // Línea base de la semana 1. Desde aquí el umbral solo puede subir.
-      thresholds: { lines: 0, branches: 0, functions: 0, statements: 0 },
+      // Semana 1: línea base 0%. Semana 2: se sube a la cobertura real alcanzada
+      // (redondeada hacia abajo). El umbral solo puede subir; la meta del piso es 30%.
+      thresholds: { lines: 9, branches: 11, functions: 16, statements: 10 },
     },
   },
 });
