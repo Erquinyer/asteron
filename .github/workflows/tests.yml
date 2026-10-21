@@ -9,9 +9,6 @@ on:
 jobs:
   test-frontend:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
 
@@ -24,7 +21,7 @@ jobs:
           node-version: 20
 
       - name: Instalar dependencias Frontend
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm --prefix frontend install --prod=false
 
       - name: Ejecutar Tests Unitarios y Cobertura
-        run: pnpm run test:coverage
+        run: pnpm --prefix frontend run test:coverage
