@@ -21,10 +21,10 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20.18.0'
 
       - name: Instalar dependencias Frontend
         run: pnpm install --no-frozen-lockfile
 
       - name: Ejecutar Tests Unitarios y Cobertura
-        run: npx vitest run --coverage
+        run: npx vitest run --pool=forks --coverage
