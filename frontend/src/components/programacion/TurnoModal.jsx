@@ -74,8 +74,12 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
 
   const handleSubmit = async e => {
     e.preventDefault()
-    if (!form.id_operario || !form.id_maquina) {
-      toast.error('Operario y máquina son requeridos'); return
+    if (!form.id_operario) { toast.error('Selecciona un operario'); return }
+    if (form.id_proyecto && !form.id_fase_proyecto) {
+      toast.error('Selecciona la fase específica del proyecto'); return
+    }
+    if (maquinaRequerida && !form.id_maquina) {
+      toast.error('Esta fase requiere seleccionar un equipo'); return
     }
     setSaving(true)
     try {
@@ -92,21 +96,29 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
   const esOcupadoOperario = (id) => ocupados.operarios.includes(id) && id !== (turno?.id_operario ?? null)
   const esOcupadaMaquina  = (id) => ocupados.maquinas.includes(id)  && id !== (turno?.id_maquina  ?? null)
 
-  const operarios  = usuarios.filter(u => u.estado === 1 && u.rol === 'Operario' && !esOcupadoOperario(u.id_usuario))
-  const maqActivas = maquinas.filter(m => ['activa', 'sin_asignar'].includes(m.estado) && !esOcupadaMaquina(m.id_maquina))
+  const operarios = usuarios.filter(u => u.estado === 1 && u.rol === 'Operario' && !esOcupadoOperario(u.id_usuario))
 
-  // Cuando el proyecto tiene 2+ productos, fases_proyecto trae una fila por
-  // ítem (mismo fase_nombre repetido) — se separan las de nivel de proyecto
-  // (sin ítem) de las que sí pertenecen a un producto, y estas últimas se
-  // agrupan por ítem para el <optgroup>.
-  const fasesGenerales = fases.filter(f => !f.item_producto)
+  // Solo las fases que realmente se programan por turno (Diseño, Compra y
+  // Pintura y acabados son de control manual: no aparecen aquí). Cuando el
+  // proyecto tiene 2+ productos, fases_proyecto trae una fila por ítem (mismo
+  // fase_nombre repetido) — se separan las de nivel de proyecto (sin ítem) de
+  // las que sí pertenecen a un producto, y estas últimas se agrupan por ítem
+  // para el <optgroup>.
+  const fasesProgramables = fases.filter(f => f.requiere_turno)
+  const fasesGenerales = fasesProgramables.filter(f => !f.item_producto)
   const fasesPorItem   = Object.entries(
-    fases.filter(f => f.item_producto).reduce((acc, f) => {
+    fasesProgramables.filter(f => f.item_producto).reduce((acc, f) => {
       (acc[f.item_producto] ||= []).push(f)
       return acc
     }, {})
   )
-  const faseSeleccionada = fases.find(f => String(f.id_fase_proyecto) === String(form.id_fase_proyecto))
+  const faseSeleccionada = fasesProgramables.find(f => String(f.id_fase_proyecto) === String(form.id_fase_proyecto))
+
+  // La fase elegida determina si hace falta equipo y de qué categoría —
+  // sin fase (turno "suelto", sin proyecto) se sigue exigiendo como siempre.
+  const maquinaRequerida = !faseSeleccionada || faseSeleccionada.categoria_equipo !== null
+  const maqActivas = maquinas.filter(m => ['activa', 'sin_asignar'].includes(m.estado) && !esOcupadaMaquina(m.id_maquina)
+    && (!faseSeleccionada?.categoria_equipo || m.categoria === faseSeleccionada.categoria_equipo))
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto
@@ -150,35 +162,6 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
           </div>
 
           <div>
-            <label className={labelCls}>Operario *</label>
-            <select name="id_operario" value={form.id_operario} onChange={set}
-              required className={inputCls}
-            >
-              <option value="">Seleccionar operario</option>
-              {operarios.map(u => (
-                <option key={u.id_usuario} value={u.id_usuario}>{u.nombre}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className={labelCls}>Máquina / Equipo *</label>
-            <select name="id_maquina" value={form.id_maquina} onChange={set}
-              required className={inputCls}
-            >
-              <option value="">Seleccionar equipo</option>
-              {maqActivas.map(m => (
-                <option key={m.id_maquina} value={m.id_maquina}>
-                  {m.codigo ? `[${m.codigo}] ` : ''}{m.nombre}
-                </option>
-              ))}
-            </select>
-            <p className="text-[11px] text-faint mt-1">
-              Solo se muestran los operarios y equipos disponibles ese día.
-            </p>
-          </div>
-
-          <div>
             <label className={labelCls}>Proyecto</label>
             <select name="id_proyecto" value={form.id_proyecto} onChange={set}
               className={inputCls}
@@ -192,12 +175,13 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
 
           {form.id_proyecto && (
             <div>
-              <label className={labelCls}>Fase del proyecto</label>
+              <label className={labelCls}>Fase del proyecto *</label>
               <select name="id_fase_proyecto" value={form.id_fase_proyecto}
-                onChange={set} disabled={loadingFases} className={inputCls}
+                onChange={set} disabled={loadingFases} required className={inputCls}
               >
-                <option value="">{loadingFases ? 'Cargando fases…' : 'Sin fase específica'}</option>
-                {/* Fases sin ítem (Diseño, Compra) son a nivel de proyecto: van sueltas.
+                <option value="">{loadingFases ? 'Cargando fases…' : 'Seleccionar fase'}</option>
+                {/* Solo las fases que se programan por turno (Diseño, Compra y Pintura y
+                    acabados son de control manual y no aparecen aquí — ver requiere_turno).
                     Cuando el proyecto tiene 2+ productos, cada uno repite el mismo set de
                     fases — se agrupan por ítem (optgroup) para que quede inequívoco a cuál
                     producto pertenece cada una, en vez de una lista plana con nombres repetidos. */}
@@ -233,6 +217,39 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
               </p>
             </div>
           )}
+
+          <div>
+            <label className={labelCls}>Operario *</label>
+            <select name="id_operario" value={form.id_operario} onChange={set}
+              required className={inputCls}
+            >
+              <option value="">Seleccionar operario</option>
+              {operarios.map(u => (
+                <option key={u.id_usuario} value={u.id_usuario}>{u.nombre}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className={labelCls}>Máquina / Equipo{maquinaRequerida ? ' *' : ''}</label>
+            <select name="id_maquina" value={form.id_maquina} onChange={set}
+              required={maquinaRequerida} className={inputCls}
+            >
+              <option value="">{maquinaRequerida ? 'Seleccionar equipo' : 'Sin equipo específico'}</option>
+              {maqActivas.map(m => (
+                <option key={m.id_maquina} value={m.id_maquina}>
+                  {m.codigo ? `[${m.codigo}] ` : ''}{m.nombre}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-faint mt-1">
+              {faseSeleccionada
+                ? maquinaRequerida
+                  ? 'Solo se muestra el equipo del tipo que usa esta fase, disponible ese día.'
+                  : 'Esta fase no requiere un equipo específico.'
+                : 'Solo se muestran los operarios y equipos disponibles ese día.'}
+            </p>
+          </div>
 
           <div>
             <label className={labelCls}>Tiempo estimado (minutos)</label>

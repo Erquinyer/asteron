@@ -45,7 +45,7 @@ export const getOne = async (req, res) => {
     if (!rows[0]) return res.status(404).json({ message: 'Proyecto no encontrado' })
 
     const [fases] = await pool.query(`
-      SELECT fp.*, fe.nombre AS fase_nombre, fe.orden,
+      SELECT fp.*, fe.nombre AS fase_nombre, fe.orden, fe.requiere_turno, fe.categoria_equipo,
              dp.producto AS item_producto, dp.fecha_entrega_estimada AS item_fecha_entrega,
              ua.nombre AS usuario_asignado_nombre,
              (SELECT COUNT(*) FROM programacion_planta pp

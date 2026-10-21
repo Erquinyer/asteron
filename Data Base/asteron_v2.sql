@@ -49,6 +49,8 @@ CREATE TABLE fases_estandar (
   nombre            VARCHAR(120) NOT NULL,
   descripcion       TEXT,
   orden             TINYINT UNSIGNED DEFAULT 0  COMMENT 'Orden sugerido de ejecución',
+  requiere_turno    TINYINT(1)   NOT NULL DEFAULT 1 COMMENT '0 = fase de control manual (Diseño, Compra, Pintura por tercero): nunca recibe turnos de Programación',
+  categoria_equipo  ENUM('maquinaria_pesada','equipo_mig','herramienta_electrica') DEFAULT NULL COMMENT 'Categoría de maquinaria sugerida/requerida para esta fase; NULL = sin equipo obligatorio',
   created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id_fase_estandar)

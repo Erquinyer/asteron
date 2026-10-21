@@ -127,18 +127,21 @@ const seed = async () => {
   // (ver resolveUsuarioPorRol en proyectos.controller.js), sin turno de planta ni
   // máquina. De la fase 3 en adelante, cada fase se repite una vez por ítem del
   // pedido (ver proyectos.controller.js create).
-  await pool.query(`INSERT INTO fases_estandar (nombre, descripcion, orden) VALUES
-    ('Diseño, render e ingeniería', 'Diseño 3D, renderizado, aprobación por el cliente, planos técnicos y despiece', 1),
-    ('Compra de materiales',     'Adquisición de lámina, tubería, platina y demás insumos',       2),
-    ('Corte',                    'Tronzado, cizallado y corte de piezas según planos',             3),
-    ('Doblez y conformado',      'Doblado de lámina y tubo según geometría del diseño',           4),
-    ('Soldadura MIG',            'Unión de componentes metálicos en puestos de soldadura',        5),
-    ('Lijado y preparación',     'Esmerilado, lijado y preparación de superficies',               6),
-    ('Pintura y acabados',       'Pintura electrostática, anodizado o acabado final',             7),
-    ('Instalación de elementos', 'Montaje de acrílico, viniles, branding e iluminación',          8),
-    ('Ensamble final',           'Ensamble y ajuste de todos los componentes del exhibidor',      9),
-    ('Control de calidad',       'Revisión dimensional, visual y funcional del producto',        10),
-    ('Despacho e instalación',   'Empaque, transporte e instalación en el punto de venta',       11)`)
+  // requiere_turno=0: fase de control manual, nunca recibe turnos de Programación
+  // (Diseño/Compra ya lo eran; Pintura y acabados se agrega porque la hace un
+  // tercero, no personal ni equipo propio). categoria_equipo: qué categoría de
+  // maquinaria.categoria aplica a cada fase — NULL cuando no hay equipo obligatorio.
+  await pool.query(`INSERT INTO fases_estandar (nombre, descripcion, orden, requiere_turno, categoria_equipo) VALUES
+    ('Diseño, render e ingeniería', 'Diseño 3D, renderizado, aprobación por el cliente, planos técnicos y despiece', 1, 0, NULL),
+    ('Compra de materiales',     'Adquisición de lámina, tubería, platina y demás insumos',       2, 0, NULL),
+    ('Corte',                    'Tronzado, cizallado y corte de piezas según planos',             3, 1, 'maquinaria_pesada'),
+    ('Doblez y conformado',      'Doblado de lámina y tubo según geometría del diseño',           4, 1, 'maquinaria_pesada'),
+    ('Soldadura MIG',            'Unión de componentes metálicos en puestos de soldadura',        5, 1, 'equipo_mig'),
+    ('Lijado y preparación',     'Esmerilado, lijado y preparación de superficies',               6, 1, 'herramienta_electrica'),
+    ('Pintura y acabados',       'Pintura electrostática, anodizado o acabado final — la realiza un tercero', 7, 0, NULL),
+    ('Ensamble final',           'Ensamble y ajuste de todos los componentes del exhibidor',      8, 1, 'herramienta_electrica'),
+    ('Control de calidad',       'Revisión dimensional, visual y funcional del producto',         9, 1, NULL),
+    ('Despacho e instalación',   'Empaque, transporte e instalación en el punto de venta',       10, 1, NULL)`)
   console.log('✅ Fases estándar (adaptadas al proceso real de Macromet)')
 
   // ── MAQUINARIA REAL del inventario ────────────────
@@ -225,43 +228,80 @@ const seed = async () => {
   console.log('✅ Proyectos (basados en clientes reales de Macromet)')
 
   // ── FASES DE PROYECTO ──────────────────────────────
-  // Fase 1 = "Diseño, render e ingeniería" fusionada (fase única del proyecto).
-  const fases = [
-    // P1 Castrol — muy avanzado (fase 7 pintura en curso)
-    [1,1,'2026-01-10','2026-01-20','completada',100],
-    [1,2,'2026-01-21','2026-01-30','completada',100],[1,3,'2026-01-31','2026-02-08','completada',100],
-    [1,4,'2026-02-09','2026-02-15','completada',100],[1,5,'2026-02-16','2026-02-28','completada',100],
-    [1,6,'2026-03-01','2026-03-05','completada',100],[1,7,'2026-03-06','2026-03-12','en_curso',70],
-    [1,8,'2026-03-13','2026-03-15','pendiente',0],
-    // P2 Bosch — fase 5 soldadura en curso
-    [2,1,'2026-01-20','2026-02-03','completada',100],
-    [2,2,'2026-02-04','2026-02-15','completada',100],[2,3,'2026-02-16','2026-02-25','completada',100],
-    [2,4,'2026-02-26','2026-03-05','completada',100],[2,5,'2026-03-06','2026-03-20','en_curso',55],
-    [2,6,'2026-03-21','2026-03-28','pendiente',0],
-    // P3 Alpina — inicio, ingeniería (parte de la fase 1) aún en curso
-    [3,1,'2026-02-05','2026-02-24','en_curso',60],
-    [3,2,'2026-02-25','2026-03-10','pendiente',0],
+  // Un proyecto real siempre tiene TODAS las fases estándar desde que se crea
+  // (igual que proyectos.controller.js create()) — las que aún no se alcanzan
+  // quedan 'pendiente'/0/sin fechas, nunca se omiten. Se referencian por
+  // NOMBRE (no por id_fase_estandar): el id numérico depende del orden del
+  // INSERT de fases_estandar de arriba y puede cambiar si esa lista cambia.
+  const [fasesEstandarRows] = await pool.query('SELECT id_fase_estandar, nombre FROM fases_estandar ORDER BY orden')
+  const fid = Object.fromEntries(fasesEstandarRows.map(f => [f.nombre, f.id_fase_estandar]))
+
+  // Solo las fases con avance real de la "historia" de cada proyecto de demo;
+  // el resto de fases estándar de cada proyecto se completa más abajo en 'pendiente'.
+  const fasesConAvance = [
+    // P1 Castrol — muy avanzado (pintura en curso)
+    [1,'Diseño, render e ingeniería','2026-01-10','2026-01-20','completada',100],
+    [1,'Compra de materiales',       '2026-01-21','2026-01-30','completada',100],
+    [1,'Corte',                      '2026-01-31','2026-02-08','completada',100],
+    [1,'Doblez y conformado',        '2026-02-09','2026-02-15','completada',100],
+    [1,'Soldadura MIG',              '2026-02-16','2026-02-28','completada',100],
+    [1,'Lijado y preparación',       '2026-03-01','2026-03-05','completada',100],
+    [1,'Pintura y acabados',         '2026-03-06','2026-03-12','en_curso', 70],
+    // P2 Bosch — soldadura en curso
+    [2,'Diseño, render e ingeniería', '2026-01-20','2026-02-03','completada',100],
+    [2,'Compra de materiales',        '2026-02-04','2026-02-15','completada',100],
+    [2,'Corte',                       '2026-02-16','2026-02-25','completada',100],
+    [2,'Doblez y conformado',         '2026-02-26','2026-03-05','completada',100],
+    [2,'Soldadura MIG',               '2026-03-06','2026-03-20','en_curso', 55],
+    // P3 Alpina — inicio, ingeniería aún en curso
+    [3,'Diseño, render e ingeniería', '2026-02-05','2026-02-24','en_curso', 60],
     // P4 Juan Valdez — COMPLETADO
-    [4,1,'2025-11-20','2025-12-03','completada',100],
-    [4,2,'2025-12-04','2025-12-10','completada',100],[4,3,'2025-12-11','2025-12-18','completada',100],
-    [4,4,'2025-12-19','2025-12-22','completada',100],[4,5,'2025-12-23','2026-01-05','completada',100],
-    [4,6,'2026-01-06','2026-01-10','completada',100],[4,7,'2026-01-11','2026-01-15','completada',100],
-    [4,8,'2026-01-16','2026-01-20','completada',100],[4,9,'2026-01-21','2026-01-23','completada',100],
-    [4,10,'2026-01-24','2026-01-25','completada',100],[4,11,'2026-01-26','2026-01-30','completada',100],
-    // P5 LEGO — fase 4 doblez
-    [5,1,'2026-02-22','2026-03-07','completada',100],
-    [5,2,'2026-03-08','2026-03-18','completada',100],[5,3,'2026-03-19','2026-03-28','completada',100],
-    [5,4,'2026-03-29','2026-04-08','en_curso',40],[5,5,'2026-04-09','2026-04-20','pendiente',0],
+    [4,'Diseño, render e ingeniería', '2025-11-20','2025-12-03','completada',100],
+    [4,'Compra de materiales',        '2025-12-04','2025-12-10','completada',100],
+    [4,'Corte',                       '2025-12-11','2025-12-18','completada',100],
+    [4,'Doblez y conformado',         '2025-12-19','2025-12-22','completada',100],
+    [4,'Soldadura MIG',               '2025-12-23','2026-01-05','completada',100],
+    [4,'Lijado y preparación',        '2026-01-06','2026-01-10','completada',100],
+    [4,'Pintura y acabados',          '2026-01-11','2026-01-15','completada',100],
+    [4,'Ensamble final',              '2026-01-16','2026-01-20','completada',100],
+    [4,'Control de calidad',          '2026-01-21','2026-01-23','completada',100],
+    [4,'Despacho e instalación',      '2026-01-24','2026-01-25','completada',100],
+    // P5 LEGO — doblez en curso
+    [5,'Diseño, render e ingeniería', '2026-02-22','2026-03-07','completada',100],
+    [5,'Compra de materiales',        '2026-03-08','2026-03-18','completada',100],
+    [5,'Corte',                       '2026-03-19','2026-03-28','completada',100],
+    [5,'Doblez y conformado',         '2026-03-29','2026-04-08','en_curso', 40],
+    // P6 Makita y P7 3M Safety: recién creados, sin avance — se completan abajo
   ]
-  // Fase 1 (Diseño) y fase 2 (Compra) son fases únicas asignadas automáticamente
-  // por rol — igual que hace proyectos.controller.js al crear un proyecto nuevo.
-  for (const [p,f,fi,ff,est,av] of fases) {
-    const id_usuario_asignado = f === 1 ? admin : f === 2 ? coord_prod : null
-    await pool.query(
-      `INSERT INTO fases_proyecto (id_proyecto,id_fase_estandar,fecha_inicio,fecha_fin,estado,porcentaje_avance,id_usuario_asignado)
-       VALUES (?,?,?,?,?,?,?)`, [p,f,fi,ff,est,av,id_usuario_asignado])
+
+  // Los 7 proyectos sembrados aquí arriba quedan con las 10 fases estándar
+  // completas: las de la lista de arriba con su avance real, y el resto en
+  // 'pendiente'. (id_proyecto 8 en adelante no son de este seed — los crea la
+  // app en vivo, que ya genera siempre el set completo por su cuenta.)
+  const idsProyectosConFases = [1, 2, 3, 4, 5, 6, 7]
+  const filasPorProyecto = new Map(idsProyectosConFases.map(p => [p, new Map()]))
+  for (const [p, nombre, fi, ff, est, av] of fasesConAvance) {
+    filasPorProyecto.get(p).set(nombre, { fi, ff, est, av })
   }
-  console.log('✅ Fases de proyecto')
+  for (const p of idsProyectosConFases) {
+    const filas = filasPorProyecto.get(p)
+    for (const { nombre } of fasesEstandarRows) {
+      if (!filas.has(nombre)) filas.set(nombre, { fi: null, ff: null, est: 'pendiente', av: 0 })
+    }
+  }
+
+  // Fase "Diseño, render e ingeniería" y "Compra de materiales" son únicas del
+  // proyecto, asignadas automáticamente por rol — igual que proyectos.controller.js create().
+  for (const [p, filas] of filasPorProyecto) {
+    for (const [nombre, { fi, ff, est, av }] of filas) {
+      const id_usuario_asignado = nombre === 'Diseño, render e ingeniería' ? admin
+        : nombre === 'Compra de materiales' ? coord_prod : null
+      await pool.query(
+        `INSERT INTO fases_proyecto (id_proyecto,id_fase_estandar,fecha_inicio,fecha_fin,estado,porcentaje_avance,id_usuario_asignado)
+         VALUES (?,?,?,?,?,?,?)`, [p, fid[nombre], fi, ff, est, av, id_usuario_asignado])
+    }
+  }
+  console.log('✅ Fases de proyecto (todas las fases estándar por proyecto, sin omitir ninguna)')
 
   // ── PROGRAMACIÓN DE PLANTA (hoy) ──────────────────
   // Los turnos van vinculados a fases reales (id_fase_proyecto por subquery, ya que
