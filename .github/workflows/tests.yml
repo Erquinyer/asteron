@@ -24,7 +24,7 @@ jobs:
           node-version: 20
 
       - name: Instalar dependencias Frontend
-        run: pnpm install --no-frozen-lockfile --optional
+        run: pnpm install --no-frozen-lockfile
 
       - name: Ejecutar Tests Unitarios y Cobertura
-        run: pnpm exec vitest run --pool=forks --coverage
+        run: pnpm exec vitest run --pool=vmThreads --coverage
