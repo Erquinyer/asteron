@@ -7,8 +7,10 @@ export const hoyISO = () => {
   return `${y}-${m}-${day}`
 }
 
-// true si iso (YYYY-MM-DD) es una fecha anterior a hoy
-export const esFechaPasada = (iso) => !!iso && String(iso).slice(0, 10) < hoyISO()
+// true si iso (YYYY-MM-DD) es una fecha anterior a hoy.
+// "hoy" se puede pasar por parámetro para que las pruebas no dependan del reloj
+// (principio FIRST: Repeatable); en la app se usa el valor por defecto.
+export const esFechaPasada = (iso, hoy = hoyISO()) => !!iso && String(iso).slice(0, 10) < hoy
 
 // Convierte una columna DATE leída de MySQL (mysql2 la entrega como Date en
 // medianoche local) a 'YYYY-MM-DD'. No usar .toISOString() directo: convierte
