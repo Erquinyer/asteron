@@ -27,4 +27,4 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Ejecutar Tests Unitarios y Cobertura
-        run: pnpm exec vitest run --pool=vmThreads --coverage
+        run: pnpm exec vitest run --no-isolate --coverage
