@@ -1,0 +1,28 @@
+name: CI - Asteron Tests & Cobertura
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Instalar dependencias Frontend
+        run: pnpm --prefix frontend install
+
+      - name: Ejecutar Tests Unitarios y Cobertura
+        run: pnpm --prefix frontend test:coverage
