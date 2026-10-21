@@ -18,7 +18,7 @@ export default defineConfig({
       exclude: ['src/config/**'],
       // Semana 1: línea base 0%. Semana 2: piso del 30%, fijado en la cobertura real
       // alcanzada (redondeada hacia abajo). El umbral solo puede subir.
-      thresholds: { lines: 99, branches: 36, functions: 41, statements: 31 },
+      thresholds: { lines: 30, branches: 36, functions: 41, statements: 31 },
     },
   },
 });
