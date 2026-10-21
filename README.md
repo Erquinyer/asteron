@@ -473,3 +473,19 @@ git push origin nombre/develop   # subir cambios a tu rama
 # Resetear datos (solo si es necesario)
 cd backend && npm run seed
 ```
+------------------------------------------------------------------------
+## 📌 Tipo de Cambio (Semana 2)
+- [x] Configuración de CI (`.github/workflows/tests.yml`) y umbral de cobertura (30%).
+- [x] Pruebas unitarias de lógica pura en Frontend (`validaciones.test.js`).
+
+## 🧪 Pruebas Unitarias e Informe de Cobertura
+- Se implementaron 3 pruebas unitarias bajo la estructura **AAA** para `validarEmail()` y `validarPassword()`.
+- **Cobertura obtenida:** 88.88% de líneas / 80% de ramas (supera el piso del 30%).
+
+## 🧬 Evidencia de Mutación Manual
+- **Mutante probado:** Cambié `password.length < 8` por `password.length <= 8` en `validarPassword()`.
+- **Test que lo detectó:** `debe rechazar contraseñas de menos de 8 caracteres`.
+
+## 👥 Asignaciones
+- **Autor:** @nixonhalejo
+- **Revisores asignados:** @Erquinyer
