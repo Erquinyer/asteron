@@ -19,15 +19,17 @@ jobs:
         with:
           version: 10
 
+      # Node 22: jsdom 30 (entorno de los tests de componentes) no corre en Node 20
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Instalar dependencias Frontend
         run: pnpm install --no-frozen-lockfile
 
       - name: Ejecutar Tests Unitarios y Cobertura
-        run: pnpm exec vitest run --environment=node --coverage
+        # Usa el entorno jsdom de vite.config.js: los tests de componentes necesitan un DOM
+        run: pnpm run test:coverage
 
   # Backend (Express): pruebas unitarias con Vitest y umbral de cobertura
   # definido en backend/vitest.config.js. Si la cobertura baja del umbral, el job falla.
