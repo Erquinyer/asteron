@@ -3,8 +3,9 @@ name: CI - Asteron Tests & Cobertura
 on:
   push:
     branches: [ main, develop ]
+  # Corre en todos los PR, sin importar la rama destino (también los PR encadenados
+  # entre ramas de semanas, que apuntan a otra rama test/...)
   pull_request:
-    branches: [ main, develop ]
 
 jobs:
   test-frontend:
