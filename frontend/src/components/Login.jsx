@@ -84,7 +84,7 @@ const Login = () => {
 
         {/* Error del servidor */}
         {serverError && (
-          <div className="mb-5 flex items-start gap-2.5 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30">
+          <div role="alert" className="mb-5 flex items-start gap-2.5 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30">
             <AlertCircle size={15} className="text-red-400 shrink-0 mt-0.5" />
             <p className="text-red-400 text-sm">
               {serverError}
@@ -104,6 +104,8 @@ const Login = () => {
               id="correo"
               type="email"
               name="correo"
+              aria-invalid={Boolean(errors.correo)}
+              aria-describedby={errors.correo ? 'correo-error' : undefined}
               value={form.correo}
               onChange={handleChange}
               placeholder="ejemplo@correo.com"
@@ -114,7 +116,7 @@ const Login = () => {
                   : 'border-white/10 focus:ring-blue-500/40 focus:border-blue-500/50'
                 }`}
             />
-            {errors.correo && <p className="text-red-400 text-xs mt-1.5">{errors.correo}</p>}
+            {errors.correo && <p id="correo-error" className="text-red-400 text-xs mt-1.5">{errors.correo}</p>}
           </div>
 
           {/* Contraseña */}
@@ -133,6 +135,8 @@ const Login = () => {
                 id="contrasena"
                 type={showPassword ? 'text' : 'password'}
                 name="contrasena"
+                aria-invalid={Boolean(errors.contrasena)}
+                aria-describedby={errors.contrasena ? 'contrasena-error' : undefined}
                 value={form.contrasena}
                 onChange={handleChange}
                 placeholder="••••••••"
@@ -145,13 +149,14 @@ const Login = () => {
               />
               <button
                 type="button"
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                 onClick={() => setShowPassword(v => !v)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
               >
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
-            {errors.contrasena && <p className="text-red-400 text-xs mt-1.5">{errors.contrasena}</p>}
+            {errors.contrasena && <p id="contrasena-error" className="text-red-400 text-xs mt-1.5">{errors.contrasena}</p>}
           </div>
 
           {/* Botón */}
