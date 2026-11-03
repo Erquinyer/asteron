@@ -7,6 +7,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
+    // Matchers de jest-dom y limpieza entre tests (ver src/test/setup.js)
+    setupFiles: ['./src/test/setup.js'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
