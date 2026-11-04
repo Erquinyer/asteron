@@ -17,7 +17,7 @@ Reglas:
 |---|---|---|---|---|---|---|---|---|---|
 | @DavidAlejo99 | E2E — login válido | | | | | | | | |
 | @nixonhalejo | E2E — login inválido | | | | | | | | |
-| @_usuario-gabriel_ | E2E | | | | | | | | |
+| @Erquinyer | E2E — crear cliente | | | | | | | | |
 | @_usuario-integrante-4_ | E2E | | | | | | | | |
 
 ## Cobertura semanal
