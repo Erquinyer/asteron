@@ -1,0 +1,30 @@
+name: CI - Asteron Tests & Cobertura
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias Frontend
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Ejecutar Tests Unitarios y Cobertura
+        run: pnpm exec vitest run --environment=node --coverage
