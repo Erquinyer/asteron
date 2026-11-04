@@ -17,7 +17,7 @@ Reglas:
 |---|---|---|---|---|---|---|---|---|---|
 | @DavidAlejo99 | E2E — login válido (PR #3, mergeado) | API — utilidades y controladores del backend (PR #4, mergeado) | Front: Login (PR #5, mergeado) | E2E — seguridad y errores del API (PR #6, mergeado) | API — dependencias: correo de recuperación y reloj (PR #7, mergeado) | | | | |
 | @nixonhalejo | E2E — login inválido (PR #1) | | | | | | | | |
-| @Erquinyer | E2E — crear cliente (PR #12, mergeado) | Front — permisos y sesión (PR #13, mergeado) | | | | BD — integración de clientes contra MySQL real (PR #10) | | | |
+| @Erquinyer | E2E — crear cliente (PR #12, mergeado) | Front — permisos y sesión (PR #13, mergeado) | | | | BD — integración de clientes contra MySQL real (PR #14, mergeado) | | | |
 
 ## Cobertura semanal
 
