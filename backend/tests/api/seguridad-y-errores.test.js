@@ -238,7 +238,7 @@ describe('Hallazgo de contrato: cambio de contraseña (/api/perfil/password)', (
   it.each([
     ['5 caracteres (valor límite inválido)', '12345', 400],
     ['6 caracteres (valor límite válido)', '123456', 200],
-  ])('con una contraseña nueva de %s responde %i', async (_caso, nueva, estado) => {
+  ])('con una contraseña nueva de %s (%s) responde %i', async (_caso, nueva, estado) => {
     pool.query
       .mockResolvedValueOnce([[{ password_hash: hashActual }]])
       .mockResolvedValueOnce([{}])
