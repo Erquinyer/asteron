@@ -21,6 +21,12 @@ test('debe crear un cliente nuevo y verlo aparecer en la lista', async ({ page }
   await page.getByLabel('Nombre *').fill(nombreCliente);
   await page.getByRole('button', { name: 'Crear cliente' }).click();
 
+  // La lista pagina de 8 en 8 y acumula los clientes de corridas previas del
+  // E2E: sin filtrar, el recién creado puede caer en otra página y el test
+  // se vuelve intermitente. Se busca por el nombre único para acotar la
+  // lista a una sola fila, como lo haría una persona verificando el alta.
+  await page.getByPlaceholder('Buscar por nombre o código…').fill(nombreCliente);
+
   // Assert
   await expect(page.getByText(nombreCliente)).toBeVisible();
 });
