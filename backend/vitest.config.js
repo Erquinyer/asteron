@@ -1,11 +1,16 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
     environment: 'node',
+    globals: true,
     // Mientras no existan pruebas del backend, el comando no debe fallar por eso:
     // lo que se exige es el umbral de cobertura.
     passWithNoTests: true,
+    // Los tests de integración (semana 6) necesitan la BD de pruebas
+    // desechable levantada (docker compose up -d mysql-test) — se corren
+    // aparte con "npm run test:integration", no con la suite normal.
+    exclude: ['node_modules/**', 'tests/integration/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
@@ -21,4 +26,4 @@ export default defineConfig({
       thresholds: { lines: 61, branches: 56, functions: 64, statements: 60 },
     },
   },
-});
+})
