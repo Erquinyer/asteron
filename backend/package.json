@@ -11,7 +11,10 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.js"
   },
   "keywords": [],
   "author": "",
@@ -28,6 +31,9 @@
     "nodemailer": "10.0.16"
   },
   "devDependencies": {
-    "nodemon": "3.1.14"
+    "@vitest/coverage-v8": "5.1.0",
+    "nodemon": "3.1.14",
+    "supertest": "7.3.1",
+    "vitest": "5.1.0"
   }
 }
