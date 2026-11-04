@@ -78,7 +78,7 @@ export default function ActivityDetailModal({ item, onClose }) {
           </div>
 
           {/* Info grid */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <p className="font-mono text-[9px] font-semibold uppercase
                 tracking-[.08em] text-faint mb-1">Operario</p>
