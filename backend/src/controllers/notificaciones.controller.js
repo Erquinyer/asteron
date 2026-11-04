@@ -1,4 +1,5 @@
 import pool from '../config/db.js'
+import { hoyISO } from '../utils/dates.js'
 
 // Solo alertas accionables derivadas del estado real de los datos (nada de
 // "log de actividad" tipo turno/proyecto creado, que no requiere acción y
@@ -9,7 +10,10 @@ const ORDEN_TIPO = { error: 0, warning: 1, info: 2 }
 export const getNotificaciones = async (_req, res) => {
   try {
     const notifs = []
-    const hoy = new Date().toISOString().split('T')[0]
+    // Fecha local. Antes se usaba toISOString(), que convierte a UTC: en Colombia,
+    // desde las 7 p. m. ya era "mañana" y los proyectos que vencían ese mismo día
+    // aparecían como vencidos durante la noche.
+    const hoy = hoyISO()
 
     // 1. Proyectos con fecha vencida que aún no están completados
     const [vencidos] = await pool.query(`
