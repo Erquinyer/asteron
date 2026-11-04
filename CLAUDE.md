@@ -12,11 +12,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Terminal 1 — backend (port 3000)
-cd backend && npm run dev
+cd backend && pnpm dev
 
 # Terminal 2 — frontend (port 5173)
-cd frontend && npm run dev
+cd frontend && pnpm dev
 ```
+
+Package manager is **pnpm** (pinned via `packageManager` in each `package.json`) — not npm/yarn. Each `package.json` pins exact dependency versions (no `^`/`~` ranges) for reproducible, auditable installs; always run `pnpm install` after pulling changes that touch a `package.json`.
+
+Alternative: `docker compose up --build` runs the whole stack (MySQL + backend + frontend behind nginx) without installing Node/MySQL locally — see the "Correr todo con Docker" section in `README.md` for the one-time migration/seed step. `backend/Dockerfile` and `frontend/Dockerfile` both install pnpm explicitly (no corepack — not available in every Node build); `frontend/Dockerfile` bakes `VITE_API_URL` in at build time via a build ARG, since Vite env vars are compile-time, not runtime.
 
 **Test credentials:**
 - `admin@macromet.com.co` / `admin2026` (Gerente General — Administrador Sistema)
@@ -135,7 +139,7 @@ programacion_planta (operario + maquina + proyecto + fase_proyecto + fecha)
 - `maquinaria.categoria`: `maquinaria_pesada | equipo_mig | herramienta_electrica`
 - `usuarios.password_hash` (renamed from `contraseña` in v2 schema)
 - Soft deletes not used — `ON DELETE SET NULL` for most FKs, `ON DELETE CASCADE` for `mantenimientos → maquinaria`
-- `fases_proyecto.id_detalle_pedido` (nullable FK → `detalle_pedido.id_detalle`): project-level phases (Diseño, Compra de materiales) are created once with `NULL`; when a project's pedido has 2+ items, the remaining phases are cloned **once per item** so each product's progress/estado is tracked independently — a phase name (e.g. "Corte") legitimately repeats once per item. Controllers expose the item via `LEFT JOIN detalle_pedido ... AS item_producto` (`proyectos.controller.js getOne`, `programacion.controller.js`); the UI must group/label by `item_producto` wherever it lists phases for a multi-item project (done in `TurnoModal.jsx` via `<optgroup>`, `ProyectoDetalle.jsx` via a per-item accordion) instead of showing them as a flat list.
+- `fases_proyecto.id_detalle_pedido` (nullable FK → `detalle_pedido.id_detalle`): project-level phases (Diseño, Compra de materiales) are created once with `NULL`; when a project's pedido has 2+ items, the remaining phases are cloned **once per item** so each product's progress/estado is tracked independently — a phase name (e.g. "Corte") legitimately repeats once per item. Controllers expose the item via `LEFT JOIN detalle_pedido ... AS item_producto` (`proyectos.controller.js getOne`, `programacion.controller.js`); the UI must label by `item_producto` wherever it lists phases for a multi-item project (done in `TurnoModal.jsx` via a `SearchableSelect` sublabel — `components/ui/SearchableSelect.jsx`, which also supports per-option `disabled` for completed fases — searchable by fase name or ítem, not a plain `<select>`/`<optgroup>`; `ProyectoDetalle.jsx` via a per-item accordion) so it's never ambiguous which product a repeated phase name belongs to.
 - `clientes` has no `direccion` column — normalized into `direcciones_cliente` (1FN, same pattern as `contactos_cliente`: `id_cliente, etiqueta, direccion, principal`). `clientes.controller.js` fully replaces a client's address list on every create/update (`guardarDirecciones`); `getAll`/`getOne` expose a `direccion_principal` computed column plus a `direcciones` array on `getOne`.
 - **No-backdating rule**: `proyectos.fecha_inicio`, `programacion_planta.fecha`, and new `detalle_pedido` items reject past dates on create (`esFechaPasada` in `backend/src/utils/dates.js`). On **update**, the check only fires if that specific date field actually changed from its stored value — editing unrelated fields on an already-in-progress record (whose start date is legitimately in the past) must not be blocked. See `proyectos.controller.js update` and `programacion.controller.js update` for the "did it change" comparison pattern (uses `fechaColumnaISO()` to read the stored DATE column safely).
 - **Turno availability** (`programacion_planta`): an operario/máquina is unavailable if (a) they have any turno `en_proceso` right now, regardless of date, or (b) they already have a turno `programado`/`en_proceso` for that *specific* date (`GET /programacion/ocupados?fecha=`). Frontend (`TurnoModal.jsx`) excludes unavailable options from the selects entirely rather than just disabling them, and re-queries whenever the chosen fecha changes.

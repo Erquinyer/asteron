@@ -11,15 +11,15 @@ Probar que el mismo frontend de Asteron (React + Vite) pueda instalarse en **iPh
 
 ## 2. ¿Qué es Capacitor?
 
-[Capacitor](https://capacitorjs.com) es una herramienta que toma una aplicación web ya compilada (la carpeta `dist/` que genera `npm run build`) y la empaqueta dentro de un proyecto nativo de iOS (Xcode) y de Android (Android Studio).
+[Capacitor](https://capacitorjs.com) es una herramienta que toma una aplicación web ya compilada (la carpeta `dist/` que genera `pnpm build`) y la empaqueta dentro de un proyecto nativo de iOS (Xcode) y de Android (Android Studio).
 
 - **Es el mismo código React para las dos plataformas**: no se duplican pantallas ni lógica.
 - Las apps se comunican con el **mismo backend** (Node.js + Express) y la **misma base de datos** MySQL.
-- La web sigue funcionando igual con `npm run dev`.
+- La web sigue funcionando igual con `pnpm dev`.
 
 ```
                                         ┌──► ios/      (Xcode)          ──► iPhone
-frontend (React) ──npm run build──► dist/ ──npx cap sync──┤
+frontend (React) ──pnpm build──► dist/ ──npx cap sync──┤
                                         └──► android/  (Android Studio) ──► Android
 
 Ambas apps llaman a la API:  http://IP_DEL_MAC:3000/api
@@ -44,7 +44,7 @@ Ambas apps llaman a la API:  http://IP_DEL_MAC:3000/api
 | Archivo | Cambio |
 |---|---|
 | `frontend/package.json` | Dependencias `@capacitor/core`, `@capacitor/ios`, `@capacitor/android` y `@capacitor/cli` (v8). |
-| `frontend/package-lock.json` | Actualizado por la instalación de las dependencias anteriores. |
+| `frontend/pnpm-lock.yaml` | Actualizado por la instalación de las dependencias anteriores (el proyecto migró de npm a **pnpm**; este lockfile reemplazó a `package-lock.json`). |
 | `backend/src/app.js` | Se agregaron a CORS los orígenes que usan las apps nativas: `capacitor://localhost` (iOS) y `http://localhost` / `https://localhost` (Android). **No se quitó ninguno de los orígenes existentes.** |
 
 ### 3.3 Ajustes de red para usar `http` en pruebas locales
@@ -114,15 +114,15 @@ VITE_API_URL=http://IP_DEL_MAC:3000/api
 
 ```bash
 cd backend
-npm run dev
+pnpm dev
 ```
 
 ### 5.4 Compilar el frontend y sincronizar con las apps
 
 ```bash
 cd frontend
-npm install
-npm run build
+pnpm install
+pnpm build
 npx cap sync
 ```
 
@@ -157,7 +157,7 @@ npx cap open android
 ### 6.3 Cada vez que cambie el código del frontend
 
 ```bash
-npm run build
+pnpm build
 npx cap sync
 ```
 
@@ -184,7 +184,7 @@ Requiere **Android Studio**.
 1. Compila y sincroniza:
    ```bash
    cd frontend
-   npm run build
+   pnpm build
    npx cap sync android
    npx cap open android
    ```
@@ -239,7 +239,7 @@ Con los `.env` configurados como en 5.2:
 
 ```bash
 cd frontend
-npm run dev -- --host
+pnpm dev -- --host
 ```
 
 Y en el navegador del celular abre `http://IP_DEL_MAC:5173`.
@@ -249,7 +249,7 @@ Y en el navegador del celular abre `http://IP_DEL_MAC:5173`.
 ## 10. Limitaciones actuales
 
 - Las apps **dependen del computador**: backend y MySQL corren localmente, así que el celular debe estar en la misma red y los servidores encendidos.
-- Si la IP cambia (otra red Wi‑Fi o se reinicia el hotspot), hay que actualizar los `.env`, volver a hacer `npm run build` y `npx cap sync`.
+- Si la IP cambia (otra red Wi‑Fi o se reinicia el hotspot), hay que actualizar los `.env`, volver a hacer `pnpm build` y `npx cap sync`.
 - iOS con Apple ID gratuito: la app deja de abrir a los 7 días y hay que volver a instalarla desde Xcode.
 - Los permisos de `http` (sección 3.3) son solo para pruebas locales. Para una versión publicada, el backend debería estar en un servidor con `https` y esos permisos se quitarían.
 

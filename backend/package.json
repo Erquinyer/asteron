@@ -4,26 +4,35 @@
   "description": "",
   "main": "server.js",
   "type": "module",
+  "packageManager": "pnpm@11.18.0",
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "bcryptjs": "^3.0.3",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "exceljs": "^4.4.0",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "multer": "^2.4.0",
-    "mysql2": "^3.22.1",
-    "nodemailer": "^8.0.11"
+    "bcryptjs": "3.0.3",
+    "cors": "2.8.6",
+    "dotenv": "17.4.2",
+    "exceljs": "4.4.0",
+    "express": "5.2.1",
+    "jsonwebtoken": "9.0.3",
+    "multer": "2.4.0",
+    "mysql2": "3.24.5",
+    "nodemailer": "10.0.16"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "@vitest/coverage-v8": "5.1.0",
+    "nodemon": "3.1.14",
+    "supertest": "7.3.1",
+    "vitest": "5.1.0"
   }
 }
