@@ -87,7 +87,7 @@ const Login = () => {
           <div className="mb-5 flex items-start gap-2.5 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30">
             <AlertCircle size={15} className="text-red-400 shrink-0 mt-0.5" />
             <p className="text-red-400 text-sm">
-              Valide el usuario y la contraseña ingresados.
+              {serverError}
             </p>
           </div>
         )}

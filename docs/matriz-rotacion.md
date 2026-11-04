@@ -15,10 +15,9 @@ Reglas:
 
 | Integrante (usuario GitHub) | S1 | S2 | S3 | S4 | S5 | S6 | S7 | S8 | S9 |
 |---|---|---|---|---|---|---|---|---|---|
-| @DavidAlejo99 | E2E — login válido | | | | | | | | |
-| @nixonhalejo | E2E — login inválido | | | | | | | | |
-| @_usuario-gabriel_ | E2E | | | | | | | | |
-| @_usuario-integrante-4_ | E2E | | | | | | | | |
+| @DavidAlejo99 | E2E — login válido (PR #3, mergeado) | API — utilidades y controladores del backend (PR #4) | Front: Login (PR #5) | E2E — seguridad y errores del API (PR #6) | API — dependencias: correo de recuperación y reloj (PR #7) | | | | |
+| @nixonhalejo | E2E — login inválido (PR #1) | | | | | | | | |
+| @Erquinyer | E2E — crear cliente (PR #8) | Front — permisos y sesión (`permissions.js`, `utils/auth.js`) | | | | | | | |
 
 ## Cobertura semanal
 

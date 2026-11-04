@@ -154,7 +154,7 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
 
         {/* Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          <div className={`grid ${pedido ? 'grid-cols-2' : 'grid-cols-1'} gap-4`}>
+          <div className={`grid grid-cols-1 ${pedido ? 'sm:grid-cols-2' : ''} gap-4`}>
             <div>
               <label className={labelCls}>Cliente *</label>
               <SearchableSelect
@@ -358,7 +358,7 @@ function PedidoDetailModal({ pedidoId, onClose }) {
             <EmptyState title="Error" description={error} />
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className={labelCls}>Cliente</p>
                   <p className="text-[13.5px] font-medium text-ink">{pedido.cliente}</p>
@@ -389,6 +389,7 @@ function PedidoDetailModal({ pedidoId, onClose }) {
                   <p className="font-mono text-[12px] text-faint py-2">Sin ítems registrados.</p>
                 ) : (
                   <div className="border border-border rounded-[10px] overflow-hidden">
+                    <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
                         <tr className="bg-surface2 border-b border-border">
@@ -426,6 +427,7 @@ function PedidoDetailModal({ pedidoId, onClose }) {
                         })}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 )}
               </div>

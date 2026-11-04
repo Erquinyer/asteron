@@ -122,12 +122,12 @@ function MaquinaModal({ maquina, onClose, onSaved }) {
 
         {/* Cuerpo */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {field('nombre', 'Nombre *', 'Ej: Equipo MIG')}
             {field('codigo', 'Código',   'Ej: EM-07')}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Categoría</label>
               <select name="categoria" value={form.categoria} onChange={set} className={inputCls}>
@@ -146,12 +146,12 @@ function MaquinaModal({ maquina, onClose, onSaved }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {field('marca',      'Marca',      'Ej: ESAB')}
             {field('referencia', 'Referencia', 'Ej: Smashweld 257')}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {field('serial',    'Serial',     'Ej: F1002540')}
             {field('ubicacion', 'Ubicación',  'Ej: Planta A')}
           </div>

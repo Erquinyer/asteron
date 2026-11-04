@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "packageManager": "pnpm@11.18.0",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -13,17 +14,17 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@capacitor/android": "^8.5.2",
-    "@capacitor/core": "^8.5.2",
-    "@capacitor/ios": "^8.5.2",
-    "axios": "^1.15.0",
-    "geist": "^1.7.2",
-    "lucide-react": "^1.8.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "react-hot-toast": "^2.6.0",
-    "react-router-dom": "^7.14.1",
-    "recharts": "^3.8.1"
+    "@capacitor/android": "8.5.2",
+    "@capacitor/core": "8.5.2",
+    "@capacitor/ios": "8.5.2",
+    "axios": "1.20.0",
+    "geist": "1.7.2",
+    "lucide-react": "1.8.0",
+    "react": "19.2.5",
+    "react-dom": "19.2.5",
+    "react-hot-toast": "2.6.0",
+    "react-router-dom": "7.18.4",
+    "recharts": "3.8.1"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.2",
