@@ -1,7 +1,7 @@
 import crypto   from 'crypto'
 import bcrypt   from 'bcryptjs'
 import pool     from '../config/db.js'
-import mailer   from '../config/mailer.js'
+import { notificador } from '../services/notificador.js'
 
 const EXPIRES_MINUTES = 30
 const FRONTEND_URL    = process.env.FRONTEND_URL || 'http://localhost:5173'
@@ -41,29 +41,20 @@ export const forgotPassword = async (req, res) => {
 
     const resetLink = `${FRONTEND_URL}/reset-password?token=${token}`
 
-    await mailer.sendMail({
-      from:    `"Asteron – Macromet" <${process.env.EMAIL_USER}>`,
-      to:      correo,
-      subject: 'Restablece tu contraseña – Asteron',
-      html: `
-        <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;border:1px solid #e2e8f0;border-radius:12px">
-          <img src="${FRONTEND_URL}/logo.svg" alt="Asteron" style="height:48px;margin-bottom:24px"/>
-          <h2 style="color:#1e293b;margin:0 0 8px">Recuperación de contraseña</h2>
-          <p style="color:#475569;margin:0 0 24px">Hola <strong>${nombre}</strong>, recibimos una solicitud para restablecer tu contraseña.</p>
-          <a href="${resetLink}"
-             style="display:inline-block;background:#1e293b;color:#fff;text-decoration:none;
-                    padding:12px 28px;border-radius:8px;font-weight:600;font-size:14px">
-            Restablecer contraseña
-          </a>
-          <p style="color:#94a3b8;font-size:12px;margin-top:24px">
-            Este enlace es válido por ${EXPIRES_MINUTES} minutos.<br>
-            Si no solicitaste esto, ignora este correo.
-          </p>
-          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0"/>
-          <p style="color:#cbd5e1;font-size:11px;margin:0">Asteron · Sistema de gestión Macromet</p>
-        </div>
-      `,
-    })
+    // Si el correo no se puede enviar, se registra el error y se responde lo mismo
+    // que en los demás casos. Antes respondía 500 solo cuando el correo existía,
+    // y eso permitía averiguar qué correos están registrados en el sistema.
+    try {
+      await notificador.enviarRecuperacionContrasena({
+        correo,
+        nombre,
+        enlace: resetLink,
+        minutosVigencia: EXPIRES_MINUTES,
+        urlLogo: `${FRONTEND_URL}/logo.svg`,
+      })
+    } catch (errorCorreo) {
+      console.error('[recovery.forgotPassword] no se pudo enviar el correo', errorCorreo.message)
+    }
 
     return res.json({ message: 'Si el correo está registrado recibirás un enlace en tu bandeja de entrada.' })
   } catch (err) {

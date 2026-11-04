@@ -1,0 +1,69 @@
+name: CI - Asteron Tests & Cobertura
+
+on:
+  push:
+    branches: [ main, develop ]
+  # Corre en todos los PR, sin importar la rama destino (también los PR encadenados
+  # entre ramas de semanas, que apuntan a otra rama test/...)
+  pull_request:
+
+jobs:
+  test-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      # Node 22: jsdom 30 (entorno de los tests de componentes) no corre en Node 20
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Instalar dependencias Frontend
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Ejecutar Tests Unitarios y Cobertura
+        # Usa el entorno jsdom de vite.config.js: los tests de componentes necesitan un DOM
+        run: pnpm run test:coverage
+
+  # Backend (Express): pruebas unitarias con Vitest y umbral de cobertura
+  # definido en backend/vitest.config.js. Si la cobertura baja del umbral, el job falla.
+  test-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Instalar dependencias Backend
+        run: npm ci
+
+      - name: Ejecutar Tests Unitarios y Cobertura
+        run: npm run test:coverage
+
+  # Evidencia individual (guía del instructor, mecanismo 2): deja en el resumen
+  # del run la lista de commits de test por autor desde el lunes.
+  evidencia-individual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Commits de test por autor esta semana
+        run: |
+          echo "### Commits de test por autor desde el lunes" >> "$GITHUB_STEP_SUMMARY"
+          git shortlog -sn --since="last Monday" HEAD -- '*tests/*' '*.test.*' '*e2e/*' >> "$GITHUB_STEP_SUMMARY"

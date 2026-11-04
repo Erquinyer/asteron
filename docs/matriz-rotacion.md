@@ -15,7 +15,7 @@ Reglas:
 
 | Integrante (usuario GitHub) | S1 | S2 | S3 | S4 | S5 | S6 | S7 | S8 | S9 |
 |---|---|---|---|---|---|---|---|---|---|
-| @DavidAlejo99 | E2E — login válido | | | | | | | | |
+| @DavidAlejo99 | E2E — login válido | API — utilidades, middlewares y controladores del backend | Front: Login | E2E — seguridad y errores del API | API — dependencias: correo de recuperación y reloj | | | | |
 | @nixonhalejo | E2E — login inválido | | | | | | | | |
 | @_usuario-gabriel_ | E2E | | | | | | | | |
 | @_usuario-integrante-4_ | E2E | | | | | | | | |
@@ -27,6 +27,15 @@ Anota la cobertura real al cerrar cada semana. El umbral de la semana siguiente 
 | Semana | Frontend (%) | Backend (%) | Umbral configurado para la semana siguiente |
 |---|---|---|---|
 | S1 (línea base) | Pendiente (medir con `include: ['src/**']`) | 0 (sin pruebas; `src/config/` excluido) | Piso S2: 30% en ambos |
+| S2 | 88,88 (mide solo `validaciones.js`: falta `include: ['src/**']` para la cifra real) | 30,84 | Backend: 30 (líneas) · Frontend: 30 |
+| S4 | 2,89 real con `include: ['src/**']` (96,87 sin `include`) | 50,74 | Backend: 50 (líneas) · Frontend: pendiente del grupo |
+| S5 | Pendiente del grupo (MSW y componentes) | 61,28 | Backend: 61 (líneas) · Frontend: pendiente del grupo |
+
+## Regla de rama
+
+- El workflow `.github/workflows/tests.yml` corre en cada PR hacia `main` y `develop` los jobs `test-frontend` y `test-backend`, que fallan si la cobertura baja del umbral.
+- Regla del grupo: **nadie fusiona un PR con el CI en rojo ni sin la revisión de otro integrante**.
+- Regla en GitHub (Settings → Rules → Rulesets): _pendiente de activar por el administrador del repositorio (@Erquinyer)_.
 
 ## Registro de vocero aleatorio
 

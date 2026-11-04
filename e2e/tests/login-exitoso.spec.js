@@ -11,7 +11,8 @@ test('debe entrar al dashboard y saludar al usuario cuando las credenciales son 
 
   // Act
   await page.getByLabel('Correo electrónico').fill(correo);
-  await page.getByLabel('Contraseña').fill(contrasena);
+  // exact: el botón "Mostrar contraseña" también contiene la palabra "contraseña"
+  await page.getByLabel('Contraseña', { exact: true }).fill(contrasena);
   await page.getByRole('button', { name: 'Iniciar sesión' }).click();
 
   // Assert
