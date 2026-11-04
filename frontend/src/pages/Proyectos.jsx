@@ -165,7 +165,7 @@ function ProyectoModal({ proyecto, pedidos, proyectos, usuarios, onClose, onSave
               placeholder="Descripción del objetivo" />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Prioridad</label>
               <select name="prioridad" value={form.prioridad} onChange={handleChange}
@@ -189,7 +189,7 @@ function ProyectoModal({ proyecto, pedidos, proyectos, usuarios, onClose, onSave
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Fecha inicio</label>
               <input type="date" name="fecha_inicio" value={form.fecha_inicio}

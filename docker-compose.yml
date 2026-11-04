@@ -1,0 +1,78 @@
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: asteron_docker
+    volumes:
+      # Named volume so data survives `docker compose down` / restarts.
+      - db_data:/var/lib/mysql
+      # Only runs on a FRESH volume (MySQL's entrypoint skips it once
+      # /var/lib/mysql already has data) — same schema dump used locally.
+      - ./Data Base/asteron_v2.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      # Host port 3307, not 3306 — many dev machines already have a native
+      # MySQL bound to 3306. The backend container never uses this mapping
+      # (it reaches MySQL over the internal Docker network as "mysql:3306");
+      # 3307 is only there so you can point a GUI client at the Dockerized DB.
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pasteron_docker"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # BD de pruebas desechable (semana 6 — integración con BD real).
+  # No se levanta con `docker compose up` normal: solo se usa para
+  # backend/tests/integration/, con `docker compose up -d mysql-test`.
+  # tmpfs en vez de un volumen con nombre: cada vez que el contenedor
+  # arranca, la BD nace vacía y el script de esquema la vuelve a crear
+  # desde cero — no hay datos que limpiar entre corridas de la suite.
+  mysql-test:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: asteron_test
+    tmpfs:
+      - /var/lib/mysql
+    volumes:
+      - ./Data Base/asteron_v2.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "3308:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pasteron_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      # Overrides backend/.env — inside the Compose network the DB isn't
+      # reachable at "localhost", it's the "mysql" service name, and the
+      # root password must match the mysql service above.
+      DB_HOST: mysql
+      DB_USER: root
+      DB_PASSWORD: asteron_docker
+      DB_NAME: asteron
+      FRONTEND_URL: http://localhost:5173
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:3000/api
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
+volumes:
+  db_data:
