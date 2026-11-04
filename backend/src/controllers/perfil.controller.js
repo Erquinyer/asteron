@@ -43,7 +43,9 @@ export const changePassword = async (req, res) => {
     const [[user]] = await pool.query(
       'SELECT password_hash FROM usuarios WHERE id_usuario = ?', [req.user.id])
     const ok = await bcrypt.compare(actual, user.password_hash)
-    if (!ok) return res.status(401).json({ message: 'La contraseña actual es incorrecta' })
+    // 400 y no 401: el 401 significa "sesión inválida" y el frontend cierra la sesión
+    // al recibirlo, así que equivocarse de contraseña actual sacaba a la persona del sistema.
+    if (!ok) return res.status(400).json({ message: 'La contraseña actual es incorrecta' })
 
     const hash = await bcrypt.hash(nueva, 10)
     await pool.query('UPDATE usuarios SET password_hash = ? WHERE id_usuario = ?', [hash, req.user.id])
