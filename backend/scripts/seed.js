@@ -122,14 +122,44 @@ const seed = async () => {
     (3, '2026-02-03', 'pendiente',  'Nevera de exhibición para productos lácteos - tiendas de barrio'),
     (4, '2025-12-10', 'entregado',  'Módulo de exhibición Juan Valdez para aeropuerto El Dorado'),
     (5, '2026-02-20', 'en_proceso', 'Stand de exhibición LEGO para centro comercial')`)
-  await pool.query(`INSERT INTO detalle_pedido (id_pedido, producto, cantidad, punto_descargue, estado) VALUES
-    (1, 'Exhibidor metálico aceites Castrol',   12, 'Talleres Bogotá Norte', 'en_produccion'),
-    (1, 'Base para garrafas 4L',                12, 'Talleres Bogotá Norte', 'pendiente'),
-    (2, 'Display pared Bosch Power Tools',       5, 'Homecenter Calle 80',   'en_produccion'),
-    (2, 'Gancho porta-taladro con seguro',       80,'Homecenter Calle 80',   'pendiente'),
-    (3, 'Módulo frío exhibición lácteos',         3, 'Supermercados piloto', 'pendiente'),
-    (4, 'Módulo café isla aeropuerto',            1, 'El Dorado - Puerta 12','listo'),
-    (5, 'Stand interactivo LEGO modular',         2, 'C.C. Santafé - Piso 2','en_produccion')`)
+  await pool.query(`INSERT INTO detalle_pedido (id_pedido, producto, cantidad, estado) VALUES
+    (1, 'Exhibidor metálico aceites Castrol',   12, 'en_produccion'),
+    (1, 'Base para garrafas 4L',                12, 'pendiente'),
+    (2, 'Display pared Bosch Power Tools',       5, 'en_produccion'),
+    (2, 'Gancho porta-taladro con seguro',       80,'pendiente'),
+    (3, 'Módulo frío exhibición lácteos',         3, 'pendiente'),
+    (4, 'Módulo café isla aeropuerto',            1, 'listo'),
+    (5, 'Stand interactivo LEGO modular',         2, 'en_produccion')`)
+
+  // puntos_entrega_detalle no existe (normalizado en 1FN) — reemplaza al
+  // antiguo detalle_pedido.punto_descargue, igual que pedidos.controller.js
+  // (guardarUbicaciones). El primer ítem se reparte entre 2 destinos a
+  // propósito, para demostrar el caso real de envío a varias ubicaciones;
+  // el resto va completo a un solo destino. El orden de id_detalle coincide
+  // con el orden del INSERT de arriba (AUTO_INCREMENT no se resetea en cada
+  // seed, así que no se pueden hardcodear los id_detalle).
+  const [detalleRows] = await pool.query(
+    `SELECT id_detalle, id_pedido FROM detalle_pedido WHERE id_pedido IN (1,2,3,4,5) ORDER BY id_detalle`)
+  // id_pedido == id_proyecto para los 5 pedidos con proyecto de este seed (ver
+  // el INSERT INTO proyectos de abajo: proyecto 1 ↔ pedido 1, ..., proyecto 5 ↔
+  // pedido 5) — se reutiliza más abajo para generar las fases por ítem.
+  const itemsPorProyecto = {}
+  for (const row of detalleRows) {
+    (itemsPorProyecto[row.id_pedido] ||= []).push(row.id_detalle)
+  }
+  const ubicacionesPorItem = [
+    [{ direccion: 'Talleres Bogotá Norte', cantidad: 8 }, { direccion: 'Talleres Bogotá Sur', cantidad: 4 }],
+    [{ direccion: 'Talleres Bogotá Norte', cantidad: 12 }],
+    [{ direccion: 'Homecenter Calle 80', cantidad: 5 }],
+    [{ direccion: 'Homecenter Calle 80', cantidad: 80 }],
+    [{ direccion: 'Supermercados piloto', cantidad: 3 }],
+    [{ direccion: 'El Dorado - Puerta 12', cantidad: 1 }],
+    [{ direccion: 'C.C. Santafé - Piso 2', cantidad: 2 }],
+  ]
+  const entregaValues = detalleRows.flatMap((row, i) =>
+    ubicacionesPorItem[i].map(u => [row.id_detalle, u.direccion, u.cantidad]))
+  await pool.query(
+    'INSERT INTO puntos_entrega_detalle (id_detalle, direccion, cantidad) VALUES ?', [entregaValues])
   console.log('✅ Pedidos y detalles (proyectos reales Macromet)')
 
   // ── FASES ESTÁNDAR adaptadas a Macromet ───────────
@@ -304,14 +334,27 @@ const seed = async () => {
   }
 
   // Fase "Diseño, render e ingeniería" y "Compra de materiales" son únicas del
-  // proyecto, asignadas automáticamente por rol — igual que proyectos.controller.js create().
+  // proyecto, asignadas automáticamente por rol — igual que proyectos.controller.js
+  // create(). El resto de fases (Corte → Despacho) se clona una vez por ítem del
+  // pedido (mismo avance/estado de la "historia" de arriba duplicado en cada
+  // ítem) — igual que create() hace con items.length > 0 — para que el panel
+  // "Resumen por fase" de ProyectoDetalle.jsx tenga datos reales que mostrar en
+  // los proyectos Castrol y Bosch (2 ítems cada uno). Sin ítems (proyectos
+  // Makita/3M, sin pedido) se inserta una sola fila sin ítem, como antes.
   for (const [p, filas] of filasPorProyecto) {
+    const items = itemsPorProyecto[p] || []
     for (const [nombre, { fi, ff, est, av }] of filas) {
+      const esFaseUnica = nombre === 'Diseño, render e ingeniería' || nombre === 'Compra de materiales'
       const id_usuario_asignado = nombre === 'Diseño, render e ingeniería' ? admin
         : nombre === 'Compra de materiales' ? coord_prod : null
-      await pool.query(
-        `INSERT INTO fases_proyecto (id_proyecto,id_fase_estandar,fecha_inicio,fecha_fin,estado,porcentaje_avance,id_usuario_asignado)
-         VALUES (?,?,?,?,?,?,?)`, [p, fid[nombre], fi, ff, est, av, id_usuario_asignado])
+      const destinos = esFaseUnica || items.length === 0 ? [null] : items
+      for (const id_detalle_pedido of destinos) {
+        await pool.query(
+          `INSERT INTO fases_proyecto
+           (id_proyecto,id_fase_estandar,id_detalle_pedido,fecha_inicio,fecha_fin,estado,porcentaje_avance,id_usuario_asignado)
+           VALUES (?,?,?,?,?,?,?,?)`,
+          [p, fid[nombre], id_detalle_pedido, fi, ff, est, av, id_usuario_asignado])
+      }
     }
   }
   console.log('✅ Fases de proyecto (todas las fases estándar por proyecto, sin omitir ninguna)')
@@ -324,22 +367,28 @@ const seed = async () => {
   // con el estado/avance ya sembrado arriba para esa fase — así la demo queda
   // consistente con el flujo real de principio a fin.
   const today = new Date().toISOString().split('T')[0]
+  // Proyectos 1 y 2 ahora tienen una fila de fase por ítem (ver arriba) — estos
+  // turnos de ejemplo se anclan al primer ítem de cada uno (id_detalle_pedido)
+  // para que la sub-consulta siga devolviendo una sola fila en vez de las 2 que
+  // ahora existen por fase.
+  const item1Castrol = itemsPorProyecto[1][0]
+  const item1Bosch    = itemsPorProyecto[2][0]
   await pool.query(`INSERT INTO programacion_planta
     (fecha, id_operario, id_maquina, id_proyecto, id_fase_proyecto, tiempo_estimado, tiempo_real, porcentaje_avance, estado, observaciones) VALUES
     -- P1 Castrol · fase "Pintura y acabados" (en_curso, 70%) = promedio de estos 2 turnos
     (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='EM-01'),
-     1, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=1 AND id_fase_estandar=7),
+     1, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=1 AND id_fase_estandar=7 AND id_detalle_pedido=${item1Castrol}),
      480, 460, 100, 'completado', 'Aplicación de base — marco exhibidor Castrol'),
     (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='EM-01'),
-     1, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=1 AND id_fase_estandar=7),
+     1, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=1 AND id_fase_estandar=7 AND id_detalle_pedido=${item1Castrol}),
      480, NULL, 40, 'en_proceso', 'Pintura electrostática — segunda mano'),
     -- P2 Bosch · fase "Soldadura MIG" (en_curso, 55%) = este único turno
     (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='EM-02'),
-     2, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=2 AND id_fase_estandar=5),
+     2, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=2 AND id_fase_estandar=5 AND id_detalle_pedido=${item1Bosch}),
      480, NULL, 55, 'en_proceso', 'Soldadura laterales display Bosch'),
     -- P2 Bosch · fase "Lijado y preparación" (pendiente, 0%) — turno aún sin iniciar
     (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='TZ-01'),
-     2, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=2 AND id_fase_estandar=6),
+     2, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=2 AND id_fase_estandar=6 AND id_detalle_pedido=${item1Bosch}),
      240, NULL, 0, 'programado', 'Corte de perfilería cuadrada 20x20'),
     -- P5 LEGO · fase "Soldadura MIG" (pendiente, 0%) — turno aún sin iniciar
     (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='TZ-02'),

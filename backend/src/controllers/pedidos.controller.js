@@ -5,12 +5,30 @@ import { crearFasesItem } from '../utils/fasesProyecto.js'
 const fechaEntregaPasada = (items = []) =>
   items.some(it => esFechaPasada(it.fecha_entrega_estimada))
 
+// Cada ítem puede despacharse a varias ubicaciones (puntos_entrega_detalle):
+// si trae `ubicaciones`, la suma de sus cantidades debe coincidir exactamente
+// con la cantidad total del ítem — si no, no queda claro a dónde va el resto.
+// Un ítem sin `ubicaciones` (o con el arreglo vacío) es válido: queda sin
+// punto de entrega asignado todavía.
+const validarUbicaciones = (items = []) => {
+  for (const item of items) {
+    if (!Array.isArray(item.ubicaciones) || item.ubicaciones.length === 0) continue
+    const suma = item.ubicaciones.reduce((acc, u) => acc + (parseInt(u.cantidad, 10) || 0), 0)
+    const cantidad = parseInt(item.cantidad, 10) || 1
+    if (suma !== cantidad) {
+      return `El producto "${item.producto}" tiene ${cantidad} unidades pero sus puntos de entrega suman ${suma}`
+    }
+  }
+  return null
+}
+
 const BASE = `
-  SELECT p.*, c.nombre AS cliente,
-         COUNT(dp.id_detalle) AS total_items
+  SELECT p.*, c.nombre AS cliente, pr.id_proyecto,
+         COUNT(DISTINCT dp.id_detalle) AS total_items
   FROM pedidos p
   LEFT JOIN clientes       c  ON p.id_cliente = c.id_cliente
-  LEFT JOIN detalle_pedido dp ON dp.id_pedido  = p.id_pedido`
+  LEFT JOIN detalle_pedido dp ON dp.id_pedido  = p.id_pedido
+  LEFT JOIN proyectos      pr ON pr.id_pedido  = p.id_pedido`
 
 export const getAll = async (_req, res) => {
   try {
@@ -29,21 +47,43 @@ export const getOne = async (req, res) => {
     if (!pedido) return res.status(404).json({ message: 'Pedido no encontrado' })
     const [items] = await pool.query(
       'SELECT * FROM detalle_pedido WHERE id_pedido = ? ORDER BY id_detalle', [req.params.id])
-    res.json({ ...pedido, items })
+    const [ubicaciones] = items.length
+      ? await pool.query(
+          `SELECT id_entrega, id_detalle, direccion, cantidad FROM puntos_entrega_detalle
+           WHERE id_detalle IN (${items.map(() => '?').join(',')})`,
+          items.map(it => it.id_detalle))
+      : [[]]
+    const itemsConUbicaciones = items.map(it => ({
+      ...it,
+      ubicaciones: ubicaciones.filter(u => u.id_detalle === it.id_detalle),
+    }))
+    res.json({ ...pedido, items: itemsConUbicaciones })
   } catch (err) {
     console.error('[pedidos.getOne]', err)
     res.status(500).json({ message: 'Error al obtener pedido' })
   }
 }
 
+// Reemplaza todas las ubicaciones de un ítem (delete + re-insert), igual que
+// guardarDirecciones en clientes.controller.js para direcciones_cliente.
+const guardarUbicaciones = async (conn, id_detalle, ubicaciones = []) => {
+  await conn.query('DELETE FROM puntos_entrega_detalle WHERE id_detalle = ?', [id_detalle])
+  const validas = ubicaciones.filter(u => u.direccion?.trim() && (parseInt(u.cantidad, 10) || 0) > 0)
+  if (validas.length === 0) return
+  const values = validas.map(u => [id_detalle, u.direccion, parseInt(u.cantidad, 10)])
+  await conn.query(
+    'INSERT INTO puntos_entrega_detalle (id_detalle, direccion, cantidad) VALUES ?', [values])
+}
+
 const insertItems = async (conn, id_pedido, items) => {
   for (const item of items) {
     if (item.producto?.trim()) {
-      await conn.query(
-        `INSERT INTO detalle_pedido (id_pedido, producto, cantidad, punto_descargue, estado, fecha_entrega_estimada)
-         VALUES (?,?,?,?,?,?)`,
-        [id_pedido, item.producto, item.cantidad || 1, item.punto_descargue || null,
+      const [result] = await conn.query(
+        `INSERT INTO detalle_pedido (id_pedido, producto, cantidad, estado, fecha_entrega_estimada)
+         VALUES (?,?,?,?,?)`,
+        [id_pedido, item.producto, item.cantidad || 1,
          item.estado || 'pendiente', item.fecha_entrega_estimada || null])
+      await guardarUbicaciones(conn, result.insertId, item.ubicaciones)
     }
   }
 }
@@ -81,15 +121,16 @@ const sincronizarItems = async (conn, id_pedido, items) => {
 
     if (item.id_detalle && idsActuales.has(item.id_detalle)) {
       await conn.query(
-        `UPDATE detalle_pedido SET producto=?, cantidad=?, punto_descargue=?, estado=?, fecha_entrega_estimada=?
+        `UPDATE detalle_pedido SET producto=?, cantidad=?, estado=?, fecha_entrega_estimada=?
          WHERE id_detalle=? AND id_pedido=?`,
-        [item.producto, cantidad, item.punto_descargue || null, item.estado || 'pendiente',
-         fecha, item.id_detalle, id_pedido])
+        [item.producto, cantidad, item.estado || 'pendiente', fecha, item.id_detalle, id_pedido])
+      await guardarUbicaciones(conn, item.id_detalle, item.ubicaciones)
     } else {
       const [result] = await conn.query(
-        `INSERT INTO detalle_pedido (id_pedido, producto, cantidad, punto_descargue, estado, fecha_entrega_estimada)
-         VALUES (?,?,?,?,?,?)`,
-        [id_pedido, item.producto, cantidad, item.punto_descargue || null, item.estado || 'pendiente', fecha])
+        `INSERT INTO detalle_pedido (id_pedido, producto, cantidad, estado, fecha_entrega_estimada)
+         VALUES (?,?,?,?,?)`,
+        [id_pedido, item.producto, cantidad, item.estado || 'pendiente', fecha])
+      await guardarUbicaciones(conn, result.insertId, item.ubicaciones)
       nuevos.push({ ...item, id_detalle: result.insertId })
     }
   }
@@ -102,6 +143,8 @@ export const create = async (req, res) => {
   if (fechaEntregaPasada(items)) {
     return res.status(400).json({ message: 'La fecha de entrega estimada de un ítem no puede ser anterior a hoy' })
   }
+  const errorUbicaciones = validarUbicaciones(items)
+  if (errorUbicaciones) return res.status(400).json({ message: errorUbicaciones })
   const conn = await pool.getConnection()
   try {
     await conn.beginTransaction()
@@ -133,6 +176,10 @@ export const update = async (req, res) => {
   // debe bloquear guardar otros cambios del pedido por eso.
   if (Array.isArray(items) && fechaEntregaPasada(items.filter(it => !it.id_detalle))) {
     return res.status(400).json({ message: 'La fecha de entrega estimada de un ítem nuevo no puede ser anterior a hoy' })
+  }
+  if (Array.isArray(items)) {
+    const errorUbicaciones = validarUbicaciones(items)
+    if (errorUbicaciones) return res.status(400).json({ message: errorUbicaciones })
   }
 
   const conn = await pool.getConnection()

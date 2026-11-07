@@ -136,11 +136,23 @@ CREATE TABLE detalle_pedido (
   id_pedido        INT          DEFAULT NULL,
   producto         VARCHAR(120) DEFAULT NULL,
   cantidad         INT          DEFAULT NULL,
-  punto_descargue  VARCHAR(150) DEFAULT NULL,
   estado           ENUM('pendiente','en_produccion','listo','entregado') NOT NULL DEFAULT 'pendiente',
   fecha_entrega_estimada DATE  DEFAULT NULL  COMMENT 'Fecha de entrega propia de este ítem (puede diferir de los demás del pedido)',
   PRIMARY KEY (id_detalle),
   CONSTRAINT fk_detalle_pedido FOREIGN KEY (id_pedido) REFERENCES pedidos(id_pedido) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Resuelve 1FN: un mismo ítem puede despacharse a varios puntos de entrega,
+-- cada uno con su propia cantidad (deben sumar detalle_pedido.cantidad —
+-- validado en pedidos.controller.js, no a nivel de base de datos).
+-- Reemplaza al antiguo detalle_pedido.punto_descargue (un solo destino por ítem).
+CREATE TABLE puntos_entrega_detalle (
+  id_entrega   INT          NOT NULL AUTO_INCREMENT,
+  id_detalle   INT          NOT NULL,
+  direccion    VARCHAR(255) NOT NULL,
+  cantidad     INT          NOT NULL,
+  PRIMARY KEY (id_entrega),
+  CONSTRAINT fk_entrega_detalle FOREIGN KEY (id_detalle) REFERENCES detalle_pedido(id_detalle) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ============================================================
