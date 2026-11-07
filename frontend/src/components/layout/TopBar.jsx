@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
-  Menu, Bell, AlertTriangle, Info, XCircle, ChevronRight, X,
+  Menu, Bell, AlertTriangle, Info, XCircle, ChevronRight, Check,
   ChevronDown, LogOut, Sun, Moon, UserRound,
 } from 'lucide-react'
-import { getNotificaciones } from '../../api/notificaciones.service'
+import { getNotificaciones, atenderNotificacion } from '../../api/notificaciones.service'
+import toast from 'react-hot-toast'
 import { logout } from '../../utils/auth'
 import { relativeTime } from '../../utils/format'
 import { useDarkMode } from '../../context/DarkModeContext'
@@ -32,19 +33,6 @@ const tipoCfg = {
 const initials = (nombre) =>
   (nombre || 'U').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
 
-// Notificaciones descartadas: no hay tabla de estado leído/no leído en el
-// backend, así que se guardan localmente por navegador para que el panel no
-// vuelva a mostrar lo que el usuario ya eliminó.
-const DISMISSED_KEY = 'asteron_dismissed_notifs'
-
-const loadDismissed = () => {
-  try { return new Set(JSON.parse(localStorage.getItem(DISMISSED_KEY)) || []) }
-  catch { return new Set() }
-}
-const saveDismissed = (set) => {
-  try { localStorage.setItem(DISMISSED_KEY, JSON.stringify([...set])) } catch { /* noop */ }
-}
-
 const TopBar = ({ user, onMenuToggle }) => {
   const { pathname } = useLocation()
   const navigate     = useNavigate()
@@ -52,7 +40,6 @@ const TopBar = ({ user, onMenuToggle }) => {
   const [notifOpen,    setNotifOpen]    = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [notifs, setNotifs]             = useState([])
-  const [dismissed, setDismissed]       = useState(loadDismissed)
   const notifRef = useRef(null)
   const userRef  = useRef(null)
 
@@ -65,31 +52,18 @@ const TopBar = ({ user, onMenuToggle }) => {
 
   useEffect(() => {
     getNotificaciones()
-      .then(r => {
-        const items = r.data.items || []
-        setNotifs(items)
-        // Depura IDs descartados que ya no aparecen (la alerta se resolvió)
-        // para que el storage no crezca indefinidamente.
-        setDismissed(prev => {
-          const activeIds = new Set(items.map(n => n.id))
-          const pruned = new Set([...prev].filter(id => activeIds.has(id)))
-          if (pruned.size !== prev.size) saveDismissed(pruned)
-          return pruned
-        })
-      })
+      .then(r => setNotifs(r.data.items || []))
       .catch(() => {})
   }, [pathname])
 
-  const visibleNotifs = notifs.filter(n => !dismissed.has(n.id))
-
-  const handleDismiss = (e, id) => {
+  const handleAtender = async (e, id) => {
     e.stopPropagation()
-    setDismissed(prev => {
-      const next = new Set(prev)
-      next.add(id)
-      saveDismissed(next)
-      return next
-    })
+    try {
+      await atenderNotificacion(id)
+      setNotifs(prev => prev.filter(n => n.id !== id))
+    } catch {
+      toast.error('No se pudo marcar la alerta como atendida')
+    }
   }
 
   useEffect(() => {
@@ -155,7 +129,7 @@ const TopBar = ({ user, onMenuToggle }) => {
               transition-colors relative"
           >
             <Bell size={16} />
-            {visibleNotifs.length > 0 && (
+            {notifs.length > 0 && (
               <span className="absolute top-2 right-2 w-[7px] h-[7px] bg-error
                 rounded-full ring-2 ring-surface" />
             )}
@@ -168,11 +142,11 @@ const TopBar = ({ user, onMenuToggle }) => {
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <p className="text-[13px] font-semibold text-ink">
                   Notificaciones
-                  {visibleNotifs.length > 0 && (
+                  {notifs.length > 0 && (
                     <span className="ml-2 px-1.5 py-0.5 bg-error/10 text-error
                       rounded-badge text-[10px] font-mono"
                     >
-                      {visibleNotifs.length}
+                      {notifs.length}
                     </span>
                   )}
                 </p>
@@ -182,14 +156,14 @@ const TopBar = ({ user, onMenuToggle }) => {
                 </button>
               </div>
 
-              {visibleNotifs.length === 0 ? (
+              {notifs.length === 0 ? (
                 <div className="px-4 py-8 text-center">
                   <Bell size={22} className="mx-auto text-faint mb-2" />
                   <p className="text-[13px] text-faint">Sin alertas activas</p>
                 </div>
               ) : (
                 <div className="max-h-72 overflow-y-auto divide-y divide-border">
-                  {visibleNotifs.map(n => {
+                  {notifs.map(n => {
                     const cfg = tipoCfg[n.tipo] || tipoCfg.info
                     return (
                       <div key={n.id}
@@ -213,12 +187,13 @@ const TopBar = ({ user, onMenuToggle }) => {
                           </div>
                           {n.link && <ChevronRight size={12} className="text-faint mt-0.5 shrink-0" />}
                         </button>
-                        <button onClick={(e) => handleDismiss(e, n.id)}
-                          title="Eliminar notificación"
+                        <button onClick={(e) => handleAtender(e, n.id)}
+                          title="Marcar como atendida"
+                          aria-label="Marcar como atendida"
                           className="w-6 h-6 flex items-center justify-center rounded-badge shrink-0
-                            text-faint hover:bg-error/10 hover:text-error transition-colors"
+                            text-faint hover:bg-success/10 hover:text-success transition-colors"
                         >
-                          <X size={12} />
+                          <Check size={12} />
                         </button>
                       </div>
                     )

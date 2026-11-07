@@ -5,7 +5,10 @@ import { enviarExcel, enviarPdf } from '../utils/exportarReporte.js'
 // El costo de mano de obra revela lo que gana cada cargo: solo gerencia lo ve,
 // aunque otros roles tengan acceso al módulo de reportes.
 const ROLES_COSTOS = ['Gerente General', 'Administrador Sistema']
-const puedeVerCostos = (req) => ROLES_COSTOS.includes(req.user?.rol)
+// Los costos quedaron fuera del alcance del MVP: el cálculo se conserva, pero ningún
+// reporte los muestra hasta poner esto en true (y que Macromet defina el valor hora).
+const COSTOS_HABILITADOS = false
+const puedeVerCostos = (req) => COSTOS_HABILITADOS && ROLES_COSTOS.includes(req.user?.rol)
 
 const FECHA_ISO = /^\d{4}-\d{2}-\d{2}$/
 
@@ -43,7 +46,7 @@ const agrupar = (actividades, claveDe, etiquetaDe) => {
     if (!grupos.has(clave)) {
       grupos.set(clave, {
         ...etiquetaDe(a), actividades: 0, sin_tiempo_real: 0, sin_valor_hora: 0,
-        minutos_estimados: 0, minutos_reales: 0, costo: 0,
+        minutos_estimados: 0, minutos_reales: 0, minutos_estimados_con_real: 0, costo: 0,
       })
     }
     const g = grupos.get(clave)
@@ -52,6 +55,7 @@ const agrupar = (actividades, claveDe, etiquetaDe) => {
     if (a.tiempo_real == null) g.sin_tiempo_real++
     else {
       g.minutos_reales += a.tiempo_real
+      g.minutos_estimados_con_real += a.tiempo_estimado || 0
       if (a.costo == null) g.sin_valor_hora++
       else g.costo = redondear(g.costo + a.costo)
     }
@@ -60,6 +64,9 @@ const agrupar = (actividades, claveDe, etiquetaDe) => {
     ...g,
     horas_estimadas: redondear(g.minutos_estimados / 60),
     horas_reales: redondear(g.minutos_reales / 60),
+    // Solo compara actividades con tiempo real: incluir las aún sin terminar
+    // haría parecer que la planta va por debajo de lo estimado.
+    desviacion_horas: redondear((g.minutos_reales - g.minutos_estimados_con_real) / 60),
   })).sort((a, b) => b.minutos_reales - a.minutos_reales)
 }
 
@@ -100,7 +107,7 @@ const datosHoras = async (query, verCostos) => {
   const porPedido = agrupar(actividades.filter(a => a.id_pedido), a => a.id_pedido,
     a => ({ pedido: `OP-${a.id_pedido}`, proyecto: a.proyecto }))
   const totales = agrupar(actividades, () => 'total', () => ({}))[0] ?? {
-    actividades: 0, sin_tiempo_real: 0, sin_valor_hora: 0, horas_estimadas: 0, horas_reales: 0, costo: 0,
+    actividades: 0, sin_tiempo_real: 0, sin_valor_hora: 0, horas_estimadas: 0, horas_reales: 0, desviacion_horas: 0, costo: 0,
   }
 
   const sinCostos = ({ costo, sin_valor_hora, ...resto }) => resto
@@ -154,10 +161,12 @@ const datosAvance = async (query) => {
 
 const datosMantenimientos = async (query) => {
   const { desde, hasta } = leerRango(query)
-  const filtros = ['mt.fecha BETWEEN ? AND ?']
-  const valores = [desde, hasta]
-  if (query.id_maquina) { filtros.push('mt.id_maquina = ?'); valores.push(query.id_maquina) }
-  if (query.tipo)       { filtros.push('mt.tipo = ?');       valores.push(query.tipo) }
+  const filtrosEquipo = []
+  const valoresEquipo = []
+  if (query.id_maquina) { filtrosEquipo.push('mt.id_maquina = ?'); valoresEquipo.push(query.id_maquina) }
+  if (query.tipo)       { filtrosEquipo.push('mt.tipo = ?');       valoresEquipo.push(query.tipo) }
+  const filtros = ["mt.estado = 'realizado'", 'mt.fecha BETWEEN ? AND ?', ...filtrosEquipo]
+  const valores = [desde, hasta, ...valoresEquipo]
   const [mantenimientos] = await pool.query(`
     SELECT mt.id_mantenimiento, DATE_FORMAT(mt.fecha, '%Y-%m-%d') AS fecha, mt.tipo, mt.descripcion,
            m.nombre AS maquina, m.codigo AS maquina_codigo, u.nombre AS tecnico
@@ -168,7 +177,19 @@ const datosMantenimientos = async (query) => {
     ORDER BY mt.fecha DESC`, valores)
   const por_tipo = { preventivo: 0, correctivo: 0, calibracion: 0, predictivo: 0 }
   for (const m of mantenimientos) por_tipo[m.tipo]++
-  return { desde, hasta, total: mantenimientos.length, por_tipo, mantenimientos }
+  // Los programados no dependen del periodo: importa lo que está por venir o vencido.
+  const [programados] = await pool.query(`
+    SELECT mt.id_mantenimiento, DATE_FORMAT(mt.fecha, '%Y-%m-%d') AS fecha, mt.tipo, mt.descripcion,
+           m.nombre AS maquina, m.codigo AS maquina_codigo
+    FROM mantenimientos mt
+    LEFT JOIN maquinaria m ON m.id_maquina = mt.id_maquina
+    WHERE ${["mt.estado = 'programado'", ...filtrosEquipo].join(' AND ')}
+    ORDER BY mt.fecha ASC`, valoresEquipo)
+  const hoy = hoyISO()
+  return {
+    desde, hasta, total: mantenimientos.length, por_tipo, mantenimientos,
+    programados: programados.map(p => ({ ...p, situacion: p.fecha < hoy ? 'Vencido' : 'Programado' })),
+  }
 }
 
 export const getHoras = async (req, res) => {
@@ -233,11 +254,18 @@ const REPORTES = {
   mantenimientos: {
     titulo: 'Reporte de mantenimientos',
     obtener: (req) => datosMantenimientos(req.query),
-    secciones: (d) => [{ titulo: 'Mantenimientos', filas: d.mantenimientos, columnas: [
-      { clave: 'fecha', titulo: 'Fecha', ancho: 12 }, { clave: 'maquina_codigo', titulo: 'Código', ancho: 10 },
-      { clave: 'maquina', titulo: 'Equipo', ancho: 30 }, { clave: 'tipo', titulo: 'Tipo', ancho: 12 },
-      { clave: 'tecnico', titulo: 'Técnico', ancho: 24 }, { clave: 'descripcion', titulo: 'Descripción', ancho: 44 },
-    ] }],
+    secciones: (d) => [
+      { titulo: 'Realizados', filas: d.mantenimientos, columnas: [
+        { clave: 'fecha', titulo: 'Fecha', ancho: 12 }, { clave: 'maquina_codigo', titulo: 'Código', ancho: 10 },
+        { clave: 'maquina', titulo: 'Equipo', ancho: 30 }, { clave: 'tipo', titulo: 'Tipo', ancho: 12 },
+        { clave: 'tecnico', titulo: 'Técnico', ancho: 24 }, { clave: 'descripcion', titulo: 'Descripción', ancho: 44 },
+      ] },
+      { titulo: 'Programados', filas: d.programados, columnas: [
+        { clave: 'fecha', titulo: 'Fecha prevista', ancho: 13 }, { clave: 'situacion', titulo: 'Situación', ancho: 12 },
+        { clave: 'maquina_codigo', titulo: 'Código', ancho: 10 }, { clave: 'maquina', titulo: 'Equipo', ancho: 30 },
+        { clave: 'tipo', titulo: 'Tipo', ancho: 12 }, { clave: 'descripcion', titulo: 'Descripción', ancho: 44 },
+      ] },
+    ],
     periodo: (d) => `Periodo: ${d.desde} a ${d.hasta}`,
   },
 }

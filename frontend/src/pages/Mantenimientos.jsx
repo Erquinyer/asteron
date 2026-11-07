@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Plus, Search, Trash2, Wrench, X, AlertTriangle, CheckCircle } from 'lucide-react'
+import { Plus, Search, Trash2, Wrench, X, AlertTriangle, CheckCircle, Check } from 'lucide-react'
 import { useFetch }          from '../hooks/useFetch'
-import { getMantenimientos, createMantenimiento, deleteMantenimiento } from '../api/mantenimientos.service'
+import { getMantenimientos, createMantenimiento, realizarMantenimiento, deleteMantenimiento } from '../api/mantenimientos.service'
 import { getMaquinaria }     from '../api/maquinaria.service'
 import { canDo }             from '../utils/auth'
 import Spinner    from '../components/ui/Spinner'
@@ -33,7 +33,15 @@ const hoyLocal = () => {
 
 const EMPTY = {
   id_maquina: '', fecha: hoyLocal(),
-  tipo: 'preventivo', descripcion: '',
+  tipo: 'preventivo', descripcion: '', estado: 'realizado',
+}
+
+// Días desde hoy hasta la fecha prevista (negativo = vencido), sin desfases por hora.
+const diasHasta = (fecha) => {
+  const f = new Date(fecha)
+  const hoy = new Date()
+  return Math.round((new Date(f.getFullYear(), f.getMonth(), f.getDate())
+    - new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate())) / 86400000)
 }
 
 const inputCls = `w-full h-10 border border-border rounded-control px-3 text-[13px]
@@ -45,14 +53,16 @@ function MantenimientoModal({ maquinas, onClose, onSaved }) {
   const [form, setForm]     = useState(EMPTY)
   const [saving, setSaving] = useState(false)
   const set = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
+  const programado = form.estado === 'programado'
 
   const handleSubmit = async e => {
     e.preventDefault()
     if (!form.id_maquina) { toast.error('Selecciona un equipo'); return }
+    if (programado && form.fecha < hoyLocal()) { toast.error('La fecha prevista no puede ser anterior a hoy'); return }
     setSaving(true)
     try {
       await createMantenimiento(form)
-      toast.success('Mantenimiento registrado')
+      toast.success(programado ? 'Mantenimiento programado' : 'Mantenimiento registrado')
       onSaved(); onClose()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error al registrar')
@@ -92,6 +102,20 @@ function MantenimientoModal({ maquinas, onClose, onSaved }) {
 
         {/* Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-1.5" role="group" aria-label="Tipo de registro">
+            {[['realizado', 'Ya realizado'], ['programado', 'Programar a futuro']].map(([valor, texto]) => (
+              <button type="button" key={valor} aria-pressed={form.estado === valor}
+                onClick={() => setForm(f => ({ ...f, estado: valor }))}
+                className={`h-9 rounded-control text-[12.5px] font-medium border transition-colors
+                  ${form.estado === valor
+                    ? 'bg-primary text-white border-primary'
+                    : 'border-border text-muted bg-surface hover:bg-hover'}`}
+              >
+                {texto}
+              </button>
+            ))}
+          </div>
+
           <div>
             <label className={labelCls}>Equipo *</label>
             <select name="id_maquina" value={form.id_maquina}
@@ -108,8 +132,8 @@ function MantenimientoModal({ maquinas, onClose, onSaved }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className={labelCls}>Fecha *</label>
-              <input type="date" name="fecha" value={form.fecha}
+              <label className={labelCls}>{programado ? 'Fecha prevista *' : 'Fecha *'}</label>
+              <input type="date" name="fecha" value={form.fecha} min={programado ? hoyLocal() : undefined}
                 onChange={set} className={inputCls}
               />
             </div>
@@ -123,7 +147,7 @@ function MantenimientoModal({ maquinas, onClose, onSaved }) {
             </div>
           </div>
 
-          {form.tipo === 'correctivo' && (
+          {form.tipo === 'correctivo' && !programado && (
             <div className="flex items-start gap-2.5 p-3.5
               bg-warning/8 border border-warning/25 rounded-[10px]"
             >
@@ -156,7 +180,7 @@ function MantenimientoModal({ maquinas, onClose, onSaved }) {
               disabled:opacity-50 text-white rounded-control text-[13px]
               font-semibold shadow-btn transition-colors"
           >
-            {saving ? 'Guardando…' : 'Registrar'}
+            {saving ? 'Guardando…' : programado ? 'Programar' : 'Registrar'}
           </button>
         </div>
       </div>
@@ -171,6 +195,18 @@ export default function Mantenimientos() {
   const [search,     setSearch]     = useState('')
   const [tipoFilter, setTipoFilter] = useState('todos')
   const [showModal,  setShowModal]  = useState(false)
+  const [vista,      setVista]      = useState('historial') // 'historial' | 'programados'
+
+  const handleRealizar = async (m) => {
+    if (!confirm(`¿Marcar como realizado hoy el mantenimiento de ${m.maquina}?`)) return
+    try {
+      await realizarMantenimiento(m.id_mantenimiento)
+      toast.success('Mantenimiento realizado')
+      refresh()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error al actualizar')
+    }
+  }
 
   const handleDelete = async (m) => {
     if (!confirm('¿Eliminar este registro de mantenimiento?')) return
@@ -184,7 +220,13 @@ export default function Mantenimientos() {
   if (loading) return <Spinner text="Cargando mantenimientos..." />
   if (error)   return <EmptyState title="Error" description={error} />
 
-  const lista = (data || []).filter(m => {
+  const programados = (data || []).filter(m => m.estado === 'programado')
+  const vencidos = programados.filter(m => diasHasta(m.fecha) < 0).length
+  // Los programados se listan del más urgente al más lejano; el historial, al revés.
+  const base = vista === 'programados'
+    ? [...programados].sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+    : (data || []).filter(m => m.estado !== 'programado')
+  const lista = base.filter(m => {
     const matchTipo = tipoFilter === 'todos' || m.tipo === tipoFilter
     const matchText = (m.maquina     || '').toLowerCase().includes(search.toLowerCase()) ||
                       (m.tecnico     || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -198,7 +240,8 @@ export default function Mantenimientos() {
       <div>
         <h1 className="text-[20px] font-semibold text-ink">Mantenimientos</h1>
         <p className="font-mono text-[11px] text-faint mt-0.5 uppercase tracking-[.06em]">
-          {data?.length || 0} registros en historial
+          {(data?.length || 0) - programados.length} en historial · {programados.length} programados
+          {vencidos > 0 && <span className="text-error font-semibold"> · {vencidos} vencidos</span>}
         </p>
       </div>
 
@@ -235,6 +278,19 @@ export default function Mantenimientos() {
           })}
         </div>
 
+        <div className="flex gap-1.5" role="tablist" aria-label="Vista">
+          {[['historial', 'Historial'], ['programados', `Programados (${programados.length})`]].map(([id, texto]) => (
+            <button key={id} role="tab" aria-selected={vista === id} onClick={() => setVista(id)}
+              className={`h-[38px] px-3.5 rounded-control text-[12px] font-medium border transition-colors
+                ${vista === id
+                  ? 'bg-ink text-bg border-ink'
+                  : 'border-border text-muted bg-surface hover:bg-hover hover:text-ink'}`}
+            >
+              {texto}
+            </button>
+          ))}
+        </div>
+
         <div className="flex-1" />
 
         {canDo('mantenimientos', 'crear') && (
@@ -251,8 +307,10 @@ export default function Mantenimientos() {
       {/* Tabla */}
       {lista.length === 0 ? (
         <EmptyState
-          title="Sin registros"
-          description="Registra el primer mantenimiento con el botón de arriba."
+          title={vista === 'programados' ? 'Sin mantenimientos programados' : 'Sin registros'}
+          description={vista === 'programados'
+            ? 'Programa uno con el botón de arriba, eligiendo "Programar a futuro".'
+            : 'Registra el primer mantenimiento con el botón de arriba.'}
         />
       ) : (
         <div className="bg-surface border border-border rounded-card overflow-hidden shadow-card dark:shadow-card-dk">
@@ -300,13 +358,30 @@ export default function Mantenimientos() {
                       <td className="px-5 py-3.5 text-[13px] text-muted hidden lg:table-cell">
                         {m.tecnico || '—'}
                       </td>
-                      <td className="px-5 py-3.5 font-mono text-[11.5px] text-faint">
+                      <td className="px-5 py-3.5 font-mono text-[11.5px] text-faint whitespace-nowrap">
                         {new Date(m.fecha).toLocaleDateString('es-CO')}
+                        {m.estado === 'programado' && (() => {
+                          const dias = diasHasta(m.fecha)
+                          return (
+                            <p className={`mt-0.5 font-semibold ${dias < 0 ? 'text-error' : dias <= 7 ? 'text-warning' : 'text-faint'}`}>
+                              {dias < 0 ? `Vencido hace ${-dias} d` : dias === 0 ? 'Hoy' : `En ${dias} d`}
+                            </p>
+                          )
+                        })()}
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-5 py-3.5 whitespace-nowrap">
+                        {m.estado === 'programado' && canDo('mantenimientos', 'crear') && (
+                          <button onClick={() => handleRealizar(m)}
+                            title="Marcar como realizado" aria-label="Marcar como realizado"
+                            className="w-7 h-7 inline-flex items-center justify-center rounded-badge
+                              text-faint hover:bg-success/10 hover:text-success transition-colors"
+                          >
+                            <Check size={14} />
+                          </button>
+                        )}
                         {canDo('mantenimientos', 'eliminar') && (
                           <button onClick={() => handleDelete(m)}
-                            className="w-7 h-7 flex items-center justify-center rounded-badge
+                            className="w-7 h-7 inline-flex items-center justify-center rounded-badge
                               text-faint hover:bg-error/10 hover:text-error transition-colors"
                           >
                             <Trash2 size={13} />

@@ -12,7 +12,7 @@ import EmptyState from '../components/ui/EmptyState'
 import toast      from 'react-hot-toast'
 
 const TABS = [
-  { id: 'horas',          label: 'Horas y costos', icon: Clock3     },
+  { id: 'horas',          label: 'Horas',          icon: Clock3     },
   { id: 'avance',         label: 'Avance',         icon: TrendingUp },
   { id: 'mantenimientos', label: 'Mantenimientos', icon: Wrench     },
 ]
@@ -99,7 +99,6 @@ function ReporteHoras({ datos }) {
     { titulo: 'Horas reales', numero: true, valor: g => fmtHoras(g.horas_reales) },
     ...(verCostos ? [{ titulo: 'Costo', numero: true, valor: costoGrupo }] : []),
   ]
-  const desviacion = totales.horas_reales - totales.horas_estimadas
 
   return (
     <div className="space-y-4">
@@ -108,7 +107,7 @@ function ReporteHoras({ datos }) {
           detalle={totales.sin_tiempo_real ? `${totales.sin_tiempo_real} sin tiempo real registrado` : 'Todas con tiempo real'} />
         <Kpi etiqueta="Horas reales" valor={fmtHoras(totales.horas_reales)} />
         <Kpi etiqueta="Horas estimadas" valor={fmtHoras(totales.horas_estimadas)}
-          detalle={`Diferencia: ${desviacion > 0 ? '+' : ''}${fmtHoras(desviacion)}`} />
+          detalle={`Desviación en lo terminado: ${totales.desviacion_horas > 0 ? '+' : ''}${fmtHoras(totales.desviacion_horas)}`} />
         {verCostos && (
           <Kpi etiqueta="Costo mano de obra" valor={fmtCOP(totales.costo)}
             detalle={totales.sin_valor_hora ? `${totales.sin_valor_hora} actividad(es) sin valor hora` : 'En pesos colombianos'} />
@@ -205,11 +204,21 @@ function ReporteMantenimientos({ datos }) {
         <Kpi etiqueta="Correctivos" valor={datos.por_tipo.correctivo} />
         <Kpi etiqueta="Calibraciones" valor={datos.por_tipo.calibracion} />
       </div>
-      <Tabla filas={datos.mantenimientos} claveFila={m => m.id_mantenimiento} columnas={[
+      <Tabla titulo="Realizados" filas={datos.mantenimientos} claveFila={m => m.id_mantenimiento} columnas={[
         { titulo: 'Fecha', valor: m => <span className="font-mono text-[12px] whitespace-nowrap">{fmtFecha(m.fecha)}</span> },
         { titulo: 'Equipo', valor: m => <span className="font-medium text-ink">{m.maquina_codigo ? `[${m.maquina_codigo}] ` : ''}{m.maquina}</span> },
         { titulo: 'Tipo', valor: m => TIPO_MANTENIMIENTO[m.tipo] || m.tipo },
         { titulo: 'Técnico', valor: m => m.tecnico || '—' },
+        { titulo: 'Descripción', valor: m => m.descripcion || '—' },
+      ]} />
+      <Tabla titulo="Programados" filas={datos.programados} claveFila={m => m.id_mantenimiento} columnas={[
+        { titulo: 'Fecha prevista', valor: m => (
+          <span className={`font-mono text-[12px] whitespace-nowrap ${m.situacion === 'Vencido' ? 'text-error font-semibold' : ''}`}>
+            {fmtFecha(m.fecha)}{m.situacion === 'Vencido' ? ' · vencido' : ''}
+          </span>
+        ) },
+        { titulo: 'Equipo', valor: m => <span className="font-medium text-ink">{m.maquina_codigo ? `[${m.maquina_codigo}] ` : ''}{m.maquina}</span> },
+        { titulo: 'Tipo', valor: m => TIPO_MANTENIMIENTO[m.tipo] || m.tipo },
         { titulo: 'Descripción', valor: m => m.descripcion || '—' },
       ]} />
     </div>

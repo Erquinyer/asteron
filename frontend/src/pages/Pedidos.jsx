@@ -546,13 +546,26 @@ function PedidoDetailModal({ pedidoId, onClose }) {
   )
 }
 
+const filtroCls = `h-[38px] border border-border rounded-control px-3 text-[12.5px] bg-surface text-ink
+  focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-colors`
+
+// Con componentes locales: toISOString() pasa a UTC y puede correr la fecha un día.
+const fechaLocalISO = (valor) => {
+  if (!valor) return null
+  const d = new Date(valor)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export default function Pedidos() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { data, loading, error, refresh } = useFetch(getPedidos)
   const { data: clientes }                = useFetch(getClientes)
   const [search, setSearch] = useState('')
-  const [searchField, setSearchField] = useState('todos') // 'todos' | 'cliente'
+  const [searchField, setSearchField] = useState('todos') // 'todos' | 'cliente' | 'op'
+  const [estadoFiltro, setEstadoFiltro] = useState('')
+  const [fechaDesde, setFechaDesde] = useState('')
+  const [fechaHasta, setFechaHasta] = useState('')
   const [modal,  setModal]  = useState(null)
   const [viewingId, setViewingId] = useState(null)
 
@@ -570,6 +583,7 @@ export default function Pedidos() {
   const SEARCH_FIELDS = [
     { value: 'todos',   label: 'Todo',    placeholder: 'Buscar por cliente o descripción…' },
     { value: 'cliente', label: 'Cliente', placeholder: 'Nombre del cliente…' },
+    { value: 'op',      label: 'N.º OP',  placeholder: 'Número de OP, ej: 12…' },
   ]
 
   const handlePedidoCreado = (pedidoCreado) => {
@@ -593,12 +607,21 @@ export default function Pedidos() {
   if (error)   return <EmptyState title="Error" description={error} />
 
   const q = search.trim().toLowerCase()
+  // El número de OP es el id del pedido; se acepta escrito como "12", "#12" u "OP-12".
+  const numeroOP = q.replace(/^(op-?|#)\s*/, '')
   const lista = (data || []).filter(p => {
+    if (estadoFiltro && p.estado !== estadoFiltro) return false
+    const fecha = fechaLocalISO(p.fecha_pedido)
+    if (fechaDesde && (!fecha || fecha < fechaDesde)) return false
+    if (fechaHasta && (!fecha || fecha > fechaHasta)) return false
     if (!q) return true
+    if (searchField === 'op') return String(p.id_pedido) === numeroOP
     if (searchField === 'cliente') return (p.cliente || '').toLowerCase().includes(q)
-    return (p.cliente || '').toLowerCase().includes(q) ||
+    return String(p.id_pedido) === numeroOP ||
+      (p.cliente || '').toLowerCase().includes(q) ||
       (p.descripcion || '').toLowerCase().includes(q)
   })
+  const hayFiltros = q || estadoFiltro || fechaDesde || fechaHasta
 
   const counts = Object.fromEntries(
     Object.keys(estadoConfig).map(k => [k, (data || []).filter(p => p.estado === k).length])
@@ -624,6 +647,33 @@ export default function Pedidos() {
           onValueChange={setSearch}
           className="flex-1 min-w-[220px] max-w-sm"
         />
+
+        <select aria-label="Filtrar por estado" value={estadoFiltro}
+          onChange={e => setEstadoFiltro(e.target.value)} className={filtroCls}
+        >
+          <option value="">Todos los estados</option>
+          {Object.entries(estadoConfig).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
+        <label className="flex items-center gap-1.5 text-[12px] text-muted">
+          Desde
+          <input type="date" value={fechaDesde} max={fechaHasta || undefined}
+            onChange={e => setFechaDesde(e.target.value)} className={filtroCls}
+          />
+        </label>
+        <label className="flex items-center gap-1.5 text-[12px] text-muted">
+          Hasta
+          <input type="date" value={fechaHasta} min={fechaDesde || undefined}
+            onChange={e => setFechaHasta(e.target.value)} className={filtroCls}
+          />
+        </label>
+        {hayFiltros && (
+          <button type="button"
+            onClick={() => { setSearch(''); setEstadoFiltro(''); setFechaDesde(''); setFechaHasta('') }}
+            className="h-[38px] px-3 text-[12px] font-medium text-primary hover:underline"
+          >
+            Limpiar
+          </button>
+        )}
 
         <div className="flex-1" />
 

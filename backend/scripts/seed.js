@@ -424,6 +424,18 @@ const seed = async () => {
            'Reparación cargador y revisión de carbones',
            ?
     FROM maquinaria WHERE codigo = 'TL-07'`, [uid['martin@macromet.com.co']])
+  // Uno próximo y uno vencido, para demostrar la lista de programados y sus alertas
+  const diasDesdeHoy = (dias) => {
+    const d = new Date(`${hoyISO()}T00:00:00`)
+    d.setDate(d.getDate() + dias)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  await pool.query(`INSERT INTO mantenimientos (id_maquina, fecha, tipo, descripcion, estado)
+    SELECT id_maquina, ?, 'preventivo', 'Revisión de antorcha y alimentador de alambre', 'programado'
+    FROM maquinaria WHERE codigo = 'EM-03'`, [diasDesdeHoy(4)])
+  await pool.query(`INSERT INTO mantenimientos (id_maquina, fecha, tipo, descripcion, estado)
+    SELECT id_maquina, ?, 'calibracion', 'Calibración anual de la tronzadora', 'programado'
+    FROM maquinaria WHERE codigo = 'TZ-01'`, [diasDesdeHoy(-2)])
   console.log('✅ Mantenimientos')
 
   console.log('\n🎉 Seed Macromet completado')

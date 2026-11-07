@@ -1,4 +1,5 @@
 import pool from '../config/db.js'
+import { esFechaPasada, hoyISO } from '../utils/dates.js'
 
 export const getByMaquina = async (req, res) => {
   try {
@@ -34,14 +35,19 @@ export const getAll = async (_req, res) => {
 
 export const create = async (req, res) => {
   const { id_maquina, fecha, tipo, descripcion } = req.body
+  const programado = req.body.estado === 'programado'
   if (!id_maquina || !fecha || !tipo) {
     return res.status(400).json({ message: 'Máquina, fecha y tipo son requeridos' })
   }
+  if (programado && esFechaPasada(fecha)) {
+    return res.status(400).json({ message: 'La fecha de un mantenimiento programado no puede ser anterior a hoy' })
+  }
   try {
     const [result] = await pool.query(
-      `INSERT INTO mantenimientos (id_maquina, fecha, tipo, descripcion, realizado_por)
-       VALUES (?,?,?,?,?)`,
-      [id_maquina, fecha, tipo, descripcion || null, req.user.id])
+      `INSERT INTO mantenimientos (id_maquina, fecha, tipo, descripcion, realizado_por, estado)
+       VALUES (?,?,?,?,?,?)`,
+      [id_maquina, fecha, tipo, descripcion || null, programado ? null : req.user.id,
+       programado ? 'programado' : 'realizado'])
 
     const [[row]] = await pool.query(`
       SELECT mt.*, u.nombre AS tecnico, m.nombre AS maquina, m.codigo AS maquina_codigo
@@ -50,8 +56,8 @@ export const create = async (req, res) => {
       LEFT JOIN maquinaria m ON m.id_maquina  = mt.id_maquina
       WHERE mt.id_mantenimiento = ?`, [result.insertId])
 
-    // Actualizar estado de la máquina si es correctivo
-    if (tipo === 'correctivo') {
+    // Actualizar estado de la máquina si es correctivo (uno programado aún no la detiene)
+    if (tipo === 'correctivo' && !programado) {
       await pool.query(
         `UPDATE maquinaria SET estado = 'en_mantenimiento' WHERE id_maquina = ?`, [id_maquina])
     }
@@ -60,6 +66,32 @@ export const create = async (req, res) => {
   } catch (err) {
     console.error('[mantenimientos.create]', err)
     res.status(500).json({ message: 'Error al registrar mantenimiento' })
+  }
+}
+
+// PATCH /:id/realizar — cierra un mantenimiento programado: la fecha pasa a ser la
+// de ejecución real y queda registrado quién lo hizo.
+export const realizar = async (req, res) => {
+  const { id } = req.params
+  try {
+    const [[mantenimiento]] = await pool.query(
+      'SELECT id_maquina, tipo, estado, descripcion FROM mantenimientos WHERE id_mantenimiento = ?', [id])
+    if (!mantenimiento) return res.status(404).json({ message: 'Registro no encontrado' })
+    if (mantenimiento.estado !== 'programado') {
+      return res.status(400).json({ message: 'Este mantenimiento ya fue realizado' })
+    }
+    await pool.query(
+      `UPDATE mantenimientos SET estado = 'realizado', fecha = ?, realizado_por = ?, descripcion = ?
+       WHERE id_mantenimiento = ?`,
+      [hoyISO(), req.user.id, req.body.descripcion?.trim() || mantenimiento.descripcion, id])
+    if (mantenimiento.tipo === 'correctivo') {
+      await pool.query(
+        `UPDATE maquinaria SET estado = 'en_mantenimiento' WHERE id_maquina = ?`, [mantenimiento.id_maquina])
+    }
+    res.json({ message: 'Mantenimiento realizado' })
+  } catch (err) {
+    console.error('[mantenimientos.realizar]', err)
+    res.status(500).json({ message: 'Error al actualizar el mantenimiento' })
   }
 }
 

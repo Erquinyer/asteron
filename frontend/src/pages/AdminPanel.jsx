@@ -483,6 +483,9 @@ function GestionUsuarios({ onNavigateToRole }) {
   )
 }
 
+// Los costos quedaron fuera del alcance del MVP (ver COSTOS_HABILITADOS en reportes.controller.js).
+const COSTOS_HABILITADOS = false
+
 // ─── Modal de rol ─────────────────────────────────────────────────
 function RolModal({ rol, onClose, onSaved }) {
   const [form, setForm] = useState({
@@ -557,7 +560,7 @@ function RolModal({ rol, onClose, onSaved }) {
               className={`${inputCls} h-auto py-2.5 resize-none`}
             />
           </div>
-          <div>
+          {COSTOS_HABILITADOS && <div>
             <label className={labelCls}>Valor hora (COP)</label>
             <input type="number" min={0} step="any" name="valor_hora" value={form.valor_hora} onChange={set}
               placeholder="Sin definir"
@@ -566,7 +569,7 @@ function RolModal({ rol, onClose, onSaved }) {
             <p className="text-[11px] text-faint mt-1">
               Se usa para calcular el costo de mano de obra en Reportes.
             </p>
-          </div>
+          </div>}
         </form>
 
         {/* Footer */}

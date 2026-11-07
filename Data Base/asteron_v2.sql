@@ -186,6 +186,7 @@ CREATE TABLE mantenimientos (
   tipo              ENUM('preventivo','correctivo','predictivo','calibracion') NOT NULL,
   descripcion       TEXT,
   realizado_por     INT  DEFAULT NULL,
+  estado            ENUM('programado','realizado') NOT NULL DEFAULT 'realizado' COMMENT 'programado: fecha es la prevista; realizado: fecha es la de ejecución',
   created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id_mantenimiento),
@@ -304,6 +305,16 @@ CREATE TABLE programacion_planta (
   CONSTRAINT fk_prog_maquina      FOREIGN KEY (id_maquina)       REFERENCES maquinaria(id_maquina)            ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT fk_prog_proyecto     FOREIGN KEY (id_proyecto)      REFERENCES proyectos(id_proyecto)            ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT fk_prog_fase         FOREIGN KEY (id_fase_proyecto) REFERENCES fases_proyecto(id_fase_proyecto)  ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Alertas que cada usuario ya marcó como atendidas (las alertas se calculan en
+-- cada consulta; aquí solo se guarda la clave de las que no debe volver a ver)
+CREATE TABLE notificaciones_atendidas (
+  id_usuario   INT         NOT NULL,
+  clave        VARCHAR(60) NOT NULL,
+  atendida_en  DATETIME    DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id_usuario, clave),
+  CONSTRAINT fk_notif_usuario FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Trazabilidad: cada corrección manual de las horas de una actividad

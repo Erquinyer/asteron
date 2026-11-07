@@ -49,6 +49,22 @@ const run = async () => {
   await pool.query(`ALTER TABLE mantenimientos
     MODIFY COLUMN tipo ENUM('preventivo','correctivo','predictivo','calibracion') NOT NULL`)
 
+  if (!await columnaExiste('mantenimientos', 'estado')) {
+    await pool.query(`ALTER TABLE mantenimientos
+      ADD COLUMN estado ENUM('programado','realizado') NOT NULL DEFAULT 'realizado'
+      COMMENT 'programado: fecha es la prevista; realizado: fecha es la de ejecución' AFTER realizado_por`)
+    console.log('✅ mantenimientos: estado')
+  }
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS notificaciones_atendidas (
+    id_usuario   INT         NOT NULL,
+    clave        VARCHAR(60) NOT NULL,
+    atendida_en  DATETIME    DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id_usuario, clave),
+    CONSTRAINT fk_notif_usuario FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE ON UPDATE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`)
+  console.log('✅ Tabla notificaciones_atendidas creada / verificada')
+
   await pool.query(`INSERT IGNORE INTO permisos (nombre, descripcion)
     VALUES ('reportes', 'Reportes de horas, costos, avance y mantenimientos')`)
   const conceder = (modulo, roles) => pool.query(
