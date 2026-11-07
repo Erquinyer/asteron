@@ -8,6 +8,8 @@ import {
 import { useFetch }    from '../hooks/useFetch'
 import { getProyecto, updateFase } from '../api/proyectos.service'
 import { getActividadesFase } from '../api/programacion.service'
+import { canDo } from '../utils/auth'
+import { canAccess } from '../config/permissions'
 import { getUser }     from '../utils/auth'
 import Spinner    from '../components/ui/Spinner'
 import EmptyState from '../components/ui/EmptyState'
@@ -181,6 +183,7 @@ function FaseKanbanCard({ fase, draggable, onDragStart, mostrarItem, abierta, on
               <ChevronRight size={11} className={`transition-transform ${abierta ? 'rotate-90' : ''}`} />
               {abierta ? 'Ocultar actividades' : 'Ver actividades'} ({fase.turnos_vinculados})
             </button>
+            {canAccess(getUser()?.rol, 'programacion') && (
             <button
               type="button"
               draggable={false}
@@ -189,6 +192,7 @@ function FaseKanbanCard({ fase, draggable, onDragStart, mostrarItem, abierta, on
             >
               Ver en Programación →
             </button>
+            )}
           </div>
           {abierta && <ActividadesFase faseId={fase.id_fase_proyecto} indent={false} />}
         </div>
@@ -197,7 +201,7 @@ function FaseKanbanCard({ fase, draggable, onDragStart, mostrarItem, abierta, on
   )
 }
 
-function FasesKanban({ fases, mostrarItem, onDrop, openTurnos, onToggleTurnos }) {
+function FasesKanban({ fases, mostrarItem, onDrop, openTurnos, onToggleTurnos, soloLectura }) {
   const [dragId, setDragId] = useState(null)
 
   const handleDropColumn = (estado) => {
@@ -230,7 +234,7 @@ function FasesKanban({ fases, mostrarItem, onDrop, openTurnos, onToggleTurnos })
                   key={fase.id_fase_proyecto}
                   fase={fase}
                   mostrarItem={mostrarItem}
-                  draggable
+                  draggable={!soloLectura}
                   onDragStart={() => setDragId(fase.id_fase_proyecto)}
                   abierta={openTurnos.has(fase.id_fase_proyecto)}
                   onToggleActividades={onToggleTurnos}
@@ -248,7 +252,7 @@ function FasesKanban({ fases, mostrarItem, onDrop, openTurnos, onToggleTurnos })
 // acabado colapsable por ítem (mismo encabezado que la vista Lista), con un
 // tablero Pendiente/En curso/Completada propio adentro — así con varios
 // ítems no queda todo mezclado en las mismas tres columnas.
-function ItemsKanban({ grupos, openItems, onToggleItem, openTurnos, onToggleTurnos, onDrop }) {
+function ItemsKanban({ grupos, openItems, onToggleItem, openTurnos, onToggleTurnos, onDrop, soloLectura }) {
   return (
     <div className="divide-y divide-border">
       {grupos.map(grupo => {
@@ -294,7 +298,7 @@ function ItemsKanban({ grupos, openItems, onToggleItem, openTurnos, onToggleTurn
             </button>
             {abierto && (
               <FasesKanban fases={grupo.fases} mostrarItem={false} onDrop={onDrop}
-                openTurnos={openTurnos} onToggleTurnos={onToggleTurnos}
+                openTurnos={openTurnos} onToggleTurnos={onToggleTurnos} soloLectura={soloLectura}
               />
             )}
           </div>
@@ -315,6 +319,8 @@ export default function ProyectoDetalle() {
   const [openItems,  setOpenItems]  = useState(new Set())
   const [openTurnos, setOpenTurnos] = useState(new Set())
   const [vista,      setVista]      = useState('lista') // 'lista' | 'kanban'
+  // Sin la acción "editar" el proyecto se consulta en solo lectura (ej. Ejecutivo Comercial).
+  const soloLectura = !canDo('proyectos', 'editar')
 
   const toggleTurnos = (faseId) => setOpenTurnos(prev => {
     const next = new Set(prev)
@@ -446,7 +452,7 @@ export default function ProyectoDetalle() {
     const cfg      = faseCfg[edit.estado] || faseCfg.pendiente
     const locked   = fase.turnos_vinculados > 0
     const turnosAbierto = openTurnos.has(fase.id_fase_proyecto)
-    const dirty    = !locked && isDirty(fase)
+    const dirty    = !locked && !soloLectura && isDirty(fase)
     const isSaving = saving === fase.id_fase_proyecto
     const IconComp = cfg.Icon
 
@@ -480,7 +486,7 @@ export default function ProyectoDetalle() {
           {/* Select de estado */}
           <select
             value={edit.estado}
-            disabled={locked}
+            disabled={locked || soloLectura}
             onChange={e =>
               setEdit(fase.id_fase_proyecto, 'estado', e.target.value)
             }
@@ -489,7 +495,7 @@ export default function ProyectoDetalle() {
               border-0 appearance-none text-center
               focus:outline-none focus:ring-2 focus:ring-primary/25
               transition-colors ${cfg.selectStyle}
-              ${locked ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
+              ${locked || soloLectura ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
           >
             {ESTADOS_FASE.map(s => (
               <option key={s} value={s}>{estadoLabel[s]}</option>
@@ -510,7 +516,7 @@ export default function ProyectoDetalle() {
             <input
               type="number" min={0} max={100}
               value={edit.porcentaje_avance}
-              disabled={locked}
+              disabled={locked || soloLectura}
               onChange={e =>
                 setEdit(
                   fase.id_fase_proyecto,
@@ -570,6 +576,7 @@ export default function ProyectoDetalle() {
                 {turnosAbierto ? 'Ocultar actividades' : 'Ver actividades'}
                 {' '}({fase.turnos_vinculados})
               </button>
+              {canAccess(getUser()?.rol, 'programacion') && (
               <button
                 type="button"
                 onClick={() => navigate(`/programacion?proyecto=${id}`)}
@@ -577,6 +584,7 @@ export default function ProyectoDetalle() {
               >
                 Ver en Programación →
               </button>
+              )}
             </div>
             {turnosAbierto && <ActividadesFase faseId={fase.id_fase_proyecto} />}
           </div>
@@ -635,6 +643,7 @@ export default function ProyectoDetalle() {
               <Package size={11} /> Ver pedido #{proyecto.id_pedido}
             </button>
           )}
+          {canAccess(getUser()?.rol, 'programacion') && (
           <button type="button"
             onClick={() => navigate(`/programacion?proyecto=${id}&tab=en_proceso`)}
             className="inline-flex items-center gap-1.5 font-mono text-[11px]
@@ -643,6 +652,7 @@ export default function ProyectoDetalle() {
           >
             <Clock3 size={11} /> Actividades en curso
           </button>
+          )}
         </div>
       </div>
 
@@ -875,10 +885,11 @@ export default function ProyectoDetalle() {
           mostrarPorItem ? (
             <ItemsKanban grupos={gruposItem} openItems={openItems} onToggleItem={toggleItem}
               openTurnos={openTurnos} onToggleTurnos={toggleTurnos} onDrop={handleKanbanDrop}
+              soloLectura={soloLectura}
             />
           ) : (
             <FasesKanban fases={fasesResto} mostrarItem={false} onDrop={handleKanbanDrop}
-              openTurnos={openTurnos} onToggleTurnos={toggleTurnos}
+              openTurnos={openTurnos} onToggleTurnos={toggleTurnos} soloLectura={soloLectura}
             />
           )
         ) : !mostrarPorItem ? (

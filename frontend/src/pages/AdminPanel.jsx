@@ -488,6 +488,7 @@ function RolModal({ rol, onClose, onSaved }) {
   const [form, setForm] = useState({
     nombre:      rol?.nombre      || '',
     descripcion: rol?.descripcion || '',
+    valor_hora:  rol?.valor_hora ?? '',
   })
   const [saving, setSaving] = useState(false)
   const set = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
@@ -555,6 +556,16 @@ function RolModal({ rol, onClose, onSaved }) {
               placeholder="Describe las responsabilidades de este rol"
               className={`${inputCls} h-auto py-2.5 resize-none`}
             />
+          </div>
+          <div>
+            <label className={labelCls}>Valor hora (COP)</label>
+            <input type="number" min={0} step="any" name="valor_hora" value={form.valor_hora} onChange={set}
+              placeholder="Sin definir"
+              className={inputCls}
+            />
+            <p className="text-[11px] text-faint mt-1">
+              Se usa para calcular el costo de mano de obra en Reportes.
+            </p>
           </div>
         </form>
 

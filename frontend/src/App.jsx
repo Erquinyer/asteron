@@ -23,6 +23,7 @@ import Programacion    from './pages/Programacion'
 import Usuarios        from './pages/Usuarios'
 import Perfil          from './pages/Perfil'
 import AdminPanel      from './pages/AdminPanel'
+import Reportes        from './pages/Reportes'
 
 function App() {
   return (
@@ -80,6 +81,9 @@ function App() {
             } />
             <Route path="/programacion" element={
               <RoleRoute module="programacion"><Programacion /></RoleRoute>
+            } />
+            <Route path="/reportes" element={
+              <RoleRoute module="reportes"><Reportes /></RoleRoute>
             } />
             <Route path="/usuarios" element={
               <RoleRoute module="usuarios"><Usuarios /></RoleRoute>

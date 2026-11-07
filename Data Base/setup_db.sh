@@ -47,6 +47,7 @@ cd "$BACKEND_DIR"
 [ -d node_modules ] || npm install
 node scripts/migrate_admin_role.js
 node scripts/migrate_acciones_modulo.js
+node scripts/migrate_tiempos_reportes.js
 
 echo "== 5/5 Cargando datos de prueba (seed) =="
 npm run seed

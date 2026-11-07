@@ -1,6 +1,7 @@
 import pool from '../config/db.js'
 import { resolveUsuarioPorRol } from '../utils/resolveUsuarioPorRol.js'
 import { esFechaPasada, fechaColumnaISO } from '../utils/dates.js'
+import { tieneAccion } from '../middlewares/requireModulo.js'
 
 const validarFechas = (fecha_inicio, fecha_fin_estimada) => {
   if (esFechaPasada(fecha_inicio)) {
@@ -210,6 +211,9 @@ export const updateFase = async (req, res) => {
     if (fase.id_usuario_asignado && fase.id_usuario_asignado !== req.user.id
       && req.user.rol !== 'Administrador Sistema') {
       return res.status(403).json({ message: 'Solo la persona asignada a esta fase puede actualizarla' })
+    }
+    if (!fase.id_usuario_asignado && !await tieneAccion(req.user.rol, 'proyectos', 'editar')) {
+      return res.status(403).json({ message: 'No tienes permiso para realizar esta acción' })
     }
 
     const [[{ turnos_vinculados }]] = await pool.query(

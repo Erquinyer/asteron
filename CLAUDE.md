@@ -49,6 +49,7 @@ backend/
       fasesProyecto.js            ← crearFasesItem(): generates the per-item fases (Corte→Despacho) for one
                                      detalle_pedido row — used at project creation and when a new item is
                                      added to a pedido that already has a project (pedidos.controller.js update)
+      exportarReporte.js          ← generic Excel (exceljs) and PDF (pdfkit) writers for reportes
       resolveUsuarioPorRol.js
   scripts/seed.js                 ← Full Macromet real data seed
   .env                            ← DB creds, JWT_SECRET, PORT, SMTP creds (Nodemailer)
@@ -78,7 +79,7 @@ frontend/
 5. `PublicRoute` → redirects to `/dashboard` if already authenticated
 6. Password recovery: `POST /api/auth/forgot-password` (sends reset link via Nodemailer) → `POST /api/auth/reset-password` — both public, no JWT required
 7. `RoleRoute` (per-route) → checks `canAccess(user.rol, module)` from `config/permissions.js`; redirects to `/dashboard` if the role lacks access to that module
-8. Backend RBAC gate: `requireAdmin` middleware restricts `/api/admin/*` to `rol === 'Administrador Sistema'`, on top of the global `verifyToken`
+8. Backend RBAC gate: `requireAdmin` middleware restricts `/api/admin/*` to `rol === 'Administrador Sistema'`, on top of the global `verifyToken`. Every other route is gated in its `routes/*.js` with `middlewares/requireModulo.js`: `requireAccion(modulo, accion)` on writes (same `acciones_modulo` data as the frontend's `canDo`) and `requireModulo([...])` on reads — reads take a **list** of modules because pages load catalogs from other modules (e.g. Programación lists usuarios and maquinaria; Pedidos lists clientes), so when a page starts calling a new endpoint, add its module to that route's list. `proyectos.updateFase` checks the action in the controller because the person assigned to a Diseño/Compra fase can manage it without `editar`.
 
 ### Data fetching pattern
 All pages use `useFetch(serviceFn, deps)` hook — returns `{ data, loading, error, refresh }`.
@@ -104,6 +105,7 @@ All pages use `useFetch(serviceFn, deps)` hook — returns `{ data, loading, err
 | `/mantenimientos` | Maintenance history | Create + Delete |
 | `/programacion` | Daily/weekly/monthly plant schedule (list or Kanban view); bulk-load via Excel/CSV import | Create + Edit + Estado + Cancel + Delete + Import |
 | `/usuarios` | Team cards | Create + Edit + Toggle estado |
+| `/reportes` | Horas y costo de mano de obra, avance y mantenimientos, con filtros y exportación a Excel/PDF | — |
 | `/perfil` | Own profile + change password | — |
 | `/admin` | `AdminPanel.jsx` — roles CRUD, per-module permissions, per-module actions (granular RBAC), user role assignment | Full CRUD (roles); restricted to `Administrador Sistema` via `requireAdmin` |
 
@@ -151,6 +153,10 @@ programacion_planta (operario + maquina + proyecto + fase_proyecto + fecha)
 - `detalle_pedido` has no `punto_descargue` column — normalized into `puntos_entrega_detalle` (1FN, same pattern as `direcciones_cliente`): one product can ship to **several** delivery locations, each with its own `cantidad`; the sum across a product's `puntos_entrega_detalle` rows must equal `detalle_pedido.cantidad` (validated in `pedidos.controller.js` — `validarUbicaciones` on create/update, client-side mirror in `Pedidos.jsx` — not enforced at the DB level). `pedidos.controller.js` manages the child rows the same way as `clientes.controller.js` manages `direcciones_cliente` (`guardarUbicaciones`: delete-all-and-reinsert per item). A database created before this change needs `node backend/scripts/migrate_puntos_entrega.js` run once (creates the table, migrates existing `punto_descargue` values into it, drops the column) — the Docker/fresh-install schema (`Data Base/asteron_v2.sql`) already has the new shape.
 - Cross-navigation between Pedidos/Proyectos/Programación uses the same "arrive via query param, consume once, then clear it" convention in three places: `Proyectos.jsx` (`?nuevo=1&id_pedido=X`, from "crear proyecto asociado" in Pedidos), `Pedidos.jsx` (`?ver=X` opens `PedidoDetailModal`, from "Ver pedido" in `ProyectoDetalle.jsx`), and `Programacion.jsx` (`?proyecto=X` pre-filters the list/Kanban to that project exactly — not a text search — from "Ver en Programación" in `ProyectoDetalle.jsx`). Each reads `searchParams` once in a mount-only `useEffect` (`eslint-disable-next-line react-hooks/exhaustive-deps` on the empty dep array) and calls `setSearchParams({}, { replace: true })` to strip the param so it doesn't re-trigger on refresh/back-navigation.
 - `ProyectoDetalle.jsx` shows a cross-item "Resumen por fase" panel (how many products are `completada`/`en_curso`/`pendiente`/`bloqueada` for each fase name) whenever `mostrarPorItem` is true (2+ products) — complements the per-item accordion below it, which already shows each product's own fases but not a same-phase cross-product count.
+
+- **Tiempos** (`programacion_planta.hora_inicio`/`hora_fin`): `updateEstado` sets them server-side with a Node `Date` (not MySQL `NOW()`, to avoid depending on the engine's timezone) and derives `tiempo_real` from them on completion — a client-sent `tiempo_real` is only used if the turno was never started. Corrections go through `PATCH /programacion/:id/tiempos` (`corregirTiempos`): completed turnos only, motivo required, no overlap with the same operario's other turnos, and every change is logged in `correcciones_tiempo`.
+- **Reportes** (`reportes.controller.js`, `utils/exportarReporte.js`): `datosHoras`/`datosAvance`/`datosMantenimientos` feed both the JSON endpoints and `GET /reportes/:tipo/exportar?formato=xlsx|pdf`; exports are declared as `secciones` so both formats share one definition. Cost = real hours × `roles.valor_hora` of the operario's **current** role (no history). `valor_hora` is NULL until Macromet defines it (Administración → Roles); missing values are reported as "sin valor hora", never as a cost of zero. Cost fields are stripped server-side for roles outside `ROLES_COSTOS` (Gerente General, Administrador Sistema).
+- `scripts/accionesPorDefecto.js` holds the default `acciones_modulo` rows and is called from both `migrate_acciones_modulo.js` and `seed.js`: the seed's `DELETE FROM roles` cascades into `acciones_modulo`, which would otherwise leave every non-admin role unable to write. A database created before these modules needs `node backend/scripts/migrate_tiempos_reportes.js` once (idempotent).
 
 ## Notifications system
 `GET /api/notificaciones` returns real-time alerts:

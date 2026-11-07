@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, FolderKanban, ClipboardList, Wrench,
   CalendarDays, Building2, ClipboardCheck, ShieldCheck,
-  PanelLeft, PanelRight, X,
+  PanelLeft, PanelRight, X, BarChart3,
 } from 'lucide-react'
 import { getUser } from '../../utils/auth'
 import { canAccess } from '../../config/permissions'
@@ -18,6 +18,7 @@ const NAV_GROUPS = [
       { to: '/proyectos',    label: 'Proyectos',      icon: FolderKanban,    module: 'proyectos'    },
       { to: '/programacion', label: 'Programación',   icon: CalendarDays,    module: 'programacion' },
       { to: '/pedidos',      label: 'Pedidos',         icon: ClipboardList,   module: 'pedidos'      },
+      { to: '/reportes',     label: 'Reportes',        icon: BarChart3,       module: 'reportes'     },
     ],
   },
   {

@@ -15,6 +15,7 @@ import perfilRoutes           from './routes/perfil.routes.js'
 import mantenimientosRoutes   from './routes/mantenimientos.routes.js'
 import notificacionesRoutes   from './routes/notificaciones.routes.js'
 import adminRoutes             from './routes/admin.routes.js'
+import reportesRoutes          from './routes/reportes.routes.js'
 
 dotenv.config()
 
@@ -50,6 +51,7 @@ app.use('/api/perfil',          verifyToken, perfilRoutes)
 app.use('/api/mantenimientos',  verifyToken, mantenimientosRoutes)
 app.use('/api/notificaciones',  verifyToken, notificacionesRoutes)
 app.use('/api/admin',           verifyToken, adminRoutes)
+app.use('/api/reportes',        verifyToken, reportesRoutes)
 
 // ── Rutas del API que no existen: 404 en JSON (antes respondía una página HTML) ──
 app.use('/api', (_req, res) => {

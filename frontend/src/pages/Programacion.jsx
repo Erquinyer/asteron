@@ -5,7 +5,7 @@ import {
   Play, Check, CheckCircle, Wrench, Pencil, Ban, List, LayoutGrid, Upload,
 } from 'lucide-react'
 import { useFetch }          from '../hooks/useFetch'
-import { getProgramacion, updateEstadoTurno, updateAvanceTurno, deleteProgramacion } from '../api/programacion.service'
+import { getProgramacion, updateEstadoTurno, updateAvanceTurno, deleteProgramacion, corregirTiempos, getCorrecciones } from '../api/programacion.service'
 import { getUsuarios }       from '../api/usuarios.service'
 import { getMaquinaria }     from '../api/maquinaria.service'
 import { getProyectos }      from '../api/proyectos.service'
@@ -160,7 +160,7 @@ function ActivityRow({ item, onClick, onIniciar, onCompletar, onEditar, onCancel
   const verProyecto = (e) => { e.stopPropagation(); navigate(`/proyectos/${item.id_proyecto}`) }
   const isLive    = item.estado === 'en_proceso'
   const isDone    = item.estado === 'completado' || item.estado === 'cancelado'
-  const elapsed   = useTimer(item.updated_at, isLive)
+  const elapsed   = useTimer(item.hora_inicio || item.updated_at, isLive)
 
   const handleCompletar = (e) => {
     e.stopPropagation()
@@ -409,7 +409,118 @@ function ConfirmModal({ item, onConfirm, onCancel }) {
 }
 
 // ── Modal de detalle de actividad ─────────────────────────────────────────────
-function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCancelar, onDelete, onAvance }) {
+// datetime-local trabaja con hora local: nunca toISOString(), que la pasa a UTC.
+const aInputLocal = (valor) => {
+  if (!valor) return ''
+  const d = new Date(valor)
+  const dos = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}T${dos(d.getHours())}:${dos(d.getMinutes())}`
+}
+const fmtFechaHora = (valor) => valor
+  ? new Date(valor).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })
+  : '—'
+
+// Corrección de horas de una actividad completada: exige motivo y deja historial.
+function CorreccionTiempos({ item, onCorregido }) {
+  const [abierto, setAbierto] = useState(false)
+  const [form, setForm] = useState({
+    hora_inicio: aInputLocal(item.hora_inicio), hora_fin: aInputLocal(item.hora_fin), motivo: '',
+  })
+  const [saving, setSaving] = useState(false)
+  const { data: correcciones, refresh } = useFetch(() => getCorrecciones(item.id_programacion), [item.id_programacion])
+  const set = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
+  const puedeCorregir = canManagePlanta() && canDo('programacion', 'editar')
+  const campoCls = `w-full h-9 border border-border rounded-control px-2.5 text-[12.5px]
+    bg-surface text-ink focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary`
+
+  const handleGuardar = async () => {
+    setSaving(true)
+    try {
+      await corregirTiempos(item.id_programacion, {
+        hora_inicio: form.hora_inicio ? new Date(form.hora_inicio).toISOString() : null,
+        hora_fin:    form.hora_fin    ? new Date(form.hora_fin).toISOString()    : null,
+        motivo: form.motivo,
+      })
+      toast.success('Tiempos corregidos')
+      setAbierto(false)
+      setForm(f => ({ ...f, motivo: '' }))
+      refresh()
+      onCorregido()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error al corregir los tiempos')
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="bg-surface2 rounded-[11px] p-4 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="font-mono text-[9px] font-semibold uppercase tracking-[.08em] text-faint mb-1">
+            Horas registradas
+          </p>
+          <p className="font-mono text-[12px] text-ink">
+            {fmtFechaHora(item.hora_inicio)} → {fmtFechaHora(item.hora_fin)}
+          </p>
+        </div>
+        {puedeCorregir && !abierto && (
+          <button type="button" onClick={() => setAbierto(true)}
+            className="shrink-0 text-[12px] font-semibold text-primary hover:underline"
+          >
+            Corregir
+          </button>
+        )}
+      </div>
+
+      {abierto && (
+        <div className="space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <label className="text-[11px] text-muted">Inicio
+              <input type="datetime-local" name="hora_inicio" value={form.hora_inicio} onChange={set} className={campoCls} />
+            </label>
+            <label className="text-[11px] text-muted">Fin
+              <input type="datetime-local" name="hora_fin" value={form.hora_fin} onChange={set} className={campoCls} />
+            </label>
+          </div>
+          <label className="block text-[11px] text-muted">Motivo de la corrección *
+            <input name="motivo" value={form.motivo} onChange={set}
+              placeholder="Ej: el operario olvidó finalizar la actividad" className={campoCls}
+            />
+          </label>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setAbierto(false)}
+              className="flex-1 h-9 border border-border rounded-control text-[12px] text-muted hover:bg-hover transition-colors"
+            >
+              Cancelar
+            </button>
+            <button type="button" onClick={handleGuardar} disabled={saving}
+              className="flex-1 h-9 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white
+                rounded-control text-[12px] font-semibold transition-colors"
+            >
+              {saving ? 'Guardando…' : 'Guardar corrección'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {correcciones?.length > 0 && (
+        <div className="border-t border-border pt-2.5 space-y-1.5">
+          <p className="font-mono text-[9px] font-semibold uppercase tracking-[.08em] text-faint">
+            Historial de correcciones
+          </p>
+          {correcciones.map(c => (
+            <p key={c.id_correccion} className="text-[11.5px] text-muted">
+              <span className="font-medium text-ink">{c.corregido_por_nombre || 'Usuario eliminado'}</span>
+              {' · '}{fmtFechaHora(c.corregido_en)}{' · '}
+              {c.tiempo_real_anterior ?? '—'} → {c.tiempo_real_nuevo} min{' · '}{c.motivo}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCancelar, onDelete, onAvance, onCorregido }) {
   const navigate = useNavigate()
   const [showConfirm,   setShowConfirm]   = useState(false)
   const [loadingAction, setLoadingAction] = useState(false)
@@ -417,7 +528,7 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
   const [savingAvance,  setSavingAvance]  = useState(false)
   const cfg       = estadoConfig[item.estado] || estadoConfig.programado
   const isLive    = item.estado === 'en_proceso'
-  const elapsed   = useTimer(item.updated_at, isLive)
+  const elapsed   = useTimer(item.hora_inicio || item.updated_at, isLive)
   const isDone    = item.estado === 'completado' || item.estado === 'cancelado'
   const avanceDirty = avance !== (item.porcentaje_avance ?? 0)
 
@@ -541,6 +652,10 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
                 )}
               </div>
             </div>
+
+            {item.estado === 'completado' && (
+              <CorreccionTiempos item={item} onCorregido={onCorregido} />
+            )}
 
             {isLive && canManagePlanta() && (
               <div className="bg-surface2 rounded-[11px] p-4">
@@ -1233,6 +1348,7 @@ export default function Programacion() {
           onCancelar={handleCancelar}
           onDelete={handleDelete}
           onAvance={handleAvance}
+          onCorregido={() => { setSelectedItem(null); refresh() }}
         />
       )}
 

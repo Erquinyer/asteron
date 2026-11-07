@@ -186,6 +186,7 @@ Estos scripts crean tablas adicionales y configuran permisos. Ejecútalos **una 
 ```bash
 node scripts/migrate_admin_role.js
 node scripts/migrate_acciones_modulo.js
+node scripts/migrate_tiempos_reportes.js
 ```
 
 ### 3.4 — Cargar datos de prueba (seed)
@@ -407,6 +408,7 @@ docker compose up --build -d
 #    admin, los permisos por módulo y carga los datos de prueba de Macromet
 docker compose exec backend node scripts/migrate_admin_role.js
 docker compose exec backend node scripts/migrate_acciones_modulo.js
+docker compose exec backend node scripts/migrate_tiempos_reportes.js
 docker compose exec backend pnpm seed
 ```
 
@@ -452,7 +454,8 @@ asteron/
 │   └── scripts/
 │       ├── seed.js                      ← datos de prueba Macromet
 │       ├── migrate_admin_role.js        ← migración de rol administrador
-│       └── migrate_acciones_modulo.js   ← migración de permisos por acción
+│       ├── migrate_acciones_modulo.js   ← migración de permisos por acción
+│       └── migrate_tiempos_reportes.js  ← horas de actividad, valor hora y módulo de reportes
 └── frontend/
     └── src/
         ├── api/                ← servicios axios por módulo

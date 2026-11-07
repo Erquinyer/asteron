@@ -466,12 +466,19 @@ export const update = async (req, res) => {
   }
 }
 
+const ESTADOS_TURNO = ['programado', 'en_proceso', 'completado', 'cancelado']
+
+const minutosEntre = (inicio, fin) => Math.round((fin.getTime() - inicio.getTime()) / 60000)
+
 export const updateEstado = async (req, res) => {
   const { estado, tiempo_real } = req.body
   const { id } = req.params
+  if (!ESTADOS_TURNO.includes(estado)) {
+    return res.status(400).json({ message: 'Estado no válido' })
+  }
   try {
     const [[prog]] = await pool.query(
-      'SELECT id_fase_proyecto, id_operario, id_maquina FROM programacion_planta WHERE id_programacion=?', [id])
+      'SELECT id_fase_proyecto, id_operario, id_maquina, hora_inicio FROM programacion_planta WHERE id_programacion=?', [id])
     if (!prog) return res.status(404).json({ message: 'Registro no encontrado' })
 
     if (estado === 'en_proceso') {
@@ -492,14 +499,30 @@ export const updateEstado = async (req, res) => {
       }
     }
 
+    // Las horas las fija el servidor al cambiar de estado. Se usa un Date de Node
+    // (no NOW() de MySQL) para no depender de la zona horaria del motor.
+    const ahora = new Date()
+    const horas = {
+      programado: { hora_inicio: null, hora_fin: null, tiempo_real: null },
+      en_proceso: { hora_inicio: prog.hora_inicio || ahora, hora_fin: null, tiempo_real: null },
+      cancelado:  { hora_inicio: prog.hora_inicio, hora_fin: ahora, tiempo_real: null },
+      // El tiempo real se calcula con las horas registradas; el valor enviado por
+      // el cliente solo se usa si la actividad nunca se inició (no hay hora_inicio).
+      completado: {
+        hora_inicio: prog.hora_inicio,
+        hora_fin: ahora,
+        tiempo_real: prog.hora_inicio ? minutosEntre(prog.hora_inicio, ahora) : (Number(tiempo_real) || null),
+      },
+    }[estado]
+
     const porcentaje_avance = estado === 'completado' ? 100 : undefined
     await pool.query(
       porcentaje_avance !== undefined
-        ? `UPDATE programacion_planta SET estado=?, tiempo_real=?, porcentaje_avance=? WHERE id_programacion=?`
-        : `UPDATE programacion_planta SET estado=?, tiempo_real=? WHERE id_programacion=?`,
+        ? `UPDATE programacion_planta SET estado=?, hora_inicio=?, hora_fin=?, tiempo_real=?, porcentaje_avance=? WHERE id_programacion=?`
+        : `UPDATE programacion_planta SET estado=?, hora_inicio=?, hora_fin=?, tiempo_real=? WHERE id_programacion=?`,
       porcentaje_avance !== undefined
-        ? [estado, tiempo_real || null, porcentaje_avance, id]
-        : [estado, tiempo_real || null, id])
+        ? [estado, horas.hora_inicio, horas.hora_fin, horas.tiempo_real, porcentaje_avance, id]
+        : [estado, horas.hora_inicio, horas.hora_fin, horas.tiempo_real, id])
 
     if (prog.id_fase_proyecto) await recomputeFase(prog.id_fase_proyecto)
 
@@ -507,6 +530,78 @@ export const updateEstado = async (req, res) => {
   } catch (err) {
     console.error('[programacion.updateEstado]', err)
     res.status(500).json({ message: 'Error al actualizar estado' })
+  }
+}
+
+// PATCH /:id/tiempos — corrige las horas de una actividad completada. El motivo es
+// obligatorio y cada corrección queda en correcciones_tiempo con el valor anterior,
+// el nuevo y quién la hizo.
+export const corregirTiempos = async (req, res) => {
+  const { id } = req.params
+  const motivo = req.body.motivo?.trim()
+  const inicio = new Date(req.body.hora_inicio)
+  const fin    = new Date(req.body.hora_fin)
+
+  if (!motivo) return res.status(400).json({ message: 'El motivo de la corrección es requerido' })
+  if (isNaN(inicio) || isNaN(fin)) return res.status(400).json({ message: 'Las horas de inicio y fin son requeridas' })
+  if (fin <= inicio) return res.status(400).json({ message: 'La hora de fin debe ser posterior a la de inicio' })
+  if (fin > new Date()) return res.status(400).json({ message: 'La hora de fin no puede estar en el futuro' })
+
+  const conn = await pool.getConnection()
+  try {
+    const [[prog]] = await conn.query(
+      'SELECT estado, id_operario, hora_inicio, hora_fin, tiempo_real FROM programacion_planta WHERE id_programacion=?', [id])
+    if (!prog) return res.status(404).json({ message: 'Registro no encontrado' })
+    if (prog.estado !== 'completado') {
+      return res.status(400).json({ message: 'Solo se pueden corregir los tiempos de una actividad completada' })
+    }
+
+    if (prog.id_operario) {
+      const [[solapada]] = await conn.query(
+        `SELECT id_programacion FROM programacion_planta
+         WHERE id_operario=? AND id_programacion!=? AND estado!='cancelado'
+           AND hora_inicio IS NOT NULL AND hora_inicio < ? AND COALESCE(hora_fin, ?) > ?
+         LIMIT 1`,
+        [prog.id_operario, id, fin, new Date(), inicio])
+      if (solapada) {
+        return res.status(409).json({ message: 'Esas horas se cruzan con otra actividad del mismo operario' })
+      }
+    }
+
+    const tiempo_real = minutosEntre(inicio, fin)
+    await conn.beginTransaction()
+    await conn.query(
+      'UPDATE programacion_planta SET hora_inicio=?, hora_fin=?, tiempo_real=? WHERE id_programacion=?',
+      [inicio, fin, tiempo_real, id])
+    await conn.query(
+      `INSERT INTO correcciones_tiempo
+       (id_programacion, hora_inicio_anterior, hora_fin_anterior, tiempo_real_anterior,
+        hora_inicio_nueva, hora_fin_nueva, tiempo_real_nuevo, motivo, corregido_por)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
+      [id, prog.hora_inicio, prog.hora_fin, prog.tiempo_real, inicio, fin, tiempo_real, motivo, req.user.id])
+    await conn.commit()
+    res.json({ message: 'Tiempos corregidos', tiempo_real })
+  } catch (err) {
+    await conn.rollback()
+    console.error('[programacion.corregirTiempos]', err)
+    res.status(500).json({ message: 'Error al corregir los tiempos' })
+  } finally {
+    conn.release()
+  }
+}
+
+export const getCorrecciones = async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT c.*, u.nombre AS corregido_por_nombre
+       FROM correcciones_tiempo c
+       LEFT JOIN usuarios u ON u.id_usuario = c.corregido_por
+       WHERE c.id_programacion = ?
+       ORDER BY c.corregido_en DESC`, [req.params.id])
+    res.json(rows)
+  } catch (err) {
+    console.error('[programacion.getCorrecciones]', err)
+    res.status(500).json({ message: 'Error al obtener las correcciones' })
   }
 }
 

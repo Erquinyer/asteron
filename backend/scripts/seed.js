@@ -2,6 +2,8 @@ import dotenv from 'dotenv'
 dotenv.config()
 import bcrypt from 'bcryptjs'
 import pool from '../src/config/db.js'
+import { cargarAccionesPorDefecto } from './accionesPorDefecto.js'
+import { hoyISO } from '../src/utils/dates.js'
 
 const seed = async () => {
   console.log('🌱 Sembrando datos reales de Macromet...\n')
@@ -33,18 +35,19 @@ const seed = async () => {
     ('maquinaria',     'Gestión de inventario de maquinaria'),
     ('mantenimientos', 'Registro y consulta de mantenimientos'),
     ('programacion',   'Programación diaria de planta'),
-    ('usuarios',       'Administración de usuarios del sistema')`)
+    ('usuarios',       'Administración de usuarios del sistema'),
+    ('reportes',       'Reportes de horas, costos, avance y mantenimientos')`)
 
   // Gerente General (1) — acceso total
   await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 1, id_permiso FROM permisos`)
   // Consultor Estrategia (2)
   await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 2, id_permiso FROM permisos WHERE nombre IN ('dashboard','proyectos','pedidos','clientes')`)
   // Coordinador de Producción (3)
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 3, id_permiso FROM permisos WHERE nombre IN ('dashboard','proyectos','pedidos','programacion')`)
+  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 3, id_permiso FROM permisos WHERE nombre IN ('dashboard','proyectos','pedidos','programacion','reportes')`)
   // Coordinador de Planta (4)
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 4, id_permiso FROM permisos WHERE nombre IN ('dashboard','proyectos','maquinaria','mantenimientos','programacion')`)
-  // Ejecutivo Comercial (5)
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 5, id_permiso FROM permisos WHERE nombre IN ('dashboard','pedidos','clientes')`)
+  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 4, id_permiso FROM permisos WHERE nombre IN ('dashboard','proyectos','maquinaria','mantenimientos','programacion','reportes')`)
+  // Ejecutivo Comercial (5) — proyectos en solo lectura (no tiene acciones sobre ese módulo)
+  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 5, id_permiso FROM permisos WHERE nombre IN ('dashboard','proyectos','pedidos','clientes')`)
   // Jefe de Almacén (6)
   await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 6, id_permiso FROM permisos WHERE nombre IN ('dashboard','maquinaria','mantenimientos')`)
   // Administrativo (7)
@@ -53,7 +56,10 @@ const seed = async () => {
   await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 8, id_permiso FROM permisos WHERE nombre IN ('dashboard','programacion')`)
   // Administrador Sistema (9) — acceso total (igual que Gerente General pero rol distinto)
   await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 9, id_permiso FROM permisos`)
-  console.log('✅ Permisos RBAC (8 módulos × 9 roles)')
+  // DELETE FROM roles (arriba) borró en cascada acciones_modulo: sin esto, ningún
+  // rol salvo Administrador Sistema podría crear, editar ni eliminar nada.
+  await cargarAccionesPorDefecto(pool)
+  console.log('✅ Permisos RBAC (9 módulos × 9 roles)')
 
   // ── USUARIOS reales de Macromet ───────────────────
   const hashSuperAdmin = await bcrypt.hash('admin2026', 10)
@@ -366,7 +372,7 @@ const seed = async () => {
   // recomputeFase en programacion.controller.js), el resultado coincida exactamente
   // con el estado/avance ya sembrado arriba para esa fase — así la demo queda
   // consistente con el flujo real de principio a fin.
-  const today = new Date().toISOString().split('T')[0]
+  const today = hoyISO()
   // Proyectos 1 y 2 ahora tienen una fila de fase por ítem (ver arriba) — estos
   // turnos de ejemplo se anclan al primer ítem de cada uno (id_detalle_pedido)
   // para que la sub-consulta siga devolviendo una sola fila en vez de las 2 que
@@ -399,6 +405,12 @@ const seed = async () => {
      today, uid['soldador2@macromet.com.co'],
      today, uid['soldador3@macromet.com.co'],
      today, uid['ayudante@macromet.com.co']])
+  // Las actividades ya iniciadas o completadas deben tener sus horas registradas,
+  // igual que las deja programacion.controller.js updateEstado.
+  await pool.query(`UPDATE programacion_planta SET hora_inicio = updated_at WHERE estado = 'en_proceso'`)
+  await pool.query(`UPDATE programacion_planta
+    SET hora_fin = updated_at, hora_inicio = DATE_SUB(updated_at, INTERVAL tiempo_real MINUTE)
+    WHERE estado = 'completado' AND tiempo_real IS NOT NULL`)
   console.log('✅ Programación de planta (hoy) — con fases vinculadas')
 
   // ── MANTENIMIENTOS ────────────────────────────────

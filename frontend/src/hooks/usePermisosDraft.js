@@ -4,7 +4,7 @@ import { getAcciones, guardarPermisosLote } from '../api/admin.service'
 
 export const MODULE_ORDER = [
   'dashboard', 'proyectos', 'pedidos', 'clientes',
-  'maquinaria', 'mantenimientos', 'programacion', 'usuarios',
+  'maquinaria', 'mantenimientos', 'programacion', 'usuarios', 'reportes',
 ]
 export const MODULE_LABELS = {
   dashboard:      'Dashboard',
@@ -15,6 +15,7 @@ export const MODULE_LABELS = {
   mantenimientos: 'Mantenimientos',
   programacion:   'Programación de Planta',
   usuarios:       'Usuarios',
+  reportes:       'Reportes',
 }
 export const MODULO_ACCIONES = {
   dashboard:      [],
@@ -25,6 +26,7 @@ export const MODULO_ACCIONES = {
   mantenimientos: ['crear', 'eliminar'],
   programacion:   ['crear', 'editar', 'eliminar'],
   usuarios:       ['crear', 'editar', 'eliminar'],
+  reportes:       [],
 }
 export const ACCION_LABELS = { crear: 'Crear', editar: 'Editar', eliminar: 'Eliminar' }
 export const ROL_INMUTABLE = 'Administrador Sistema'

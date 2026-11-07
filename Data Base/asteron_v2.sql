@@ -19,6 +19,7 @@ CREATE TABLE roles (
   id_rol       INT          NOT NULL AUTO_INCREMENT,
   nombre       VARCHAR(100) NOT NULL,
   descripcion  TEXT,
+  valor_hora   DECIMAL(12,2) DEFAULT NULL COMMENT 'Valor hora del cargo en COP para el costo de mano de obra; NULL = sin definir',
   created_at   DATETIME     DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id_rol),
@@ -289,6 +290,8 @@ CREATE TABLE programacion_planta (
   id_fase_proyecto  INT  DEFAULT NULL  COMMENT 'Fase del proyecto en ejecución en esta programación',
   tiempo_estimado   INT  DEFAULT NULL  COMMENT 'En minutos',
   tiempo_real       INT  DEFAULT NULL  COMMENT 'En minutos',
+  hora_inicio       DATETIME DEFAULT NULL COMMENT 'Se fija al iniciar la actividad',
+  hora_fin          DATETIME DEFAULT NULL COMMENT 'Se fija al completar o cancelar la actividad',
   porcentaje_avance TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '% de avance de la actividad (100 al completar)',
   estado            ENUM('programado','en_proceso','completado','cancelado') NOT NULL DEFAULT 'programado',
   observaciones     TEXT,
@@ -301,6 +304,24 @@ CREATE TABLE programacion_planta (
   CONSTRAINT fk_prog_maquina      FOREIGN KEY (id_maquina)       REFERENCES maquinaria(id_maquina)            ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT fk_prog_proyecto     FOREIGN KEY (id_proyecto)      REFERENCES proyectos(id_proyecto)            ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT fk_prog_fase         FOREIGN KEY (id_fase_proyecto) REFERENCES fases_proyecto(id_fase_proyecto)  ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Trazabilidad: cada corrección manual de las horas de una actividad
+CREATE TABLE correcciones_tiempo (
+  id_correccion         INT      NOT NULL AUTO_INCREMENT,
+  id_programacion       INT      NOT NULL,
+  hora_inicio_anterior  DATETIME DEFAULT NULL,
+  hora_fin_anterior     DATETIME DEFAULT NULL,
+  tiempo_real_anterior  INT      DEFAULT NULL,
+  hora_inicio_nueva     DATETIME NOT NULL,
+  hora_fin_nueva        DATETIME NOT NULL,
+  tiempo_real_nuevo     INT      NOT NULL,
+  motivo                TEXT     NOT NULL,
+  corregido_por         INT      DEFAULT NULL,
+  corregido_en          DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id_correccion),
+  CONSTRAINT fk_correccion_prog    FOREIGN KEY (id_programacion) REFERENCES programacion_planta(id_programacion) ON DELETE CASCADE  ON UPDATE CASCADE,
+  CONSTRAINT fk_correccion_usuario FOREIGN KEY (corregido_por)   REFERENCES usuarios(id_usuario)                  ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ============================================================

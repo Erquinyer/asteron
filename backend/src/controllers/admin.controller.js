@@ -22,6 +22,7 @@ const MODULO_ACCIONES = {
   mantenimientos: ['crear', 'eliminar'],
   programacion:   ['crear', 'editar', 'eliminar'],
   usuarios:       ['crear', 'editar', 'eliminar'],
+  reportes:       [],
 }
 
 // GET /api/admin/usuarios
@@ -162,7 +163,7 @@ export const guardarPermisosLote = async (req, res) => {
 export const getRoles = async (_req, res) => {
   try {
     const [rows] = await pool.query(`
-      SELECT r.id_rol, r.nombre, r.descripcion,
+      SELECT r.id_rol, r.nombre, r.descripcion, r.valor_hora,
              COUNT(u.id_usuario) AS total_usuarios
       FROM roles r
       LEFT JOIN usuarios u ON u.id_rol = r.id_rol
@@ -174,16 +175,27 @@ export const getRoles = async (_req, res) => {
   }
 }
 
+// Valor hora del cargo, en COP: vacío significa "sin definir" (el reporte de costos
+// lo muestra como tal en vez de calcular un costo de cero).
+const leerValorHora = (valor) => {
+  if (valor === undefined || valor === null || valor === '') return { valor: null }
+  const numero = Number(valor)
+  if (!Number.isFinite(numero) || numero < 0) return { error: 'El valor hora no es válido' }
+  return { valor: numero }
+}
+
 // POST /api/admin/roles — create role
 export const createRol = async (req, res) => {
   const { nombre, descripcion = '' } = req.body
   if (!nombre?.trim()) return res.status(400).json({ message: 'El nombre es requerido' })
+  const valorHora = leerValorHora(req.body.valor_hora)
+  if (valorHora.error) return res.status(400).json({ message: valorHora.error })
   try {
     const [result] = await pool.query(
-      'INSERT INTO roles (nombre, descripcion) VALUES (?,?)',
-      [nombre.trim(), descripcion.trim()])
+      'INSERT INTO roles (nombre, descripcion, valor_hora) VALUES (?,?,?)',
+      [nombre.trim(), descripcion.trim(), valorHora.valor])
     const [[rol]] = await pool.query(
-      'SELECT id_rol, nombre, descripcion FROM roles WHERE id_rol = ?', [result.insertId])
+      'SELECT id_rol, nombre, descripcion, valor_hora FROM roles WHERE id_rol = ?', [result.insertId])
     res.status(201).json({ ...rol, total_usuarios: 0 })
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'Ya existe un rol con ese nombre' })
@@ -196,15 +208,17 @@ export const updateRol = async (req, res) => {
   const { id } = req.params
   const { nombre, descripcion } = req.body
   if (!nombre?.trim()) return res.status(400).json({ message: 'El nombre es requerido' })
+  const valorHora = leerValorHora(req.body.valor_hora)
+  if (valorHora.error) return res.status(400).json({ message: valorHora.error })
 
   const [[rol]] = await pool.query('SELECT nombre FROM roles WHERE id_rol = ?', [id])
   const editErr = assertRolEditable(rol)
   if (editErr) return res.status(editErr.status).json({ message: editErr.message })
   try {
-    await pool.query('UPDATE roles SET nombre=?, descripcion=? WHERE id_rol=?',
-      [nombre.trim(), descripcion?.trim() ?? '', id])
+    await pool.query('UPDATE roles SET nombre=?, descripcion=?, valor_hora=? WHERE id_rol=?',
+      [nombre.trim(), descripcion?.trim() ?? '', valorHora.valor, id])
     const [[updated]] = await pool.query(
-      `SELECT r.id_rol, r.nombre, r.descripcion, COUNT(u.id_usuario) AS total_usuarios
+      `SELECT r.id_rol, r.nombre, r.descripcion, r.valor_hora, COUNT(u.id_usuario) AS total_usuarios
        FROM roles r LEFT JOIN usuarios u ON u.id_rol = r.id_rol
        WHERE r.id_rol = ? GROUP BY r.id_rol`, [id])
     res.json(updated)

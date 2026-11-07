@@ -18,6 +18,7 @@ const PAGE_META = {
   '/programacion':   { title: 'Programación de Planta',sub: 'MES · Macromet S.A.S.' },
   '/mantenimientos': { title: 'Mantenimientos',        sub: 'MES · Macromet S.A.S.' },
   '/usuarios':       { title: 'Usuarios',              sub: 'MES · Macromet S.A.S.' },
+  '/reportes':       { title: 'Reportes',              sub: 'MES · Macromet S.A.S.' },
   '/perfil':         { title: 'Mi perfil',             sub: 'MES · Macromet S.A.S.' },
   '/admin':          { title: 'Administración',        sub: 'MES · Macromet S.A.S.' },
 }
