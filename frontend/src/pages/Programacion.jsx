@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ChevronLeft, ChevronRight, ChevronDown, Plus, Trash2, X,
   Play, Check, CheckCircle, Wrench, Pencil, Ban, List, LayoutGrid, Upload,
@@ -155,6 +156,8 @@ function StateBadge({ estado }) {
 
 // ── Fila compacta de actividad ────────────────────────────────────────────────
 function ActivityRow({ item, onClick, onIniciar, onCompletar, onEditar, onCancelar, onDelete, showProyecto = false }) {
+  const navigate = useNavigate()
+  const verProyecto = (e) => { e.stopPropagation(); navigate(`/proyectos/${item.id_proyecto}`) }
   const isLive    = item.estado === 'en_proceso'
   const isDone    = item.estado === 'completado' || item.estado === 'cancelado'
   const elapsed   = useTimer(item.updated_at, isLive)
@@ -186,7 +189,13 @@ function ActivityRow({ item, onClick, onIniciar, onCompletar, onEditar, onCancel
         </p>
         {showProyecto && (
           <p className="text-[11px] text-faint truncate mt-0.5">
-            {item.proyecto || 'Sin proyecto'}
+            {item.id_proyecto ? (
+              <button type="button" onClick={verProyecto}
+                className="hover:text-primary hover:underline transition-colors"
+              >
+                {item.proyecto}
+              </button>
+            ) : 'Sin proyecto'}
             {item.cliente ? ` · ${item.cliente}` : ''}
           </p>
         )}
@@ -401,6 +410,7 @@ function ConfirmModal({ item, onConfirm, onCancel }) {
 
 // ── Modal de detalle de actividad ─────────────────────────────────────────────
 function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCancelar, onDelete, onAvance }) {
+  const navigate = useNavigate()
   const [showConfirm,   setShowConfirm]   = useState(false)
   const [loadingAction, setLoadingAction] = useState(false)
   const [avance,        setAvance]        = useState(item.porcentaje_avance ?? 0)
@@ -465,7 +475,13 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
               <p className="font-mono text-[9px] font-semibold uppercase
                 tracking-[.08em] text-faint mb-1">Proyecto</p>
               <p className="text-[18px] font-bold text-ink">
-                {item.proyecto || 'Sin proyecto asignado'}
+                {item.id_proyecto ? (
+                  <button type="button" onClick={() => navigate(`/proyectos/${item.id_proyecto}`)}
+                    className="hover:text-primary hover:underline transition-colors text-left"
+                  >
+                    {item.proyecto}
+                  </button>
+                ) : 'Sin proyecto asignado'}
               </p>
               {item.fase_nombre && (
                 <p className="text-[13px] text-primary mt-1 font-medium">
@@ -661,6 +677,7 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
 const KANBAN_ESTADOS = ['programado', 'en_proceso', 'completado', 'cancelado']
 
 function KanbanCard({ item, draggable, onDragStart, onClick }) {
+  const navigate = useNavigate()
   return (
     <div
       draggable={draggable}
@@ -682,7 +699,14 @@ function KanbanCard({ item, draggable, onDragStart, onClick }) {
         </span>
       )}
       <p className="text-[11px] text-faint truncate mt-1">
-        {item.proyecto || 'Sin proyecto'}
+        {item.id_proyecto ? (
+          <button type="button"
+            onClick={e => { e.stopPropagation(); navigate(`/proyectos/${item.id_proyecto}`) }}
+            className="hover:text-primary hover:underline transition-colors"
+          >
+            {item.proyecto}
+          </button>
+        ) : 'Sin proyecto'}
         {item.cliente ? ` · ${item.cliente}` : ''}
       </p>
       <div className="flex items-center justify-between mt-2">
@@ -755,6 +779,7 @@ function KanbanBoard({ items, onSelect, onDrop }) {
 
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function Programacion() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [fecha,           setFecha]           = useState(toISO(new Date()))
   const [modo,            setModo]            = useState('dia') // 'dia' | 'semana' | 'mes'
   const [modoMenu,        setModoMenu]        = useState(false)
@@ -768,6 +793,20 @@ export default function Programacion() {
   // Grupos abiertos manualmente (por defecto todos colapsados; al buscar se
   // autoexpanden los que tengan coincidencias, sin tocar este estado).
   const [expandedGroups,  setExpandedGroups]  = useState(new Set())
+  // Llega desde ProyectoDetalle.jsx ("Ver en Programación" / "Actividades en
+  // curso") con ?proyecto=X y, opcionalmente, ?tab=en_proceso — mismo patrón
+  // que ?nuevo=1&id_pedido=X en Proyectos.jsx.
+  const [filtroProyectoId, setFiltroProyectoId] = useState(null)
+  useEffect(() => {
+    const proyecto = searchParams.get('proyecto')
+    const tab = searchParams.get('tab')
+    if (proyecto) {
+      setFiltroProyectoId(Number(proyecto))
+      if (['todas', 'en_proceso', 'programado', 'completado'].includes(tab)) setActiveTab(tab)
+      setSearchParams({}, { replace: true })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const toggleGroup = (key) => setExpandedGroups(prev => {
     const next = new Set(prev)
@@ -899,11 +938,16 @@ export default function Programacion() {
       (item.cliente || '').toLowerCase().includes(q) ||
       (item.fase_nombre || '').toLowerCase().includes(q)
   }
+  // Filtro exacto por proyecto (llega por ?proyecto=X desde ProyectoDetalle.jsx),
+  // independiente del buscador de texto — se combinan los dos.
+  const matchesProyectoFiltro = item => !filtroProyectoId || item.id_proyecto === filtroProyectoId
+  const matchesTodo = item => matchesSearch(item) && matchesProyectoFiltro(item)
+
   // Vista Kanban: todas las actividades del periodo (sin filtrar por pestaña de
   // estado, ya que cada estado es una columna), solo respetando el buscador.
-  const kanbanItems = (data || []).filter(matchesSearch)
+  const kanbanItems = (data || []).filter(matchesTodo)
 
-  const filtradasPorSearch = filtradasPorTab.filter(matchesSearch)
+  const filtradasPorSearch = filtradasPorTab.filter(matchesTodo)
 
   // En vista día se agrupa por proyecto; en semana / mes por fecha.
   const agruparPorFecha = modo !== 'dia'
@@ -1035,6 +1079,17 @@ export default function Programacion() {
           onValueChange={setSearch}
           className="flex-1 min-w-[260px] max-w-md"
         />
+
+        {filtroProyectoId && (
+          <button type="button" onClick={() => setFiltroProyectoId(null)}
+            className="h-[38px] flex items-center gap-1.5 px-3 font-mono text-[12px]
+              text-primary border border-primary/30 bg-primary/8 hover:bg-primary/15
+              rounded-control transition-colors"
+          >
+            Proyecto: {proyectos?.find(p => p.id_proyecto === filtroProyectoId)?.nombre || `#${filtroProyectoId}`}
+            <X size={13} />
+          </button>
+        )}
 
         <div className="flex-1" />
 

@@ -116,9 +116,11 @@ export default function SearchableSelect({
                   <button
                     type="button"
                     key={opt.value}
-                    onClick={() => handleSelect(opt)}
+                    disabled={opt.disabled}
+                    onClick={() => !opt.disabled && handleSelect(opt)}
                     className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left
-                      transition-colors hover:bg-hover
+                      transition-colors
+                      ${opt.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-hover'}
                       ${isSelected ? 'bg-primary/5' : ''}`}
                   >
                     <span className="min-w-0">

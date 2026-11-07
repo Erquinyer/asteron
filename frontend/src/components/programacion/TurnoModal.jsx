@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Calendar, X } from 'lucide-react'
 import { getProyecto } from '../../api/proyectos.service'
 import { createProgramacion, updateProgramacion, getOcupados } from '../../api/programacion.service'
+import SearchableSelect from '../ui/SearchableSelect'
 import toast from 'react-hot-toast'
 
 const inputCls = `w-full h-10 border border-border rounded-control px-3 text-[13px]
@@ -114,6 +115,35 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
   )
   const faseSeleccionada = fasesProgramables.find(f => String(f.id_fase_proyecto) === String(form.id_fase_proyecto))
 
+  // Proyectos más recientes primero; búsqueda por # de proyecto, nombre,
+  // cliente o # de pedido asociado (igual que el selector de pedidos en
+  // ProyectoModal) en vez de un <select> plano difícil de recorrer.
+  const proyectoOptions = [...proyectos]
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+    .map(p => ({
+      value: p.id_proyecto,
+      label: `#${p.id_proyecto} · ${p.nombre}`,
+      sublabel: p.id_pedido ? `Pedido #${p.id_pedido} · ${p.cliente || 'Sin cliente'}` : 'Sin pedido asociado',
+    }))
+
+  // Lista aplanada (en vez de <optgroup>) para poder buscar por nombre de
+  // fase, # de fase o ítem/producto; el ítem queda igual de visible en el
+  // sublabel y las fases completadas aparecen pero no se pueden seleccionar.
+  const faseOptions = [
+    ...fasesGenerales.map(f => ({
+      value: f.id_fase_proyecto,
+      label: `${f.fase_nombre}${f.estado === 'completada' ? ' (completada)' : ''}`,
+      sublabel: `Fase general del proyecto · ${f.estado}`,
+      disabled: f.estado === 'completada',
+    })),
+    ...fasesPorItem.flatMap(([item, itemFases]) => itemFases.map(f => ({
+      value: f.id_fase_proyecto,
+      label: `${f.fase_nombre}${f.estado === 'completada' ? ' (completada)' : ''}`,
+      sublabel: `Ítem: ${item} · ${f.estado}`,
+      disabled: f.estado === 'completada',
+    }))),
+  ]
+
   // La fase elegida determina si hace falta equipo y de qué categoría —
   // sin fase (turno "suelto", sin proyecto) se sigue exigiendo como siempre.
   const maquinaRequerida = !faseSeleccionada || faseSeleccionada.categoria_equipo !== null
@@ -163,49 +193,34 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
 
           <div>
             <label className={labelCls}>Proyecto</label>
-            <select name="id_proyecto" value={form.id_proyecto} onChange={set}
-              className={inputCls}
-            >
-              <option value="">Sin proyecto</option>
-              {proyectos.map(p => (
-                <option key={p.id_proyecto} value={p.id_proyecto}>{p.nombre}</option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={form.id_proyecto}
+              onChange={val => setForm(f => ({ ...f, id_proyecto: val }))}
+              options={proyectoOptions}
+              placeholder="Sin proyecto"
+              searchPlaceholder="Buscar proyecto por #, nombre o cliente…"
+              emptyText="Sin proyectos que coincidan"
+              clearable
+            />
           </div>
 
           {form.id_proyecto && (
             <div>
               <label className={labelCls}>Fase del proyecto *</label>
-              <select name="id_fase_proyecto" value={form.id_fase_proyecto}
-                onChange={set} disabled={loadingFases} required className={inputCls}
-              >
-                <option value="">{loadingFases ? 'Cargando fases…' : 'Seleccionar fase'}</option>
-                {/* Solo las fases que se programan por turno (Diseño, Compra y Pintura y
-                    acabados son de control manual y no aparecen aquí — ver requiere_turno).
-                    Cuando el proyecto tiene 2+ productos, cada uno repite el mismo set de
-                    fases — se agrupan por ítem (optgroup) para que quede inequívoco a cuál
-                    producto pertenece cada una, en vez de una lista plana con nombres repetidos. */}
-                {fasesGenerales.map(f => {
-                  const completada = f.estado === 'completada'
-                  return (
-                    <option key={f.id_fase_proyecto} value={f.id_fase_proyecto} disabled={completada}>
-                      {f.fase_nombre}{completada ? ' (completada)' : ` (${f.estado})`}
-                    </option>
-                  )
-                })}
-                {fasesPorItem.map(([item, itemFases]) => (
-                  <optgroup key={item} label={`Ítem: ${item}`}>
-                    {itemFases.map(f => {
-                      const completada = f.estado === 'completada'
-                      return (
-                        <option key={f.id_fase_proyecto} value={f.id_fase_proyecto} disabled={completada}>
-                          {f.fase_nombre}{completada ? ' (completada)' : ` (${f.estado})`}
-                        </option>
-                      )
-                    })}
-                  </optgroup>
-                ))}
-              </select>
+              {/* Solo las fases que se programan por turno (Diseño, Compra y Pintura y
+                  acabados son de control manual y no aparecen aquí — ver requiere_turno).
+                  Cuando el proyecto tiene 2+ productos, cada uno repite el mismo set de
+                  fases — el ítem al que pertenece cada una queda en el sublabel para que
+                  siga siendo inequívoco al buscar en vez de una lista plana de nombres repetidos. */}
+              <SearchableSelect
+                value={form.id_fase_proyecto}
+                onChange={val => setForm(f => ({ ...f, id_fase_proyecto: val }))}
+                options={faseOptions}
+                placeholder={loadingFases ? 'Cargando fases…' : 'Seleccionar fase'}
+                searchPlaceholder="Buscar fase por nombre o ítem…"
+                emptyText="Sin fases que coincidan"
+                disabled={loadingFases}
+              />
               {faseSeleccionada?.item_producto && (
                 <p className="text-[11.5px] font-semibold text-primary mt-1.5">
                   Esta actividad quedará asociada al ítem "{faseSeleccionada.item_producto}".
