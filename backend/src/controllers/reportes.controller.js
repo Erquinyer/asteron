@@ -166,7 +166,7 @@ const datosMantenimientos = async (query) => {
     LEFT JOIN usuarios   u ON u.id_usuario = mt.realizado_por
     WHERE ${filtros.join(' AND ')}
     ORDER BY mt.fecha DESC`, valores)
-  const por_tipo = { preventivo: 0, correctivo: 0, predictivo: 0 }
+  const por_tipo = { preventivo: 0, correctivo: 0, calibracion: 0, predictivo: 0 }
   for (const m of mantenimientos) por_tipo[m.tipo]++
   return { desde, hasta, total: mantenimientos.length, por_tipo, mantenimientos }
 }

@@ -192,6 +192,10 @@ function ReporteAvance({ datos }) {
   )
 }
 
+const TIPO_MANTENIMIENTO = {
+  preventivo: 'Preventivo', correctivo: 'Correctivo', calibracion: 'Calibración', predictivo: 'Predictivo',
+}
+
 function ReporteMantenimientos({ datos }) {
   return (
     <div className="space-y-4">
@@ -199,12 +203,12 @@ function ReporteMantenimientos({ datos }) {
         <Kpi etiqueta="Total" valor={datos.total} />
         <Kpi etiqueta="Preventivos" valor={datos.por_tipo.preventivo} />
         <Kpi etiqueta="Correctivos" valor={datos.por_tipo.correctivo} />
-        <Kpi etiqueta="Predictivos" valor={datos.por_tipo.predictivo} />
+        <Kpi etiqueta="Calibraciones" valor={datos.por_tipo.calibracion} />
       </div>
       <Tabla filas={datos.mantenimientos} claveFila={m => m.id_mantenimiento} columnas={[
         { titulo: 'Fecha', valor: m => <span className="font-mono text-[12px] whitespace-nowrap">{fmtFecha(m.fecha)}</span> },
         { titulo: 'Equipo', valor: m => <span className="font-medium text-ink">{m.maquina_codigo ? `[${m.maquina_codigo}] ` : ''}{m.maquina}</span> },
-        { titulo: 'Tipo', valor: m => <span className="capitalize">{m.tipo}</span> },
+        { titulo: 'Tipo', valor: m => TIPO_MANTENIMIENTO[m.tipo] || m.tipo },
         { titulo: 'Técnico', valor: m => m.tecnico || '—' },
         { titulo: 'Descripción', valor: m => m.descripcion || '—' },
       ]} />
@@ -324,7 +328,7 @@ export default function Reportes() {
               <option value="">Todos</option>
               <option value="preventivo">Preventivo</option>
               <option value="correctivo">Correctivo</option>
-              <option value="predictivo">Predictivo</option>
+              <option value="calibracion">Calibración</option>
             </select>
           </div>
         )}

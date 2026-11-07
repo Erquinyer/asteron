@@ -45,6 +45,10 @@ const run = async () => {
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`)
   console.log('✅ Tabla correcciones_tiempo creada / verificada')
 
+  // La interfaz siempre ofreció "Calibración", pero el ENUM no lo aceptaba y el registro fallaba.
+  await pool.query(`ALTER TABLE mantenimientos
+    MODIFY COLUMN tipo ENUM('preventivo','correctivo','predictivo','calibracion') NOT NULL`)
+
   await pool.query(`INSERT IGNORE INTO permisos (nombre, descripcion)
     VALUES ('reportes', 'Reportes de horas, costos, avance y mantenimientos')`)
   const conceder = (modulo, roles) => pool.query(

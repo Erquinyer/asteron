@@ -183,7 +183,7 @@ CREATE TABLE mantenimientos (
   id_mantenimiento  INT  NOT NULL AUTO_INCREMENT,
   id_maquina        INT  NOT NULL,
   fecha             DATE NOT NULL,
-  tipo              ENUM('preventivo','correctivo','predictivo') NOT NULL,
+  tipo              ENUM('preventivo','correctivo','predictivo','calibracion') NOT NULL,
   descripcion       TEXT,
   realizado_por     INT  DEFAULT NULL,
   created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,

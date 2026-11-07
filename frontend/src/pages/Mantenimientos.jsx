@@ -25,8 +25,14 @@ const tipoCfg = {
 
 const TIPOS = ['todos', 'preventivo', 'correctivo', 'calibracion']
 
+// Con componentes locales: toISOString() pasa a UTC y en la noche propone el día siguiente.
+const hoyLocal = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 const EMPTY = {
-  id_maquina: '', fecha: new Date().toISOString().split('T')[0],
+  id_maquina: '', fecha: hoyLocal(),
   tipo: 'preventivo', descripcion: '',
 }
 
