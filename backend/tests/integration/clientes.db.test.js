@@ -14,6 +14,8 @@ process.env.DB_PORT     = '3308'
 process.env.DB_USER     = 'root'
 process.env.DB_PASSWORD = 'asteron_test'
 process.env.DB_NAME     = 'asteron'
+// No depende de .env (igual que programacion.test.js).
+process.env.JWT_SECRET  = process.env.JWT_SECRET || 'secreto-de-pruebas'
 
 const { default: app }  = await import('../../src/app.js')
 const { default: pool } = await import('../../src/config/db.js')

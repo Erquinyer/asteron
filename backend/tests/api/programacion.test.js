@@ -8,6 +8,10 @@ import jwt from 'jsonwebtoken'
 // con un pool simulado (vi.mock): no necesita Docker ni MySQL real.
 vi.mock('../../src/config/db.js', () => ({ default: { query: vi.fn() } }))
 
+// No depende de .env: en CI no existe, así que el secreto se fija aquí
+// (mismo patrón que auth.controller.test.js y seguridad-y-errores.test.js).
+process.env.JWT_SECRET = 'secreto-de-pruebas'
+
 const { default: app }  = await import('../../src/app.js')
 const { default: pool } = await import('../../src/config/db.js')
 
