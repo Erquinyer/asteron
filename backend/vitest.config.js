@@ -21,9 +21,12 @@ export default defineConfig({
       // - src/config/mailer.js: envío de correos
       // El arranque (server.js) y los scripts de datos (scripts/) están fuera de src/.
       exclude: ['src/config/**'],
-      // Semana 1: línea base 0%. S2: piso 30%. S4: piso 50%. S5: piso 60% (líneas),
-      // fijado en la cobertura real alcanzada, redondeada hacia abajo. El umbral solo puede subir.
-      thresholds: { lines: 61, branches: 56, functions: 64, statements: 60 },
+      // Semana 1: línea base 0%. S2: piso 30%. S4: piso 50%. S5-S6: piso 60%
+      // (líneas), fijado en la cobertura real alcanzada, redondeada hacia
+      // abajo. Sube tras sumar los tests de Programación (API, PR #11):
+      // lines 66,49% · branches 66,29% · functions 67,36% · statements 65,78%.
+      // El umbral solo puede subir.
+      thresholds: { lines: 66, branches: 66, functions: 67, statements: 65 },
     },
   },
 })
