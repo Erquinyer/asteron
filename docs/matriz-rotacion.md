@@ -17,7 +17,7 @@ Reglas:
 |---|---|---|---|---|---|---|---|---|---|
 | @DavidAlejo99 | E2E — login válido | API — utilidades, middlewares y controladores del backend | Front: Login | E2E — seguridad y errores del API | API — dependencias: correo de recuperación y reloj | | | | |
 | @nixonhalejo | E2E — login inválido | | | | | | | | |
-| @_usuario-gabriel_ | E2E | | | | | | | | |
+| @Erquinyer | E2E — crear cliente | | | | | | | | |
 | @_usuario-integrante-4_ | E2E | | | | | | | | |
 
 ## Cobertura semanal
