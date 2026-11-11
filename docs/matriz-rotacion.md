@@ -29,6 +29,7 @@ Anota la cobertura real al cerrar cada semana. El umbral de la semana siguiente 
 | S2 | 88,88 (mide solo `validaciones.js`: falta `include: ['src/**']` para la cifra real) | 30,84 | Backend: 30 (líneas) · Frontend: 30 |
 | S4 | 2,89 real con `include: ['src/**']` (96,87 sin `include`) | 50,74 | Backend: 50 (líneas) · Frontend: pendiente del grupo |
 | S5 | Pendiente del grupo (MSW y componentes) | 61,28 | Backend: 61 (líneas) · Frontend: pendiente del grupo |
+| Hoy (post-merge) | **3,13 real** con `include: ['src/**']` activado (97,64 sin `include` — así estaba quedando inflada) | 66,49 (se suma Programación, PR #11) | Backend: 66 (líneas) · **Frontend: 3 (líneas) — muy por debajo del piso del plan; hace falta sumar tests de componentes (Sidebar, TopBar, páginas, hooks, router guards) para cerrar esto** |
 
 ## Regla de rama
 
