@@ -15,7 +15,7 @@ Reglas:
 
 | Integrante (usuario GitHub) | S1 | S2 | S3 | S4 | S5 | S6 | S7 | S8 | S9 |
 |---|---|---|---|---|---|---|---|---|---|
-| @DavidAlejo99 | E2E — login válido | API — utilidades, middlewares y controladores del backend | Front: Login | | | | | | |
+| @DavidAlejo99 | E2E — login válido | API — utilidades, middlewares y controladores del backend | Front: Login | E2E — seguridad y errores del API | | | | | |
 | @nixonhalejo | E2E — login inválido | | | | | | | | |
 | @_usuario-gabriel_ | E2E | | | | | | | | |
 | @_usuario-integrante-4_ | E2E | | | | | | | | |
@@ -28,6 +28,7 @@ Anota la cobertura real al cerrar cada semana. El umbral de la semana siguiente 
 |---|---|---|---|
 | S1 (línea base) | Pendiente (medir con `include: ['src/**']`) | 0 (sin pruebas; `src/config/` excluido) | Piso S2: 30% en ambos |
 | S2 | 88,88 (mide solo `validaciones.js`: falta `include: ['src/**']` para la cifra real) | 30,84 | Backend: 30 (líneas) · Frontend: 30 |
+| S4 | 2,89 real con `include: ['src/**']` (96,87 sin `include`) | 50,74 | Backend: 50 (líneas) · Frontend: pendiente del grupo |
 
 ## Regla de rama
 
