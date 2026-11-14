@@ -11,16 +11,19 @@ const seed = async () => {
   // ── ROLES reales de Macromet ─────────────────────
   await pool.query(`DELETE FROM roles`)
   await pool.query(`ALTER TABLE roles AUTO_INCREMENT = 1`)
-  await pool.query(`INSERT INTO roles (nombre, descripcion) VALUES
-    ('Gerente General',            'Dirección estratégica de la empresa'),
-    ('Consultor Estrategia',       'Consultoría en estrategia y negocios'),
-    ('Coordinador de Producción',  'Planificación y coordinación del proceso productivo'),
-    ('Coordinador de Planta',      'Supervisión directa de planta y equipos'),
-    ('Ejecutivo Comercial',        'Gestión de clientes, cotizaciones y pedidos'),
-    ('Jefe de Almacén',            'Control de inventarios y materiales'),
-    ('Administrativo',             'Gestión contable y administrativa'),
-    ('Operario',                   'Ejecución de tareas en planta'),
-    ('Administrador Sistema',      'Administrador del sistema con acceso total y gestión de permisos')`)
+  // valor_hora (COP): valores de referencia para la demostración del reporte de costos;
+  // Macromet los ajusta en Administración → Roles. El administrador del sistema no
+  // ejecuta trabajo de planta, por eso queda sin valor hora (NULL).
+  await pool.query(`INSERT INTO roles (nombre, descripcion, valor_hora) VALUES
+    ('Gerente General',            'Dirección estratégica de la empresa',                         65000),
+    ('Consultor Estrategia',       'Consultoría en estrategia y negocios',                        45000),
+    ('Coordinador de Producción',  'Planificación y coordinación del proceso productivo',         28000),
+    ('Coordinador de Planta',      'Supervisión directa de planta y equipos',                     24000),
+    ('Ejecutivo Comercial',        'Gestión de clientes, cotizaciones y pedidos',                 20000),
+    ('Jefe de Almacén',            'Control de inventarios y materiales',                         17000),
+    ('Administrativo',             'Gestión contable y administrativa',                           15000),
+    ('Operario',                   'Ejecución de tareas en planta',                               10500),
+    ('Administrador Sistema',      'Administrador del sistema con acceso total y gestión de permisos', NULL)`)
   console.log('✅ Roles (9 roles: 8 Macromet + Administrador Sistema)')
 
   // ── PERMISOS Y RBAC ───────────────────────────────

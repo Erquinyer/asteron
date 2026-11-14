@@ -5,9 +5,9 @@ import { enviarExcel, enviarPdf } from '../utils/exportarReporte.js'
 // El costo de mano de obra revela lo que gana cada cargo: solo gerencia lo ve,
 // aunque otros roles tengan acceso al módulo de reportes.
 const ROLES_COSTOS = ['Gerente General', 'Administrador Sistema']
-// Los costos quedaron fuera del alcance del MVP: el cálculo se conserva, pero ningún
-// reporte los muestra hasta poner esto en true (y que Macromet defina el valor hora).
-const COSTOS_HABILITADOS = false
+// Costo de mano de obra habilitado (RF-17): horas reales × valor hora del cargo.
+// Un cargo sin valor hora se avisa como costo incompleto en vez de contarlo en cero.
+const COSTOS_HABILITADOS = true
 const puedeVerCostos = (req) => COSTOS_HABILITADOS && ROLES_COSTOS.includes(req.user?.rol)
 
 const FECHA_ISO = /^\d{4}-\d{2}-\d{2}$/
