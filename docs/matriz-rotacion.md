@@ -15,7 +15,7 @@ Reglas:
 
 | Integrante (usuario GitHub) | S1 | S2 | S3 | S4 | S5 | S6 | S7 | S8 | S9 |
 |---|---|---|---|---|---|---|---|---|---|
-| @DavidAlejo99 | E2E — login válido (PR #3, mergeado) | API — utilidades y controladores del backend (PR #4, mergeado) | Front: Login (PR #5, mergeado) | E2E — seguridad y errores del API (PR #6, mergeado) | API — dependencias: correo de recuperación y reloj (PR #7, mergeado) | | | | |
+| @DavidAlejo99 | E2E — login válido (PR #3, mergeado) | API — utilidades y controladores del backend (PR #4, mergeado) | Front: Login (PR #5, mergeado) | E2E — seguridad y errores del API (PR #6, mergeado) | API — dependencias: correo de recuperación y reloj (PR #7, mergeado) | BD — integración de pedidos contra MySQL real (PR #16) | | | |
 | @nixonhalejo | E2E — login inválido (PR #1) | | | | | | | | |
 | @Erquinyer | E2E — crear cliente (PR #12, mergeado) | Front — permisos y sesión (PR #13, mergeado) | | API — reglas de Programación (`validarTurnoInterno`) (PR #15, mergeado) | | BD — integración de clientes contra MySQL real (PR #14, mergeado) | | | |
 
@@ -30,6 +30,7 @@ Anota la cobertura real al cerrar cada semana. El umbral de la semana siguiente 
 | S4 | 2,89 real con `include: ['src/**']` (96,87 sin `include`) | 50,74 | Backend: 50 (líneas) · Frontend: pendiente del grupo |
 | S5 | Pendiente del grupo (MSW y componentes) | 61,28 | Backend: 61 (líneas) · Frontend: pendiente del grupo |
 | Hoy (post-merge) | **3,13 real** con `include: ['src/**']` activado (97,64 sin `include` — así estaba quedando inflada) | 66,49 (se suma Programación, PR #11) | Backend: 66 (líneas) · **Frontend: 3 (líneas) — muy por debajo del piso del plan; hace falta sumar tests de componentes (Sidebar, TopBar, páginas, hooks, router guards) para cerrar esto** |
+| S6 (BD de pedidos, David) | Sin cambios en esta capa | 66,97 (+7 unitarias de las ramas nuevas de `pedidos.controller.js`) | Backend: 66 (líneas) — se mantiene |
 
 ## Regla de rama
 

@@ -71,6 +71,26 @@ describe('pedidos.create', () => {
     expect(conn.release).toHaveBeenCalledOnce()
     expect(res.status).toHaveBeenCalledWith(500)
   })
+
+  // Semana 6: errores que aparecieron al probar contra MySQL real
+  // (tests/integration/pedidos.db.test.js) y antes terminaban en un 500.
+  it.each([
+    ['ER_NO_REFERENCED_ROW_2',             400, 'El cliente seleccionado no existe'],
+    ['ER_DATA_TOO_LONG',                   400, 'Uno de los campos supera la longitud permitida'],
+    ['WARN_DATA_TRUNCATED',                400, 'Uno de los valores del pedido no es válido'],
+    ['ER_TRUNCATED_WRONG_VALUE_FOR_FIELD', 400, 'Uno de los valores del pedido no es válido'],
+  ])('debe traducir el error %s de MySQL a %i con un mensaje claro', async (code, status, message) => {
+    conn.query.mockRejectedValueOnce(Object.assign(new Error(code), { code }))
+    const res = crearRes()
+
+    await create({ body: { id_cliente: 4, items: [] } }, res)
+
+    expect(conn.rollback).toHaveBeenCalledOnce()
+    expect(conn.release).toHaveBeenCalledOnce()
+    expect(res.status).toHaveBeenCalledWith(status)
+    expect(res.json).toHaveBeenCalledWith({ message })
+    expect(console.error).not.toHaveBeenCalled()
+  })
 })
 
 describe('pedidos.update', () => {
@@ -100,6 +120,47 @@ describe('pedidos.update', () => {
 
     expect(res.status).toHaveBeenCalledWith(400)
     expect(pool.getConnection).not.toHaveBeenCalled()
+  })
+
+  it('debe responder 400 sin abrir conexión cuando falta id_cliente (no le borra el cliente al pedido)', async () => {
+    const res = crearRes()
+
+    await update({ params: { id: 30 }, body: { descripcion: 'Sin cliente' } }, res)
+
+    expect(res.status).toHaveBeenCalledWith(400)
+    expect(res.json).toHaveBeenCalledWith({ message: 'El cliente es requerido' })
+    expect(pool.getConnection).not.toHaveBeenCalled()
+  })
+
+  it('debe tratar un id_detalle en texto como el mismo ítem y no insertarlo de nuevo', async () => {
+    conn.query
+      .mockResolvedValueOnce([{ affectedRows: 1 }])     // UPDATE pedido
+      .mockResolvedValueOnce([[{ id_detalle: 8 }]])     // ítems actuales
+      .mockResolvedValue([{}])                          // DELETE y UPDATE del ítem
+    pool.query.mockResolvedValueOnce([[{ id_pedido: 30 }]])
+    const res = crearRes()
+
+    await update({ params: { id: 30 }, body: { id_cliente: 4, items: [{ id_detalle: '8', producto: 'Góndola' }] } }, res)
+
+    const sqls = conn.query.mock.calls.map(([sql]) => sql)
+    expect(sqls.some(sql => sql.includes('INSERT INTO detalle_pedido'))).toBe(false)
+    expect(conn.query.mock.calls[2][1]).toEqual([30, 8])
+    expect(conn.commit).toHaveBeenCalledOnce()
+  })
+
+  it('debe responder 409 y deshacer cuando el ítem quitado ya tiene actividades registradas', async () => {
+    conn.query
+      .mockResolvedValueOnce([{ affectedRows: 1 }])                   // UPDATE pedido
+      .mockResolvedValueOnce([[{ id_detalle: 8 }, { id_detalle: 9 }]]) // ítems actuales
+      .mockRejectedValueOnce(Object.assign(new Error('FK'), { code: 'ER_ROW_IS_REFERENCED_2' }))
+    const res = crearRes()
+
+    await update({ params: { id: 30 }, body: { id_cliente: 4, items: [{ id_detalle: 8, producto: 'Góndola' }] } }, res)
+
+    expect(conn.rollback).toHaveBeenCalledOnce()
+    expect(conn.commit).not.toHaveBeenCalled()
+    expect(res.status).toHaveBeenCalledWith(409)
+    expect(res.json.mock.calls[0][0].message).toContain('actividades registradas')
   })
 
   it('debe conservar el ítem existente, borrar los quitados y crear las fases del ítem nuevo si hay proyecto', async () => {
