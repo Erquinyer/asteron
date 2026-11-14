@@ -2,12 +2,14 @@ import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from '../components/layout/Sidebar'
 import TopBar from '../components/layout/TopBar'
+import AvisoPoliticaDatos from '../components/AvisoPoliticaDatos'
 import { getUser } from '../utils/auth'
 
 const AppLayout = () => {
   const [sidebarOpen, setSidebarOpen]           = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const user = getUser()
+  const [politicaPendiente, setPoliticaPendiente] = useState(!user?.aceptaPoliticaDatos)
 
   return (
     <div className="flex h-screen bg-bg overflow-hidden">
@@ -28,6 +30,8 @@ const AppLayout = () => {
           <Outlet />
         </main>
       </div>
+
+      {politicaPendiente && <AvisoPoliticaDatos onAceptada={() => setPoliticaPendiente(false)} />}
     </div>
   )
 }

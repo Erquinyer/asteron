@@ -181,7 +181,10 @@ const Login = () => {
 
       {/* Footer */}
       <p className="relative z-10 mt-8 text-xs text-slate-600 text-center">
-        © {new Date().getFullYear()} Asteron · Macromet S.A.S.
+        © {new Date().getFullYear()} Asteron · Macromet S.A.S. ·{' '}
+        <Link to="/politica-datos" className="hover:text-slate-400 underline-offset-2 hover:underline">
+          Política de tratamiento de datos
+        </Link>
       </p>
 
     </div>

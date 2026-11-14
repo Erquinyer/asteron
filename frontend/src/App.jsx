@@ -11,6 +11,7 @@ import ProtectedRoute from './router/ProtectedRoute'
 import RoleRoute      from './router/RoleRoute'
 import PublicRoute    from './router/PublicRoute'
 import NotFound       from './pages/NotFound'
+import PoliticaDatos  from './pages/PoliticaDatos'
 
 import Dashboard       from './pages/Dashboard'
 import Proyectos       from './pages/Proyectos'
@@ -42,6 +43,7 @@ function App() {
       <Routes>
         {/* Landing pública — siempre visible */}
         <Route path="/" element={<Landing />} />
+        <Route path="/politica-datos" element={<PoliticaDatos />} />
 
         {/* Rutas públicas — redirigen al dashboard si ya hay sesión */}
         <Route element={<PublicRoute />}>
