@@ -25,8 +25,10 @@ export default defineConfig({
       // (líneas), fijado en la cobertura real alcanzada, redondeada hacia
       // abajo. Sube tras sumar los tests de Programación (API, PR #11):
       // lines 66,49% · branches 66,29% · functions 67,36% · statements 65,78%.
+      // Sube de nuevo con las pruebas de Reportes, Dashboard, auditoría, errores y
+      // documentación: lines 76,09% · branches 67,57% · functions 79,26% · statements 74,58%.
       // El umbral solo puede subir.
-      thresholds: { lines: 66, branches: 66, functions: 67, statements: 65 },
+      thresholds: { lines: 76, branches: 67, functions: 79, statements: 74 },
     },
   },
 })
