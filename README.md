@@ -188,6 +188,7 @@ node scripts/migrate_admin_role.js
 node scripts/migrate_acciones_modulo.js
 node scripts/migrate_tiempos_reportes.js
 node scripts/migrate_politica_datos.js
+node scripts/migrate_bitacora.js
 ```
 
 ### 3.4 — Cargar datos de prueba (seed)
@@ -411,6 +412,7 @@ docker compose exec backend node scripts/migrate_admin_role.js
 docker compose exec backend node scripts/migrate_acciones_modulo.js
 docker compose exec backend node scripts/migrate_tiempos_reportes.js
 docker compose exec backend node scripts/migrate_politica_datos.js
+docker compose exec backend node scripts/migrate_bitacora.js
 docker compose exec backend pnpm seed
 ```
 
@@ -436,6 +438,21 @@ docker compose down        # detener (los datos de MySQL persisten en el volumen
 > **Nota de la base de datos:** el esquema de `Data Base/asteron_v2.sql` solo se importa la **primera vez** que se crea el volumen `db_data` (es el comportamiento estándar de la imagen oficial de MySQL — si el volumen ya tiene datos, lo ignora). Para empezar desde cero: `docker compose down -v` (borra el volumen) y vuelve a correr los 3 pasos de "Primera vez".
 >
 > **No probado en este equipo:** Docker no está instalado en esta máquina, así que estos archivos no se construyeron/ejecutaron realmente aquí — están escritos con cuidado pero conviene validar el primer `docker compose up --build` juntos por si aparece algo que ajustar (versión de alguna imagen base, alguna dependencia nativa, etc.).
+
+---
+
+## Documentación de la API (Swagger)
+
+Con el backend corriendo, abre **http://localhost:3000/api/docs**. Para probar una ruta protegida:
+
+1. Ejecuta `POST /auth/login` con un usuario de prueba y copia el `token` de la respuesta.
+2. Pulsa **Authorize**, pega el token y confirma.
+
+La especificación está en `backend/src/docs/openapi.js` (en JSON: `/api/docs.json`). Si agregas o quitas una ruta en `routes/*.js`, actualízala ahí y comprueba con:
+
+```bash
+cd backend && pnpm verificar-openapi
+```
 
 ---
 

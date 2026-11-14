@@ -1,6 +1,7 @@
 import crypto   from 'crypto'
 import bcrypt   from 'bcryptjs'
 import pool     from '../config/db.js'
+import { fotoUsuario, registrarBitacora } from '../utils/bitacora.js'
 import { notificador } from '../services/notificador.js'
 
 const EXPIRES_MINUTES = 30
@@ -98,6 +99,11 @@ export const resetPassword = async (req, res) => {
       'UPDATE usuarios SET password_hash = ? WHERE id_usuario = ?',
       [hash, registro.id_usuario]
     )
+    await registrarBitacora({
+      entidad: 'usuario', id_registro: registro.id_usuario, accion: 'contrasena',
+      antes: await fotoUsuario(registro.id_usuario), autor: registro.id_usuario,
+      detalle: 'Recuperada con el enlace enviado al correo',
+    })
 
     await pool.query(
       'UPDATE password_reset_tokens SET usado = 1 WHERE id = ?',

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Shield, Users, Tag, Lock, AlertCircle,
-  Plus, Pencil, Trash2, X, Eye, EyeOff, Search, UserCheck, UserX,
+  Plus, Pencil, Trash2, X, Eye, EyeOff, Search, UserCheck, UserX, History,
 } from 'lucide-react'
 import {
   getUsuariosAdmin, createUsuarioAdmin, updateUsuarioAdmin,
@@ -15,6 +15,7 @@ import { getAcciones } from '../api/admin.service'
 import RoleSidebar from '../components/admin/RoleSidebar'
 import PermissionsMatrix from '../components/admin/PermissionsMatrix'
 import PermisosDraftBar from '../components/admin/PermisosDraftBar'
+import BitacoraAuditoria from '../components/admin/BitacoraAuditoria'
 
 // ─── constantes ───────────────────────────────────────────────────
 const AVATAR_COLORS = [
@@ -785,6 +786,7 @@ const TABS = [
   { id: 'permisos', label: 'Permisos', icon: Shield },
   { id: 'usuarios', label: 'Usuarios', icon: Users  },
   { id: 'roles',    label: 'Roles',    icon: Tag    },
+  { id: 'bitacora', label: 'Bitácora', icon: History },
 ]
 
 export default function AdminPanel() {
@@ -812,7 +814,7 @@ export default function AdminPanel() {
         <div>
           <h1 className="text-[20px] font-semibold text-ink">Panel de Administración</h1>
           <p className="font-mono text-[11px] text-faint mt-0.5 uppercase tracking-[.06em]">
-            Permisos · Usuarios · Roles
+            Permisos · Usuarios · Roles · Bitácora
           </p>
         </div>
         <div className="ml-auto flex items-center gap-1.5 font-mono text-[11px]
@@ -824,13 +826,13 @@ export default function AdminPanel() {
       </div>
 
       {/* Tab switcher */}
-      <div className="flex gap-1 p-1 bg-surface2 border border-border rounded-[12px] w-fit">
+      <div className="flex gap-1 p-1 bg-surface2 border border-border rounded-[12px] w-fit max-w-full overflow-x-auto">
         {TABS.map(t => {
           const Icon = t.icon
           const isActive = tab === t.id
           return (
             <button key={t.id} onClick={() => changeTab(t.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-[9px]
+              className={`flex items-center gap-2 px-4 py-2 rounded-[9px] shrink-0 whitespace-nowrap
                 text-[13px] font-medium transition-all
                 ${isActive
                   ? 'bg-surface text-ink shadow-sm border border-border'
@@ -856,6 +858,7 @@ export default function AdminPanel() {
         )}
         {tab === 'usuarios' && <GestionUsuarios onNavigateToRole={navigateToRole} />}
         {tab === 'roles'    && <GestionRoles onNavigateToRole={navigateToRole} />}
+        {tab === 'bitacora' && <BitacoraAuditoria />}
       </div>
     </div>
   )

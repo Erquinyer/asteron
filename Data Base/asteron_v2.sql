@@ -337,6 +337,23 @@ CREATE TABLE correcciones_tiempo (
   CONSTRAINT fk_correccion_usuario FOREIGN KEY (corregido_por)   REFERENCES usuarios(id_usuario)                  ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- Auditoría: cambios en usuarios y maquinaria (quién, cuándo, antes y después)
+CREATE TABLE bitacora_auditoria (
+  id_bitacora      INT          NOT NULL AUTO_INCREMENT,
+  entidad          ENUM('usuario','maquinaria') NOT NULL,
+  id_registro      INT          NOT NULL COMMENT 'Sin FK a propósito: el historial de un equipo eliminado debe seguir consultable',
+  nombre_registro  VARCHAR(150) DEFAULT NULL COMMENT 'Nombre al momento del cambio, por si el registro se elimina',
+  accion           ENUM('crear','editar','estado','contrasena','eliminar') NOT NULL,
+  cambios          JSON         NOT NULL COMMENT '{ campo: { antes, despues } } — solo los campos que cambiaron',
+  detalle          VARCHAR(255) DEFAULT NULL,
+  id_autor         INT          DEFAULT NULL,
+  fecha            DATETIME     NOT NULL,
+  PRIMARY KEY (id_bitacora),
+  KEY idx_bitacora_registro (entidad, id_registro),
+  KEY idx_bitacora_fecha (fecha),
+  CONSTRAINT fk_bitacora_autor FOREIGN KEY (id_autor) REFERENCES usuarios(id_usuario) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- ============================================================
 -- BLOQUE 10: VISTA DE MAQUINARIA (para reportes y listados)
 -- ============================================================

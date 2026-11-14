@@ -1,6 +1,7 @@
 import pool   from '../config/db.js'
 import bcrypt  from 'bcryptjs'
 import { POLITICA_DATOS_VERSION } from '../utils/politicaDatos.js'
+import { fotoUsuario, registrarBitacora } from '../utils/bitacora.js'
 
 export const getPerfil = async (req, res) => {
   try {
@@ -23,8 +24,13 @@ export const updatePerfil = async (req, res) => {
   const { nombre } = req.body
   if (!nombre?.trim()) return res.status(400).json({ message: 'El nombre es requerido' })
   try {
+    const antes = await fotoUsuario(req.user.id)
     await pool.query(
       `UPDATE usuarios SET nombre = ? WHERE id_usuario = ?`, [nombre.trim(), req.user.id])
+    await registrarBitacora({
+      entidad: 'usuario', id_registro: req.user.id, accion: 'editar',
+      antes, despues: await fotoUsuario(req.user.id), autor: req.user.id, detalle: 'Desde su perfil',
+    })
     const [[user]] = await pool.query(
       `SELECT u.id_usuario, u.nombre, u.correo, r.nombre AS rol
        FROM usuarios u LEFT JOIN roles r ON u.id_rol = r.id_rol
@@ -51,6 +57,10 @@ export const changePassword = async (req, res) => {
 
     const hash = await bcrypt.hash(nueva, 10)
     await pool.query('UPDATE usuarios SET password_hash = ? WHERE id_usuario = ?', [hash, req.user.id])
+    await registrarBitacora({
+      entidad: 'usuario', id_registro: req.user.id, accion: 'contrasena',
+      antes: await fotoUsuario(req.user.id), autor: req.user.id, detalle: 'Cambiada por el usuario desde su perfil',
+    })
     res.json({ message: 'Contraseña actualizada correctamente' })
   } catch (err) {
     console.error('[perfil.changePassword]', err)

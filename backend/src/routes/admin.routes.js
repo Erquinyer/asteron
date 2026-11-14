@@ -4,6 +4,7 @@ import {
   getAcciones, guardarPermisosLote,
   getUsuariosAdmin, updateUsuarioRol,
   getRoles, createRol, updateRol, deleteRol,
+  getBitacora,
 } from '../controllers/admin.controller.js'
 import {
   create as createUsuario,
@@ -16,6 +17,7 @@ router.use(requireAdmin)
 
 // Permissions — lectura de matriz + guardado en lote
 router.get('/acciones',               getAcciones)
+router.get('/bitacora',               getBitacora)
 router.put('/permisos/lote',          guardarPermisosLote)
 
 // Roles CRUD

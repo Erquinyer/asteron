@@ -16,3 +16,6 @@ export const createUsuarioAdmin   = (data)       => api.post('/admin/usuarios', 
 export const updateUsuarioAdmin   = (id, data)   => api.put(`/admin/usuarios/${id}`, data)
 export const updateUsuarioRol     = (id, id_rol) => api.patch(`/admin/usuarios/${id}/rol`, { id_rol })
 export const toggleUsuarioAdmin   = (id)         => api.patch(`/admin/usuarios/${id}/toggle`)
+
+// Audit log
+export const getBitacora          = (params)     => api.get('/admin/bitacora', { params })

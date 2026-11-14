@@ -12,7 +12,8 @@
     "dev": "nodemon server.js",
     "start": "node server.js",
     "seed": "node scripts/seed.js",
-    "prueba-carga": "node scripts/pruebaCarga.js"
+    "prueba-carga": "node scripts/pruebaCarga.js",
+    "verificar-openapi": "node scripts/verificarOpenapi.js"
   },
   "keywords": [],
   "author": "",
@@ -27,7 +28,9 @@
     "multer": "2.4.0",
     "mysql2": "3.24.5",
     "nodemailer": "10.0.16",
-    "pdfkit": "0.20.2"
+    "pdfkit": "0.20.2",
+    "swagger-ui-dist": "5.34.0",
+    "swagger-ui-express": "5.0.1"
   },
   "devDependencies": {
     "nodemon": "3.1.14"

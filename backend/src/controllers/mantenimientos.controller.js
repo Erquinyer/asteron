@@ -1,5 +1,6 @@
 import pool from '../config/db.js'
 import { esFechaPasada, hoyISO } from '../utils/dates.js'
+import { fotoMaquina, registrarBitacora } from '../utils/bitacora.js'
 
 export const getByMaquina = async (req, res) => {
   try {
@@ -33,6 +34,20 @@ export const getAll = async (_req, res) => {
   }
 }
 
+// Un correctivo realizado deja la máquina en mantenimiento; el cambio de estado
+// queda en la bitácora con el mantenimiento que lo causó
+const detenerPorCorrectivo = async (id_maquina, id_mantenimiento, autor) => {
+  const antes = await fotoMaquina(id_maquina)
+  await pool.query(`UPDATE maquinaria SET estado = 'en_mantenimiento' WHERE id_maquina = ?`, [id_maquina])
+  if (antes && antes.estado !== 'en_mantenimiento') {
+    await registrarBitacora({
+      entidad: 'maquinaria', id_registro: Number(id_maquina), accion: 'estado',
+      antes, despues: await fotoMaquina(id_maquina), autor,
+      detalle: `Mantenimiento correctivo #${id_mantenimiento}`,
+    })
+  }
+}
+
 export const create = async (req, res) => {
   const { id_maquina, fecha, tipo, descripcion } = req.body
   const programado = req.body.estado === 'programado'
@@ -58,8 +73,7 @@ export const create = async (req, res) => {
 
     // Actualizar estado de la máquina si es correctivo (uno programado aún no la detiene)
     if (tipo === 'correctivo' && !programado) {
-      await pool.query(
-        `UPDATE maquinaria SET estado = 'en_mantenimiento' WHERE id_maquina = ?`, [id_maquina])
+      await detenerPorCorrectivo(id_maquina, result.insertId, req.user.id)
     }
 
     res.status(201).json(row)
@@ -85,8 +99,7 @@ export const realizar = async (req, res) => {
        WHERE id_mantenimiento = ?`,
       [hoyISO(), req.user.id, req.body.descripcion?.trim() || mantenimiento.descripcion, id])
     if (mantenimiento.tipo === 'correctivo') {
-      await pool.query(
-        `UPDATE maquinaria SET estado = 'en_mantenimiento' WHERE id_maquina = ?`, [mantenimiento.id_maquina])
+      await detenerPorCorrectivo(mantenimiento.id_maquina, Number(id), req.user.id)
     }
     res.json({ message: 'Mantenimiento realizado' })
   } catch (err) {

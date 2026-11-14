@@ -1,4 +1,5 @@
 import pool from '../config/db.js'
+import { fotoUsuario, registrarBitacora } from '../utils/bitacora.js'
 
 // Rol protegido: no se puede editar, eliminar ni reasignar desde ningún endpoint de admin
 export const ROL_INMUTABLE = 'Administrador Sistema'
@@ -262,7 +263,12 @@ export const updateUsuarioRol = async (req, res) => {
   }
 
   try {
+    const antes = await fotoUsuario(id)
     await pool.query('UPDATE usuarios SET id_rol = ? WHERE id_usuario = ?', [id_rol, id])
+    await registrarBitacora({
+      entidad: 'usuario', id_registro: Number(id), accion: 'editar',
+      antes, despues: await fotoUsuario(id), autor: req.user.id,
+    })
     const [[updated]] = await pool.query(`
       SELECT u.id_usuario, u.nombre, u.correo, u.id_rol, r.nombre AS rol
       FROM usuarios u LEFT JOIN roles r ON u.id_rol = r.id_rol
@@ -270,5 +276,38 @@ export const updateUsuarioRol = async (req, res) => {
     res.json(updated)
   } catch (err) {
     res.status(500).json({ message: 'Error al actualizar rol' })
+  }
+}
+
+// GET /api/admin/bitacora — historial de cambios en usuarios y maquinaria (RNF-22)
+// Filtros opcionales: entidad, id_registro, desde, hasta (YYYY-MM-DD). Devuelve los 300 más recientes.
+export const getBitacora = async (req, res) => {
+  const { entidad, id_registro, desde, hasta } = req.query
+  const filtros = []
+  const valores = []
+  if (entidad) {
+    if (!['usuario', 'maquinaria'].includes(entidad)) {
+      return res.status(400).json({ message: 'entidad debe ser usuario o maquinaria' })
+    }
+    filtros.push('b.entidad = ?'); valores.push(entidad)
+  }
+  if (id_registro) { filtros.push('b.id_registro = ?'); valores.push(Number(id_registro)) }
+  // Rango por día completo: hasta incluye todo ese día
+  if (desde) { filtros.push('b.fecha >= ?');                         valores.push(desde) }
+  if (hasta) { filtros.push('b.fecha < DATE_ADD(?, INTERVAL 1 DAY)'); valores.push(hasta) }
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT b.id_bitacora, b.entidad, b.id_registro, b.nombre_registro, b.accion,
+              b.cambios, b.detalle, b.fecha, a.nombre AS autor
+       FROM bitacora_auditoria b
+       LEFT JOIN usuarios a ON a.id_usuario = b.id_autor
+       ${filtros.length ? `WHERE ${filtros.join(' AND ')}` : ''}
+       ORDER BY b.fecha DESC, b.id_bitacora DESC
+       LIMIT 300`, valores)
+    res.json(rows)
+  } catch (err) {
+    console.error('[admin.getBitacora]', err)
+    res.status(500).json({ message: 'Error al obtener la bitácora' })
   }
 }
