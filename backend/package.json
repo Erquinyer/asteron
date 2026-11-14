@@ -15,7 +15,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:integration": "vitest run --config vitest.integration.config.js"
+    "test:integration": "vitest run --config vitest.integration.config.js",
+    "test:carga": "node scripts/carga/prueba-carga.js",
+    "respaldo": "bash scripts/respaldo/respaldar.sh"
   },
   "keywords": [],
   "author": "",
@@ -35,6 +37,7 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "5.0.5",
+    "autocannon": "8.0.0",
     "nodemon": "3.1.14",
     "supertest": "7.3.1",
     "vitest": "5.0.5"
