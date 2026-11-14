@@ -8,6 +8,18 @@ import { hoyISO } from '../src/utils/dates.js'
 const seed = async () => {
   console.log('🌱 Sembrando datos reales de Macromet...\n')
 
+  // ── Limpieza previa, de las tablas hijas a las padres ──
+  // Sin esto, volver a sembrar una base que ya tiene proyectos falla al borrar
+  // fases_estandar: fases_proyecto la referencia con ON DELETE RESTRICT.
+  for (const tabla of ['correcciones_tiempo', 'notificaciones_atendidas', 'historial_fases',
+    'programacion_planta', 'actividades', 'fases_proyecto', 'proyectos']) {
+    try {
+      await pool.query(`DELETE FROM ${tabla}`)
+    } catch (err) {
+      if (err.code !== 'ER_NO_SUCH_TABLE') throw err // base anterior a la migración: se omite
+    }
+  }
+
   // ── ROLES reales de Macromet ─────────────────────
   await pool.query(`DELETE FROM roles`)
   await pool.query(`ALTER TABLE roles AUTO_INCREMENT = 1`)
