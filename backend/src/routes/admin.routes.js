@@ -10,6 +10,7 @@ import {
   update as updateUsuario,
   toggleEstado as toggleUsuario,
 } from '../controllers/usuarios.controller.js'
+import { listarAuditoria } from '../utils/auditoria.js'
 
 const router = Router()
 router.use(requireAdmin)
@@ -30,5 +31,8 @@ router.post('/usuarios',              createUsuario)
 router.put('/usuarios/:id',           updateUsuario)
 router.patch('/usuarios/:id/rol',     updateUsuarioRol)
 router.patch('/usuarios/:id/toggle',  toggleUsuario)
+
+// Bitácora de auditoría (RNF-22)
+router.get('/auditoria',              listarAuditoria)
 
 export default router

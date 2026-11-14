@@ -1,5 +1,6 @@
 import pool from '../config/db.js'
 import { responderError } from '../utils/errores.js'
+import { registrarAuditoria } from '../utils/auditoria.js'
 
 const BASE = `
   SELECT m.*,
@@ -49,6 +50,7 @@ export const create = async (req, res) => {
        marca || null, referencia || null, serial || null,
        descripcion || null, ubicacion || null, estado || 'activa', id_responsable || null])
     const [rows] = await pool.query(`${BASE} WHERE m.id_maquina = ? GROUP BY m.id_maquina`, [result.insertId])
+    registrarAuditoria(req, { modulo: 'maquinaria', accion: 'crear', idRegistro: result.insertId, detalle: req.body })
     res.status(201).json(rows[0])
   } catch (err) {
     responderError(res, err, { contexto: 'maquinaria.create', mensaje: 'Error al crear equipo' })
@@ -66,6 +68,7 @@ export const update = async (req, res) => {
        descripcion || null, ubicacion || null, estado || 'activa', id_responsable || null, req.params.id])
     if (result.affectedRows === 0) return res.status(404).json({ message: 'Equipo no encontrado' })
     const [rows] = await pool.query(`${BASE} WHERE m.id_maquina = ? GROUP BY m.id_maquina`, [req.params.id])
+    registrarAuditoria(req, { modulo: 'maquinaria', accion: 'editar', idRegistro: req.params.id, detalle: req.body })
     res.json(rows[0])
   } catch (err) {
     responderError(res, err, { contexto: 'maquinaria.update', mensaje: 'Error al actualizar equipo' })
@@ -76,6 +79,7 @@ export const remove = async (req, res) => {
   try {
     const [result] = await pool.query('DELETE FROM maquinaria WHERE id_maquina=?', [req.params.id])
     if (result.affectedRows === 0) return res.status(404).json({ message: 'Equipo no encontrado' })
+    registrarAuditoria(req, { modulo: 'maquinaria', accion: 'eliminar', idRegistro: req.params.id })
     res.json({ message: 'Equipo eliminado' })
   } catch (err) {
     responderError(res, err, { contexto: 'maquinaria.remove', mensaje: 'Error al eliminar equipo' })

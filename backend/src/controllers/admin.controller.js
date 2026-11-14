@@ -1,5 +1,6 @@
 import pool from '../config/db.js'
 import { responderError } from '../utils/errores.js'
+import { registrarAuditoria } from '../utils/auditoria.js'
 
 // Rol protegido: no se puede editar, eliminar ni reasignar desde ningún endpoint de admin
 export const ROL_INMUTABLE = 'Administrador Sistema'
@@ -149,6 +150,7 @@ export const guardarPermisosLote = async (req, res) => {
     }
 
     await conn.commit()
+    registrarAuditoria(req, { modulo: 'permisos', accion: 'editar', detalle: { cambios } })
     res.json({ message: 'Permisos actualizados', cambios: cambios.length })
   } catch (err) {
     await conn.rollback()
@@ -195,6 +197,8 @@ export const createRol = async (req, res) => {
       [nombre.trim(), descripcion.trim(), valorHora.valor])
     const [[rol]] = await pool.query(
       'SELECT id_rol, nombre, descripcion, valor_hora FROM roles WHERE id_rol = ?', [result.insertId])
+    registrarAuditoria(req, { modulo: 'roles', accion: 'crear', idRegistro: result.insertId,
+      detalle: { nombre: nombre.trim(), descripcion: descripcion.trim(), valor_hora: valorHora.valor } })
     res.status(201).json({ ...rol, total_usuarios: 0 })
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'Ya existe un rol con ese nombre' })
@@ -220,6 +224,8 @@ export const updateRol = async (req, res) => {
       `SELECT r.id_rol, r.nombre, r.descripcion, r.valor_hora, COUNT(u.id_usuario) AS total_usuarios
        FROM roles r LEFT JOIN usuarios u ON u.id_rol = r.id_rol
        WHERE r.id_rol = ? GROUP BY r.id_rol`, [id])
+    registrarAuditoria(req, { modulo: 'roles', accion: 'editar', idRegistro: id,
+      detalle: { nombre: nombre.trim(), descripcion, valor_hora: valorHora.valor } })
     res.json(updated)
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'Ya existe un rol con ese nombre' })
@@ -240,6 +246,7 @@ export const deleteRol = async (req, res) => {
   }
   try {
     await pool.query('DELETE FROM roles WHERE id_rol = ?', [id])
+    registrarAuditoria(req, { modulo: 'roles', accion: 'eliminar', idRegistro: id, detalle: { nombre: rol.nombre } })
     res.json({ message: 'Rol eliminado' })
   } catch (err) {
     responderError(res, err, { contexto: 'admin.deleteRol', mensaje: 'Error al eliminar rol' })
@@ -266,6 +273,7 @@ export const updateUsuarioRol = async (req, res) => {
       SELECT u.id_usuario, u.nombre, u.correo, u.id_rol, r.nombre AS rol
       FROM usuarios u LEFT JOIN roles r ON u.id_rol = r.id_rol
       WHERE u.id_usuario = ?`, [id])
+    registrarAuditoria(req, { modulo: 'usuarios', accion: 'cambiar_rol', idRegistro: id, detalle: { id_rol } })
     res.json(updated)
   } catch (err) {
     responderError(res, err, { contexto: 'admin.updateUsuarioRol', mensaje: 'Error al actualizar rol' })

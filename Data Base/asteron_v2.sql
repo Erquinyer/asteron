@@ -336,6 +336,23 @@ CREATE TABLE correcciones_tiempo (
   CONSTRAINT fk_correccion_usuario FOREIGN KEY (corregido_por)   REFERENCES usuarios(id_usuario)                  ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- Bitácora de auditoría de cambios críticos (RNF-22)
+CREATE TABLE auditoria (
+  id_auditoria INT          NOT NULL AUTO_INCREMENT,
+  fecha        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  id_usuario   INT          DEFAULT NULL COMMENT 'Quién hizo el cambio',
+  rol          VARCHAR(80)  DEFAULT NULL COMMENT 'Rol que tenía al hacerlo',
+  modulo       VARCHAR(30)  NOT NULL,
+  accion       VARCHAR(30)  NOT NULL,
+  id_registro  INT          DEFAULT NULL COMMENT 'Id del registro afectado',
+  detalle      JSON         DEFAULT NULL COMMENT 'Datos enviados, sin contraseñas',
+  ip           VARCHAR(45)  DEFAULT NULL,
+  PRIMARY KEY (id_auditoria),
+  KEY idx_auditoria_modulo_fecha (modulo, fecha),
+  CONSTRAINT fk_auditoria_usuario FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+
 -- ============================================================
 -- BLOQUE 10: VISTA DE MAQUINARIA (para reportes y listados)
 -- ============================================================

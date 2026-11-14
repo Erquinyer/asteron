@@ -1,6 +1,7 @@
 import pool   from '../config/db.js'
 import bcrypt  from 'bcryptjs'
 import { responderError } from '../utils/errores.js'
+import { registrarAuditoria } from '../utils/auditoria.js'
 
 export const getAll = async (_req, res) => {
   try {
@@ -48,6 +49,8 @@ export const create = async (req, res) => {
       `SELECT u.id_usuario, u.codigo_empleado, u.nombre, u.correo, u.estado, r.nombre AS rol
        FROM usuarios u LEFT JOIN roles r ON u.id_rol = r.id_rol WHERE u.id_usuario = ?`,
       [result.insertId])
+    registrarAuditoria(req, { modulo: 'usuarios', accion: 'crear', idRegistro: result.insertId,
+      detalle: { nombre, correo, id_rol, codigo_empleado: codigo } })
     res.status(201).json(user)
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'El correo o código ya está registrado' })
@@ -73,6 +76,8 @@ export const update = async (req, res) => {
        FROM usuarios u LEFT JOIN roles r ON u.id_rol = r.id_rol WHERE u.id_usuario = ?`,
       [req.params.id])
     if (!user) return res.status(404).json({ message: 'Usuario no encontrado' })
+    registrarAuditoria(req, { modulo: 'usuarios', accion: 'editar', idRegistro: req.params.id,
+      detalle: { nombre, correo, id_rol, estado, codigo_empleado, password } })
     res.json(user)
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'El correo o código ya está registrado' })
@@ -88,6 +93,7 @@ export const toggleEstado = async (req, res) => {
       `SELECT u.id_usuario, u.nombre, u.estado, r.nombre AS rol
        FROM usuarios u LEFT JOIN roles r ON u.id_rol = r.id_rol WHERE u.id_usuario=?`,
       [req.params.id])
+    registrarAuditoria(req, { modulo: 'usuarios', accion: user?.estado ? 'activar' : 'desactivar', idRegistro: req.params.id })
     res.json(user)
   } catch (err) {
     responderError(res, err, { contexto: 'usuarios.toggleEstado', mensaje: 'Error al cambiar estado' })

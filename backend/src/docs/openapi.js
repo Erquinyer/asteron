@@ -361,6 +361,11 @@ const paths = {
     parameters: [idPath()],
     patch: op('Administración', 'Cambiar el rol de un usuario', { requestBody: cuerpo({ type: 'object', properties: { id_rol: { type: 'integer' } } }) }),
   },
+  '/api/admin/auditoria': {
+    get: op('Administración', 'Bitácora de auditoría: quién cambió usuarios, roles, permisos y maquinaria', {
+      parameters: [query('modulo', 'usuarios | roles | permisos | maquinaria'), query('limite', 'Máximo de entradas (200 por defecto, 500 como máximo)', 'integer')],
+    }),
+  },
   '/api/admin/usuarios/{id}/toggle': { parameters: [idPath()], patch: op('Administración', 'Activar o desactivar un usuario') },
 }
 
