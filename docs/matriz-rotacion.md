@@ -15,7 +15,7 @@ Reglas:
 
 | Integrante (usuario GitHub) | S1 | S2 | S3 | S4 | S5 | S6 | S7 | S8 | S9 |
 |---|---|---|---|---|---|---|---|---|---|
-| @DavidAlejo99 | E2E — login válido (PR #3, mergeado) | API — utilidades y controladores del backend (PR #4, mergeado) | Front: Login (PR #5, mergeado) | E2E — seguridad y errores del API (PR #6, mergeado) | API — dependencias: correo de recuperación y reloj (PR #7, mergeado) | BD — integración de pedidos contra MySQL real (PR en revisión) | | | |
+| @DavidAlejo99 | E2E — login válido (PR #3, mergeado) | API — utilidades y controladores del backend (PR #4, mergeado) | Front: Login (PR #5, mergeado) | E2E — seguridad y errores del API (PR #6, mergeado) | API — dependencias: correo de recuperación y reloj (PR #7, mergeado) | BD — integración de pedidos contra MySQL real (PR #16) | | | |
 | @nixonhalejo | E2E — login inválido (PR #1) | | | | | | | | |
 | @Erquinyer | E2E — crear cliente (PR #12, mergeado) | Front — permisos y sesión (PR #13, mergeado) | | API — reglas de Programación (`validarTurnoInterno`) (PR #15, mergeado) | | BD — integración de clientes contra MySQL real (PR #14, mergeado) | | | |
 
