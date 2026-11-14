@@ -1,6 +1,7 @@
 import pool from '../config/db.js'
 import { hoyISO } from '../utils/dates.js'
 import { enviarExcel, enviarPdf } from '../utils/exportarReporte.js'
+import { ErrorHttp, responderError as responderErrorApi } from '../utils/errores.js'
 
 // El costo de mano de obra revela lo que gana cada cargo: solo gerencia lo ve,
 // aunque otros roles tengan acceso al módulo de reportes.
@@ -24,13 +25,13 @@ const leerRango = (query) => {
   return { desde, hasta }
 }
 
-class ErrorFiltro extends Error {}
-
-const responderError = (res, err, etiqueta, mensaje) => {
-  if (err instanceof ErrorFiltro) return res.status(400).json({ message: err.message })
-  console.error(`[reportes.${etiqueta}]`, err)
-  res.status(500).json({ message: mensaje })
+// Un filtro inválido es un error del cliente (400), no del servidor
+class ErrorFiltro extends ErrorHttp {
+  constructor(message) { super(400, message) }
 }
+
+const responderError = (res, err, etiqueta, mensaje) =>
+  responderErrorApi(res, err, { contexto: `reportes.${etiqueta}`, mensaje })
 
 const redondear = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d
 

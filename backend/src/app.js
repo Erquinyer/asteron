@@ -3,6 +3,7 @@ import cors    from 'cors'
 import dotenv  from 'dotenv'
 
 import { verifyToken }        from './middlewares/auth.middleware.js'
+import { manejadorErrores }   from './utils/errores.js'
 import authRoutes             from './routes/auth.routes.js'
 import dashboardRoutes        from './routes/dashboard.routes.js'
 import proyectosRoutes        from './routes/proyectos.routes.js'
@@ -64,23 +65,8 @@ app.use('/api', (_req, res) => {
   res.status(404).json({ message: 'Recurso no encontrado' })
 })
 
-// ── Manejador de errores: siempre JSON y sin información interna ──
+// ── Manejador de errores centralizado: siempre JSON y sin información interna ──
 // Sin este manejador, Express respondía una página HTML con el stack trace del servidor.
-// eslint-disable-next-line no-unused-vars
-app.use((err, _req, res, _next) => {
-  // express.json() marca así un cuerpo que no es JSON válido
-  if (err.type === 'entity.parse.failed') {
-    return res.status(400).json({ message: 'El cuerpo de la petición no es un JSON válido' })
-  }
-  if (err.type === 'entity.too.large') {
-    return res.status(413).json({ message: 'El cuerpo de la petición es demasiado grande' })
-  }
-  // multer: archivo de importación por encima del límite
-  if (err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(413).json({ message: 'El archivo supera el tamaño máximo permitido (2 MB)' })
-  }
-  console.error('[app]', err)
-  res.status(500).json({ message: 'Error interno del servidor' })
-})
+app.use(manejadorErrores)
 
 export default app

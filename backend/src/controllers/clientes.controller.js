@@ -1,4 +1,5 @@
 import pool from '../config/db.js'
+import { responderError } from '../utils/errores.js'
 
 const BASE = `
   SELECT c.*,
@@ -52,8 +53,7 @@ export const getAll = async (_req, res) => {
     const [rows] = await pool.query(`${BASE} GROUP BY c.id_cliente ORDER BY c.nombre`)
     res.json(rows)
   } catch (err) {
-    console.error('[clientes.getAll]', err)
-    res.status(500).json({ message: 'Error al obtener clientes' })
+    responderError(res, err, { contexto: 'clientes.getAll', mensaje: 'Error al obtener clientes' })
   }
 }
 
@@ -76,8 +76,7 @@ export const getOne = async (req, res) => {
 
     res.json({ ...rows[0], direcciones, pedidos })
   } catch (err) {
-    console.error('[clientes.getOne]', err)
-    res.status(500).json({ message: 'Error al obtener cliente' })
+    responderError(res, err, { contexto: 'clientes.getOne', mensaje: 'Error al obtener cliente' })
   }
 }
 
@@ -94,8 +93,7 @@ export const create = async (req, res) => {
   } catch (err) {
     const conocido = mensajeErrorCliente(err)
     if (conocido) return res.status(conocido.status).json({ message: conocido.message })
-    console.error('[clientes.create]', err)
-    res.status(500).json({ message: 'Error al crear cliente' })
+    responderError(res, err, { contexto: 'clientes.create', mensaje: 'Error al crear cliente' })
   }
 }
 
@@ -112,8 +110,7 @@ export const update = async (req, res) => {
   } catch (err) {
     const conocido = mensajeErrorCliente(err)
     if (conocido) return res.status(conocido.status).json({ message: conocido.message })
-    console.error('[clientes.update]', err)
-    res.status(500).json({ message: 'Error al actualizar cliente' })
+    responderError(res, err, { contexto: 'clientes.update', mensaje: 'Error al actualizar cliente' })
   }
 }
 
@@ -123,7 +120,6 @@ export const remove = async (req, res) => {
     if (result.affectedRows === 0) return res.status(404).json({ message: 'Cliente no encontrado' })
     res.json({ message: 'Cliente eliminado' })
   } catch (err) {
-    console.error('[clientes.remove]', err)
-    res.status(500).json({ message: 'Error al eliminar cliente' })
+    responderError(res, err, { contexto: 'clientes.remove', mensaje: 'Error al eliminar cliente' })
   }
 }

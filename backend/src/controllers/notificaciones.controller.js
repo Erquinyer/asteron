@@ -1,6 +1,7 @@
 import pool from '../config/db.js'
 import { hoyISO } from '../utils/dates.js'
 import { ROLES_PROGRAMACION } from '../middlewares/requirePlantScheduler.js'
+import { responderError } from '../utils/errores.js'
 
 // Solo alertas accionables derivadas del estado real de los datos (nada de
 // "log de actividad" tipo turno/proyecto creado, que no requiere acción y
@@ -196,8 +197,7 @@ export const getNotificaciones = async (req, res) => {
 
     res.json({ total: items.length, items: items.slice(0, MAX_NOTIFICACIONES) })
   } catch (err) {
-    console.error('[notificaciones.get]', err)
-    res.status(500).json({ message: 'Error al obtener notificaciones' })
+    responderError(res, err, { contexto: 'notificaciones.get', mensaje: 'Error al obtener notificaciones' })
   }
 }
 
@@ -210,7 +210,6 @@ export const atenderNotificacion = async (req, res) => {
       'INSERT IGNORE INTO notificaciones_atendidas (id_usuario, clave) VALUES (?,?)', [req.user.id, clave])
     res.json({ message: 'Alerta atendida' })
   } catch (err) {
-    console.error('[notificaciones.atender]', err)
-    res.status(500).json({ message: 'Error al marcar la alerta' })
+    responderError(res, err, { contexto: 'notificaciones.atender', mensaje: 'Error al marcar la alerta' })
   }
 }

@@ -1,5 +1,6 @@
 import pool   from '../config/db.js'
 import bcrypt  from 'bcryptjs'
+import { responderError } from '../utils/errores.js'
 
 export const getAll = async (_req, res) => {
   try {
@@ -11,8 +12,7 @@ export const getAll = async (_req, res) => {
       ORDER BY u.codigo_empleado, u.nombre`)
     res.json(rows)
   } catch (err) {
-    console.error('[usuarios.getAll]', err)
-    res.status(500).json({ message: 'Error al obtener usuarios' })
+    responderError(res, err, { contexto: 'usuarios.getAll', mensaje: 'Error al obtener usuarios' })
   }
 }
 
@@ -21,7 +21,7 @@ export const getRoles = async (_req, res) => {
     const [rows] = await pool.query('SELECT id_rol, nombre, descripcion FROM roles ORDER BY id_rol')
     res.json(rows)
   } catch (err) {
-    res.status(500).json({ message: 'Error al obtener roles' })
+    responderError(res, err, { contexto: 'usuarios.getRoles', mensaje: 'Error al obtener roles' })
   }
 }
 
@@ -51,8 +51,7 @@ export const create = async (req, res) => {
     res.status(201).json(user)
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'El correo o código ya está registrado' })
-    console.error('[usuarios.create]', err)
-    res.status(500).json({ message: 'Error al crear usuario' })
+    responderError(res, err, { contexto: 'usuarios.create', mensaje: 'Error al crear usuario' })
   }
 }
 
@@ -77,8 +76,7 @@ export const update = async (req, res) => {
     res.json(user)
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'El correo o código ya está registrado' })
-    console.error('[usuarios.update]', err)
-    res.status(500).json({ message: 'Error al actualizar usuario' })
+    responderError(res, err, { contexto: 'usuarios.update', mensaje: 'Error al actualizar usuario' })
   }
 }
 
@@ -92,6 +90,6 @@ export const toggleEstado = async (req, res) => {
       [req.params.id])
     res.json(user)
   } catch (err) {
-    res.status(500).json({ message: 'Error al cambiar estado' })
+    responderError(res, err, { contexto: 'usuarios.toggleEstado', mensaje: 'Error al cambiar estado' })
   }
 }

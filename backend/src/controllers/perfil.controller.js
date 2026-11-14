@@ -1,5 +1,6 @@
 import pool   from '../config/db.js'
 import bcrypt  from 'bcryptjs'
+import { responderError } from '../utils/errores.js'
 
 export const getPerfil = async (req, res) => {
   try {
@@ -12,8 +13,7 @@ export const getPerfil = async (req, res) => {
     if (!user) return res.status(404).json({ message: 'Usuario no encontrado' })
     res.json(user)
   } catch (err) {
-    console.error('[perfil.get]', err)
-    res.status(500).json({ message: 'Error al obtener perfil' })
+    responderError(res, err, { contexto: 'perfil.get', mensaje: 'Error al obtener perfil' })
   }
 }
 
@@ -30,8 +30,7 @@ export const aceptarPoliticaDatos = async (req, res) => {
     if (!fila) return res.status(404).json({ message: 'Usuario no encontrado' })
     res.json({ message: 'Autorización registrada', acepta_politica_datos: fila.acepta_politica_datos })
   } catch (err) {
-    console.error('[perfil.politicaDatos]', err)
-    res.status(500).json({ message: 'Error al registrar la autorización' })
+    responderError(res, err, { contexto: 'perfil.politicaDatos', mensaje: 'Error al registrar la autorización' })
   }
 }
 
@@ -47,8 +46,7 @@ export const updatePerfil = async (req, res) => {
        WHERE u.id_usuario = ?`, [req.user.id])
     res.json(user)
   } catch (err) {
-    console.error('[perfil.update]', err)
-    res.status(500).json({ message: 'Error al actualizar perfil' })
+    responderError(res, err, { contexto: 'perfil.update', mensaje: 'Error al actualizar perfil' })
   }
 }
 
@@ -69,7 +67,6 @@ export const changePassword = async (req, res) => {
     await pool.query('UPDATE usuarios SET password_hash = ? WHERE id_usuario = ?', [hash, req.user.id])
     res.json({ message: 'Contraseña actualizada correctamente' })
   } catch (err) {
-    console.error('[perfil.changePassword]', err)
-    res.status(500).json({ message: 'Error al cambiar contraseña' })
+    responderError(res, err, { contexto: 'perfil.changePassword', mensaje: 'Error al cambiar contraseña' })
   }
 }

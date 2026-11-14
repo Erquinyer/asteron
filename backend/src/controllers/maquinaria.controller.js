@@ -1,4 +1,5 @@
 import pool from '../config/db.js'
+import { responderError } from '../utils/errores.js'
 
 const BASE = `
   SELECT m.*,
@@ -16,8 +17,7 @@ export const getAll = async (_req, res) => {
     const [rows] = await pool.query(`${BASE} GROUP BY m.id_maquina ORDER BY m.categoria, m.nombre`)
     res.json(rows)
   } catch (err) {
-    console.error('[maquinaria.getAll]', err)
-    res.status(500).json({ message: 'Error al obtener maquinaria' })
+    responderError(res, err, { contexto: 'maquinaria.getAll', mensaje: 'Error al obtener maquinaria' })
   }
 }
 
@@ -34,8 +34,7 @@ export const getOne = async (req, res) => {
 
     res.json({ ...rows[0], mantenimientos })
   } catch (err) {
-    console.error('[maquinaria.getOne]', err)
-    res.status(500).json({ message: 'Error al obtener equipo' })
+    responderError(res, err, { contexto: 'maquinaria.getOne', mensaje: 'Error al obtener equipo' })
   }
 }
 
@@ -52,8 +51,7 @@ export const create = async (req, res) => {
     const [rows] = await pool.query(`${BASE} WHERE m.id_maquina = ? GROUP BY m.id_maquina`, [result.insertId])
     res.status(201).json(rows[0])
   } catch (err) {
-    console.error('[maquinaria.create]', err)
-    res.status(500).json({ message: 'Error al crear equipo' })
+    responderError(res, err, { contexto: 'maquinaria.create', mensaje: 'Error al crear equipo' })
   }
 }
 
@@ -70,8 +68,7 @@ export const update = async (req, res) => {
     const [rows] = await pool.query(`${BASE} WHERE m.id_maquina = ? GROUP BY m.id_maquina`, [req.params.id])
     res.json(rows[0])
   } catch (err) {
-    console.error('[maquinaria.update]', err)
-    res.status(500).json({ message: 'Error al actualizar equipo' })
+    responderError(res, err, { contexto: 'maquinaria.update', mensaje: 'Error al actualizar equipo' })
   }
 }
 
@@ -81,8 +78,7 @@ export const remove = async (req, res) => {
     if (result.affectedRows === 0) return res.status(404).json({ message: 'Equipo no encontrado' })
     res.json({ message: 'Equipo eliminado' })
   } catch (err) {
-    console.error('[maquinaria.remove]', err)
-    res.status(500).json({ message: 'Error al eliminar equipo' })
+    responderError(res, err, { contexto: 'maquinaria.remove', mensaje: 'Error al eliminar equipo' })
   }
 }
 

@@ -1,6 +1,7 @@
 import pool from '../config/db.js'
 import { esFechaPasada } from '../utils/dates.js'
 import { crearFasesItem } from '../utils/fasesProyecto.js'
+import { responderError } from '../utils/errores.js'
 
 const fechaEntregaPasada = (items = []) =>
   items.some(it => esFechaPasada(it.fecha_entrega_estimada))
@@ -35,8 +36,7 @@ export const getAll = async (_req, res) => {
     const [rows] = await pool.query(`${BASE} GROUP BY p.id_pedido ORDER BY p.created_at DESC`)
     res.json(rows)
   } catch (err) {
-    console.error('[pedidos.getAll]', err)
-    res.status(500).json({ message: 'Error al obtener pedidos' })
+    responderError(res, err, { contexto: 'pedidos.getAll', mensaje: 'Error al obtener pedidos' })
   }
 }
 
@@ -59,8 +59,7 @@ export const getOne = async (req, res) => {
     }))
     res.json({ ...pedido, items: itemsConUbicaciones })
   } catch (err) {
-    console.error('[pedidos.getOne]', err)
-    res.status(500).json({ message: 'Error al obtener pedido' })
+    responderError(res, err, { contexto: 'pedidos.getOne', mensaje: 'Error al obtener pedido' })
   }
 }
 
@@ -161,8 +160,7 @@ export const create = async (req, res) => {
     res.status(201).json(pedido)
   } catch (err) {
     await conn.rollback()
-    console.error('[pedidos.create]', err)
-    res.status(500).json({ message: 'Error al crear pedido' })
+    responderError(res, err, { contexto: 'pedidos.create', mensaje: 'Error al crear pedido' })
   } finally { conn.release() }
 }
 
@@ -219,8 +217,7 @@ export const update = async (req, res) => {
     res.json(pedido)
   } catch (err) {
     await conn.rollback()
-    console.error('[pedidos.update]', err)
-    res.status(500).json({ message: 'Error al actualizar pedido' })
+    responderError(res, err, { contexto: 'pedidos.update', mensaje: 'Error al actualizar pedido' })
   } finally { conn.release() }
 }
 
@@ -238,7 +235,6 @@ export const remove = async (req, res) => {
     if (result.affectedRows === 0) return res.status(404).json({ message: 'Pedido no encontrado' })
     res.json({ message: 'Pedido eliminado' })
   } catch (err) {
-    console.error('[pedidos.remove]', err)
-    res.status(500).json({ message: 'Error al eliminar pedido' })
+    responderError(res, err, { contexto: 'pedidos.remove', mensaje: 'Error al eliminar pedido' })
   }
 }

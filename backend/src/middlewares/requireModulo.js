@@ -1,4 +1,5 @@
 import pool from '../config/db.js'
+import { responderError } from '../utils/errores.js'
 
 // Autoriza según los permisos del rol (tablas roles_permisos y acciones_modulo),
 // los mismos que el frontend usa para mostrar u ocultar módulos y botones. Sin este
@@ -26,8 +27,7 @@ export const requireModulo = (modulos) => async (req, res, next) => {
     if (!permiso) return res.status(403).json(SIN_PERMISO)
     next()
   } catch (err) {
-    console.error('[requireModulo]', err)
-    res.status(500).json({ message: 'Error interno del servidor' })
+    responderError(res, err, { contexto: 'requireModulo', mensaje: 'Error interno del servidor' })
   }
 }
 
@@ -51,7 +51,6 @@ export const requireAccion = (modulo, accion) => async (req, res, next) => {
     }
     next()
   } catch (err) {
-    console.error('[requireAccion]', err)
-    res.status(500).json({ message: 'Error interno del servidor' })
+    responderError(res, err, { contexto: 'requireAccion', mensaje: 'Error interno del servidor' })
   }
 }

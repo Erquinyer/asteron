@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import pool from '../config/db.js'
+import { responderError } from '../utils/errores.js'
 
 export const login = async (req, res) => {
   const { correo, contrasena } = req.body
@@ -88,7 +89,6 @@ export const login = async (req, res) => {
       },
     })
   } catch (error) {
-    console.error('[auth.login]', error)
-    return res.status(500).json({ message: 'Error interno del servidor' })
+    return responderError(res, error, { contexto: 'auth.login', mensaje: 'Error interno del servidor' })
   }
 }

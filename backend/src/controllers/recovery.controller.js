@@ -2,6 +2,7 @@ import crypto   from 'crypto'
 import bcrypt   from 'bcryptjs'
 import pool     from '../config/db.js'
 import { notificador } from '../services/notificador.js'
+import { responderError } from '../utils/errores.js'
 
 const EXPIRES_MINUTES = 30
 const FRONTEND_URL    = process.env.FRONTEND_URL || 'http://localhost:5173'
@@ -58,8 +59,7 @@ export const forgotPassword = async (req, res) => {
 
     return res.json({ message: 'Si el correo está registrado recibirás un enlace en tu bandeja de entrada.' })
   } catch (err) {
-    console.error('[recovery.forgotPassword]', err)
-    return res.status(500).json({ message: 'Error al procesar la solicitud' })
+    return responderError(res, err, { contexto: 'recovery.forgotPassword', mensaje: 'Error al procesar la solicitud' })
   }
 }
 
@@ -106,7 +106,6 @@ export const resetPassword = async (req, res) => {
 
     return res.json({ message: 'Contraseña actualizada correctamente' })
   } catch (err) {
-    console.error('[recovery.resetPassword]', err)
-    return res.status(500).json({ message: 'Error al restablecer la contraseña' })
+    return responderError(res, err, { contexto: 'recovery.resetPassword', mensaje: 'Error al restablecer la contraseña' })
   }
 }

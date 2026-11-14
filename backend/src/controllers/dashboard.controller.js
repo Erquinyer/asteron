@@ -1,4 +1,5 @@
 import pool from '../config/db.js'
+import { responderError } from '../utils/errores.js'
 
 // Ejecuta un bloque de la respuesta de forma aislada: si falla, el resto del
 // dashboard sigue funcionando y esa tarjeta específica llega en null.
@@ -289,8 +290,7 @@ export const getStats = async (_req, res) => {
 
     res.json({ stats, recientes, planta, charts, kpis, alertas })
   } catch (err) {
-    console.error('[dashboard.getStats]', err)
-    res.status(500).json({ message: 'Error al obtener estadísticas' })
+    responderError(res, err, { contexto: 'dashboard.getStats', mensaje: 'Error al obtener estadísticas' })
   }
 }
 
@@ -303,7 +303,6 @@ export const getCounts = async (_req, res) => {
     `)
     res.json({ proyectos: Number(r.proyectos), pedidos: Number(r.pedidos) })
   } catch (err) {
-    console.error('[dashboard.getCounts]', err)
-    res.status(500).json({ message: 'Error' })
+    responderError(res, err, { contexto: 'dashboard.getCounts', mensaje: 'Error' })
   }
 }
