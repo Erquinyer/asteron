@@ -70,6 +70,7 @@ CREATE TABLE usuarios (
   id_rol           INT          DEFAULT NULL,
   estado           TINYINT(1)   DEFAULT 1,
   ultimo_login     DATETIME     DEFAULT NULL,
+  acepta_politica_datos DATETIME DEFAULT NULL COMMENT 'Cuándo aceptó la política de tratamiento de datos (Ley 1581 de 2012); NULL = pendiente',
   created_at       DATETIME     DEFAULT CURRENT_TIMESTAMP,
   updated_at       DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id_usuario),

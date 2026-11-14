@@ -4,7 +4,7 @@ import bcrypt  from 'bcryptjs'
 export const getPerfil = async (req, res) => {
   try {
     const [[user]] = await pool.query(
-      `SELECT u.id_usuario, u.nombre, u.correo, u.estado, u.ultimo_login, u.created_at,
+      `SELECT u.id_usuario, u.nombre, u.correo, u.estado, u.ultimo_login, u.created_at, u.acepta_politica_datos,
               r.id_rol, r.nombre AS rol, r.descripcion AS rol_descripcion
        FROM usuarios u
        LEFT JOIN roles r ON u.id_rol = r.id_rol
@@ -14,6 +14,24 @@ export const getPerfil = async (req, res) => {
   } catch (err) {
     console.error('[perfil.get]', err)
     res.status(500).json({ message: 'Error al obtener perfil' })
+  }
+}
+
+// POST /politica-datos — registra cuándo la persona aceptó la política de
+// tratamiento de datos personales (Ley 1581 de 2012). Queda como prueba de la
+// autorización: solo se guarda la primera aceptación.
+export const aceptarPoliticaDatos = async (req, res) => {
+  try {
+    await pool.query(
+      `UPDATE usuarios SET acepta_politica_datos = COALESCE(acepta_politica_datos, NOW())
+       WHERE id_usuario = ?`, [req.user.id])
+    const [[fila]] = await pool.query(
+      'SELECT acepta_politica_datos FROM usuarios WHERE id_usuario = ?', [req.user.id])
+    if (!fila) return res.status(404).json({ message: 'Usuario no encontrado' })
+    res.json({ message: 'Autorización registrada', acepta_politica_datos: fila.acepta_politica_datos })
+  } catch (err) {
+    console.error('[perfil.politicaDatos]', err)
+    res.status(500).json({ message: 'Error al registrar la autorización' })
   }
 }
 

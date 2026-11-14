@@ -82,6 +82,8 @@ export const login = async (req, res) => {
         rol:    user.rol,
         modulos,
         acciones,
+        // Ley 1581 de 2012: si aún no aceptó la política, el frontend se la pide
+        aceptaPoliticaDatos: Boolean(user.acepta_politica_datos),
         token,
       },
     })

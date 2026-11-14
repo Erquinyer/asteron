@@ -329,6 +329,9 @@ const paths = {
     get: op('Perfil', 'Datos de la persona autenticada'),
     put: op('Perfil', 'Cambiar el nombre propio', { requestBody: cuerpo({ type: 'object', properties: { nombre: { type: 'string' } } }) }),
   },
+  '/api/perfil/politica-datos': {
+    post: op('Perfil', 'Aceptar la política de tratamiento de datos personales (Ley 1581 de 2012)', { responses: respuestas('Autorización registrada con su fecha', noEncontrado) }),
+  },
   '/api/perfil/password': {
     patch: op('Perfil', 'Cambiar la contraseña propia (mínimo 6 caracteres)', {
       requestBody: cuerpo({ type: 'object', required: ['actual', 'nueva'], properties: { actual: { type: 'string', format: 'password' }, nueva: { type: 'string', format: 'password', minLength: 6 } } }),
