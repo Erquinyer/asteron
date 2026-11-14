@@ -16,6 +16,8 @@ import mantenimientosRoutes   from './routes/mantenimientos.routes.js'
 import notificacionesRoutes   from './routes/notificaciones.routes.js'
 import adminRoutes             from './routes/admin.routes.js'
 import reportesRoutes          from './routes/reportes.routes.js'
+import swaggerUi              from 'swagger-ui-express'
+import { openapi }            from './docs/openapi.js'
 
 dotenv.config()
 
@@ -38,6 +40,10 @@ app.use(express.json())
 // ── Rutas públicas ────────────────────────────────────
 app.use('/api/auth',   authRoutes)
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', sistema: 'Asteron' }))
+
+// ── Documentación del API (OpenAPI / Swagger) ─────────
+app.get('/api/docs.json', (_req, res) => res.json(openapi))
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapi, { customSiteTitle: 'Asteron API' }))
 
 // ── Rutas protegidas (requieren JWT) ──────────────────
 app.use('/api/dashboard',       verifyToken, dashboardRoutes)
