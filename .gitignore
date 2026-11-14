@@ -32,3 +32,6 @@ Thumbs.db
 # ── Claude Code (configuración local del IDE AI) ──────
 .claude/
 memory/
+
+# ── Respaldos de la BD (tienen datos reales: NUNCA subir al repo) ──
+respaldos/

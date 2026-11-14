@@ -44,6 +44,41 @@ services:
       timeout: 5s
       retries: 10
 
+  # Respaldo automático de la BD (RNF-16): un mysqldump cada RESPALDO_HORAS
+  # horas en ./respaldos, conservando los últimos RETENCION archivos.
+  # Restaurar: ver docs/RESPALDOS.md
+  respaldo:
+    image: mysql:8.0
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_PWD: asteron_docker
+      RESPALDO_HORAS: 24
+      RETENCION: 7
+    volumes:
+      - ./respaldos:/respaldos
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        while true; do
+          archivo=/respaldos/asteron_$$(date +%Y%m%d_%H%M%S).sql
+          if mysqldump -h mysql -u root --single-transaction --routines --triggers --no-tablespaces --set-gtid-purged=OFF --databases asteron > "$$archivo.tmp"; then
+            mv "$$archivo.tmp" "$$archivo"
+            echo "Respaldo creado: $$archivo"
+          else
+            rm -f "$$archivo.tmp"
+            echo "ERROR: el respaldo falló" >&2
+          fi
+          i=0
+          for f in $$(ls -1t /respaldos/asteron_*.sql 2>/dev/null); do
+            i=$$((i + 1))
+            [ "$$i" -gt "$$RETENCION" ] && rm -f "$$f" && echo "Eliminado: $$f"
+          done
+          sleep $$((RESPALDO_HORAS * 3600))
+        done
+
   backend:
     build: ./backend
     restart: unless-stopped
