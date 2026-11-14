@@ -12,6 +12,9 @@ dist-ssr/
 build/
 coverage/
 
+# ── Respaldos de la base (datos reales, NUNCA subir al repo) ──
+respaldos/
+
 # ── Logs ──────────────────────────────────────────────
 *.log
 npm-debug.log*

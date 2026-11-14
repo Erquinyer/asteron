@@ -11,7 +11,8 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "prueba-carga": "node scripts/pruebaCarga.js"
   },
   "keywords": [],
   "author": "",

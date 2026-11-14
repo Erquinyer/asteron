@@ -70,6 +70,8 @@ CREATE TABLE usuarios (
   id_rol           INT          DEFAULT NULL,
   estado           TINYINT(1)   DEFAULT 1,
   ultimo_login     DATETIME     DEFAULT NULL,
+  politica_datos_version     VARCHAR(10) DEFAULT NULL COMMENT 'Versión de la política de datos que autorizó; NULL = no ha autorizado',
+  politica_datos_aceptada_en DATETIME    DEFAULT NULL COMMENT 'Prueba de la autorización (Decreto 1377 de 2013)',
   created_at       DATETIME     DEFAULT CURRENT_TIMESTAMP,
   updated_at       DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id_usuario),

@@ -52,5 +52,27 @@ services:
     ports:
       - "5173:80"
 
+  # Copia de seguridad automática (RNF-16): un respaldo al arrancar y luego cada
+  # 24 h en ./respaldos, conservando los 7 más recientes. Reutiliza la imagen de
+  # MySQL solo porque ya trae mysqldump y gzip. Restaurar: ver README.
+  respaldo:
+    image: mysql:8.0
+    restart: unless-stopped
+    entrypoint: ["bash", "/scripts/respaldar.sh"]
+    environment:
+      DB_HOST: mysql
+      DB_USER: root
+      DB_PASSWORD: asteron_docker
+      DB_NAME: asteron
+      RESPALDOS_DIR: /respaldos
+      INTERVALO_HORAS: 24
+      RETENER: 7
+    volumes:
+      - ./Data Base/respaldar.sh:/scripts/respaldar.sh:ro
+      - ./respaldos:/respaldos
+    depends_on:
+      mysql:
+        condition: service_healthy
+
 volumes:
   db_data:

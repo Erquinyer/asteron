@@ -1,10 +1,12 @@
 import pool   from '../config/db.js'
 import bcrypt  from 'bcryptjs'
+import { POLITICA_DATOS_VERSION } from '../utils/politicaDatos.js'
 
 export const getPerfil = async (req, res) => {
   try {
     const [[user]] = await pool.query(
       `SELECT u.id_usuario, u.nombre, u.correo, u.estado, u.ultimo_login, u.created_at,
+              u.politica_datos_version, u.politica_datos_aceptada_en,
               r.id_rol, r.nombre AS rol, r.descripcion AS rol_descripcion
        FROM usuarios u
        LEFT JOIN roles r ON u.id_rol = r.id_rol
@@ -53,5 +55,20 @@ export const changePassword = async (req, res) => {
   } catch (err) {
     console.error('[perfil.changePassword]', err)
     res.status(500).json({ message: 'Error al cambiar contraseña' })
+  }
+}
+
+// Autorización del tratamiento de datos personales (Ley 1581 de 2012).
+// La fecha y la versión quedan guardadas como prueba de la autorización (Decreto 1377 de 2013).
+export const aceptarPoliticaDatos = async (req, res) => {
+  try {
+    const aceptadaEn = new Date()
+    await pool.query(
+      'UPDATE usuarios SET politica_datos_version = ?, politica_datos_aceptada_en = ? WHERE id_usuario = ?',
+      [POLITICA_DATOS_VERSION, aceptadaEn, req.user.id])
+    res.json({ version: POLITICA_DATOS_VERSION, aceptada_en: aceptadaEn })
+  } catch (err) {
+    console.error('[perfil.aceptarPoliticaDatos]', err)
+    res.status(500).json({ message: 'Error al registrar la autorización' })
   }
 }

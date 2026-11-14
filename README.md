@@ -187,6 +187,7 @@ Estos scripts crean tablas adicionales y configuran permisos. Ejecútalos **una 
 node scripts/migrate_admin_role.js
 node scripts/migrate_acciones_modulo.js
 node scripts/migrate_tiempos_reportes.js
+node scripts/migrate_politica_datos.js
 ```
 
 ### 3.4 — Cargar datos de prueba (seed)
@@ -409,6 +410,7 @@ docker compose up --build -d
 docker compose exec backend node scripts/migrate_admin_role.js
 docker compose exec backend node scripts/migrate_acciones_modulo.js
 docker compose exec backend node scripts/migrate_tiempos_reportes.js
+docker compose exec backend node scripts/migrate_politica_datos.js
 docker compose exec backend pnpm seed
 ```
 
@@ -429,11 +431,53 @@ docker compose down        # detener (los datos de MySQL persisten en el volumen
 | `backend/Dockerfile` | Imagen de Node 22 + pnpm (pnpm 11.x exige Node ≥22.13), corre `node server.js`. |
 | `frontend/Dockerfile` | Compila con Vite (`pnpm build`) y sirve `dist/` con nginx — `VITE_API_URL` se "hornea" en el bundle en tiempo de build, no se puede cambiar después sin reconstruir la imagen. |
 | `frontend/nginx.conf` | Redirige cualquier ruta a `index.html` para que funcione el enrutado de React Router (`/proyectos/12`, etc.) en vez de dar 404. |
-| `docker-compose.yml` | Orquesta `mysql` (con el esquema de `Data Base/asteron_v2.sql` precargado), `backend` y `frontend`, en ese orden de arranque. |
+| `docker-compose.yml` | Orquesta `mysql` (con el esquema de `Data Base/asteron_v2.sql` precargado), `backend` y `frontend`, en ese orden de arranque, más el servicio `respaldo` (copia de seguridad diaria, ver abajo). |
 
 > **Nota de la base de datos:** el esquema de `Data Base/asteron_v2.sql` solo se importa la **primera vez** que se crea el volumen `db_data` (es el comportamiento estándar de la imagen oficial de MySQL — si el volumen ya tiene datos, lo ignora). Para empezar desde cero: `docker compose down -v` (borra el volumen) y vuelve a correr los 3 pasos de "Primera vez".
 >
 > **No probado en este equipo:** Docker no está instalado en esta máquina, así que estos archivos no se construyeron/ejecutaron realmente aquí — están escritos con cuidado pero conviene validar el primer `docker compose up --build` juntos por si aparece algo que ajustar (versión de alguna imagen base, alguna dependencia nativa, etc.).
+
+---
+
+## Copias de seguridad y restauración
+
+Los respaldos se guardan comprimidos en `respaldos/asteron_AAAAMMDD_HHMMSS.sql.gz` y solo se conservan los 7 más recientes. La carpeta `respaldos/` está en `.gitignore` porque contiene datos reales.
+
+**Automático (Docker):** el servicio `respaldo` de `docker-compose.yml` hace un respaldo al arrancar y luego uno cada 24 h. Para ver que esté funcionando:
+
+```bash
+docker compose logs respaldo
+```
+
+**Manual (sin Docker o antes de un cambio delicado):** usa la conexión de `backend/.env`.
+
+```bash
+bash "Data Base/respaldar.sh"
+```
+
+Para respaldar todos los días sin Docker, prográmalo con `crontab -e` (ejemplo: todos los días a las 2:00 a. m.):
+
+```
+0 2 * * * cd "/ruta/al/Proyecto Asteron" && bash "Data Base/respaldar.sh" >> respaldos/respaldo.log 2>&1
+```
+
+**Restaurar:**
+
+```bash
+# 1. Probar el respaldo en una base aparte, sin tocar la real (recomendado primero)
+bash "Data Base/restaurar.sh" respaldos/asteron_20261113_020000.sql.gz asteron_prueba
+
+# 2. Reemplazar la base real: pide escribir RESTAURAR y antes guarda un respaldo
+#    del estado actual por si el archivo elegido no era el correcto
+bash "Data Base/restaurar.sh" respaldos/asteron_20261113_020000.sql.gz
+```
+
+Con Docker, la restauración se corre desde el contenedor de respaldo:
+
+```bash
+docker compose run --rm --entrypoint bash -v "$PWD/Data Base:/scripts:ro" respaldo \
+  /scripts/restaurar.sh /respaldos/asteron_20261113_020000.sql.gz
+```
 
 ---
 
