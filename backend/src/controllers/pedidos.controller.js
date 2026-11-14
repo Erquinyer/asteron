@@ -5,6 +5,29 @@ import { crearFasesItem } from '../utils/fasesProyecto.js'
 const fechaEntregaPasada = (items = []) =>
   items.some(it => esFechaPasada(it.fecha_entrega_estimada))
 
+// Errores de MySQL que la persona usuaria puede provocar con los datos del
+// formulario. Sin esta traducción todos terminaban en un 500 genérico
+// ("Error al crear pedido"), aunque el problema era del dato y no del servidor.
+// Se encontraron con las pruebas de integración contra MySQL real
+// (tests/integration/pedidos.db.test.js); con la BD simulada no aparecen.
+const mensajeErrorPedido = (err) => {
+  switch (err?.code) {
+    case 'ER_NO_REFERENCED_ROW_2':
+      return { status: 400, message: 'El cliente seleccionado no existe' }
+    case 'ER_DATA_TOO_LONG':
+      return { status: 400, message: 'Uno de los campos supera la longitud permitida' }
+    case 'WARN_DATA_TRUNCATED':
+    case 'ER_TRUNCATED_WRONG_VALUE_FOR_FIELD':
+      return { status: 400, message: 'Uno de los valores del pedido no es válido' }
+    case 'ER_ROW_IS_REFERENCED_2':
+      // actividades.id_fase es ON DELETE RESTRICT: quitar un ítem borra en
+      // cascada sus fases, y MySQL lo impide si ya tienen tiempo registrado.
+      return { status: 409, message: 'No se puede quitar un ítem que ya tiene actividades registradas en sus fases' }
+    default:
+      return null
+  }
+}
+
 const BASE = `
   SELECT p.*, c.nombre AS cliente,
          COUNT(dp.id_detalle) AS total_items
@@ -59,7 +82,13 @@ const insertItems = async (conn, id_pedido, items) => {
 // Devuelve los ítems recién insertados (para poder generarles sus fases si
 // el pedido ya tiene un proyecto asociado).
 const sincronizarItems = async (conn, id_pedido, items) => {
-  const validos = items.filter(it => it.producto?.trim())
+  // id_detalle se normaliza a número: si llegaba como texto ("12"), el Set de
+  // ids actuales (números) no lo encontraba y el ítem se insertaba de nuevo,
+  // mientras el DELETE ... NOT IN ('12') de MySQL sí conservaba el original
+  // → el ítem quedaba duplicado.
+  const validos = items
+    .filter(it => it.producto?.trim())
+    .map(it => ({ ...it, id_detalle: Number(it.id_detalle) || null }))
 
   const [actuales] = await conn.query(
     'SELECT id_detalle FROM detalle_pedido WHERE id_pedido=?', [id_pedido])
@@ -118,6 +147,8 @@ export const create = async (req, res) => {
     res.status(201).json(pedido)
   } catch (err) {
     await conn.rollback()
+    const conocido = mensajeErrorPedido(err)
+    if (conocido) return res.status(conocido.status).json({ message: conocido.message })
     console.error('[pedidos.create]', err)
     res.status(500).json({ message: 'Error al crear pedido' })
   } finally { conn.release() }
@@ -125,6 +156,11 @@ export const create = async (req, res) => {
 
 export const update = async (req, res) => {
   const { id_cliente, descripcion, items } = req.body
+
+  // Igual que al crear: sin id_cliente el UPDATE dejaba el pedido con
+  // id_cliente = NULL (la columna lo permite), o sea que un cuerpo incompleto
+  // le borraba el cliente al pedido sin ningún aviso.
+  if (!id_cliente) return res.status(400).json({ message: 'El cliente es requerido' })
 
   // Igual que al crear: un ítem que se está registrando ahora (sin id_detalle
   // todavía, sea porque el pedido es nuevo o porque se agregó en esta edición)
@@ -172,6 +208,8 @@ export const update = async (req, res) => {
     res.json(pedido)
   } catch (err) {
     await conn.rollback()
+    const conocido = mensajeErrorPedido(err)
+    if (conocido) return res.status(conocido.status).json({ message: conocido.message })
     console.error('[pedidos.update]', err)
     res.status(500).json({ message: 'Error al actualizar pedido' })
   } finally { conn.release() }
