@@ -49,18 +49,25 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
 
   // Operarios/máquinas no disponibles ese día: con una actividad en curso ahora
   // mismo, o ya con un turno programado/en proceso para la fecha elegida.
+  // `vigente` descarta la respuesta de una fecha/proyecto que la persona ya
+  // cambió: con red lenta, la respuesta vieja puede llegar después de la nueva
+  // y pisarla (p. ej. mostrar como libre a un operario ocupado en la fecha elegida).
   useEffect(() => {
     if (!form.fecha) { setOcupados({ operarios: [], maquinas: [] }); return }
+    let vigente = true
     getOcupados(form.fecha)
-      .then(({ data }) => setOcupados(data))
+      .then(({ data }) => { if (vigente) setOcupados(data) })
       .catch(() => {})
+    return () => { vigente = false }
   }, [form.fecha])
 
   useEffect(() => {
     if (!form.id_proyecto) { setFases([]); setForm(f => ({ ...f, id_fase_proyecto: '' })); return }
+    let vigente = true
     setLoadingFases(true)
     getProyecto(form.id_proyecto)
       .then(({ data }) => {
+        if (!vigente) return
         const nuevasFases = data.fases || []
         setFases(nuevasFases)
         setForm(f => {
@@ -68,8 +75,9 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
           return { ...f, id_fase_proyecto: sigueValida ? f.id_fase_proyecto : '' }
         })
       })
-      .catch(() => setFases([]))
-      .finally(() => setLoadingFases(false))
+      .catch(() => { if (vigente) setFases([]) })
+      .finally(() => { if (vigente) setLoadingFases(false) })
+    return () => { vigente = false }
   }, [form.id_proyecto])
 
   const handleSubmit = async e => {
@@ -125,7 +133,8 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
       <div className="min-h-full flex items-center justify-center">
-      <div className="bg-surface border border-border rounded-[18px] shadow-modal
+      <div role="dialog" aria-modal="true" aria-labelledby="turno-modal-titulo"
+        className="bg-surface border border-border rounded-[18px] shadow-modal
         w-full max-w-md my-4 overflow-hidden animate-md-in"
       >
         {/* Header */}
@@ -137,7 +146,7 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
               <Calendar size={18} className="text-primary" />
             </div>
             <div>
-              <h3 className="text-[16px] font-semibold text-ink">
+              <h3 id="turno-modal-titulo" className="text-[16px] font-semibold text-ink">
                 {turno ? 'Editar actividad' : 'Nueva actividad'}
               </h3>
               <p className="text-[12px] text-muted">
@@ -145,7 +154,7 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
               </p>
             </div>
           </div>
-          <button onClick={onClose}
+          <button onClick={onClose} aria-label="Cerrar"
             className="w-8 h-8 flex items-center justify-center rounded-[8px]
               bg-surface2 text-faint hover:text-muted transition-colors"
           >
@@ -156,14 +165,14 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
         {/* Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className={labelCls}>Fecha</label>
-            <input type="date" name="fecha" value={form.fecha} onChange={set}
+            <label htmlFor="turno-fecha" className={labelCls}>Fecha</label>
+            <input id="turno-fecha" type="date" name="fecha" value={form.fecha} onChange={set}
               min={minFecha} className={inputCls} />
           </div>
 
           <div>
-            <label className={labelCls}>Proyecto</label>
-            <select name="id_proyecto" value={form.id_proyecto} onChange={set}
+            <label htmlFor="turno-proyecto" className={labelCls}>Proyecto</label>
+            <select id="turno-proyecto" name="id_proyecto" value={form.id_proyecto} onChange={set}
               className={inputCls}
             >
               <option value="">Sin proyecto</option>
@@ -175,8 +184,8 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
 
           {form.id_proyecto && (
             <div>
-              <label className={labelCls}>Fase del proyecto *</label>
-              <select name="id_fase_proyecto" value={form.id_fase_proyecto}
+              <label htmlFor="turno-fase" className={labelCls}>Fase del proyecto *</label>
+              <select id="turno-fase" name="id_fase_proyecto" value={form.id_fase_proyecto}
                 onChange={set} disabled={loadingFases} required className={inputCls}
               >
                 <option value="">{loadingFases ? 'Cargando fases…' : 'Seleccionar fase'}</option>
@@ -219,8 +228,8 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
           )}
 
           <div>
-            <label className={labelCls}>Operario *</label>
-            <select name="id_operario" value={form.id_operario} onChange={set}
+            <label htmlFor="turno-operario" className={labelCls}>Operario *</label>
+            <select id="turno-operario" name="id_operario" value={form.id_operario} onChange={set}
               required className={inputCls}
             >
               <option value="">Seleccionar operario</option>
@@ -231,8 +240,8 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
           </div>
 
           <div>
-            <label className={labelCls}>Máquina / Equipo{maquinaRequerida ? ' *' : ''}</label>
-            <select name="id_maquina" value={form.id_maquina} onChange={set}
+            <label htmlFor="turno-maquina" className={labelCls}>Máquina / Equipo{maquinaRequerida ? ' *' : ''}</label>
+            <select id="turno-maquina" name="id_maquina" value={form.id_maquina} onChange={set}
               required={maquinaRequerida} className={inputCls}
             >
               <option value="">{maquinaRequerida ? 'Seleccionar equipo' : 'Sin equipo específico'}</option>
@@ -252,9 +261,9 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
           </div>
 
           <div>
-            <label className={labelCls}>Tiempo estimado (minutos)</label>
+            <label htmlFor="turno-tiempo" className={labelCls}>Tiempo estimado (minutos)</label>
             <div className="flex items-center gap-2">
-              <input type="number" name="tiempo_estimado" value={form.tiempo_estimado}
+              <input id="turno-tiempo" type="number" name="tiempo_estimado" value={form.tiempo_estimado}
                 onChange={set} min={30} step={30} className={inputCls} />
               <span className="font-mono text-[11px] text-faint whitespace-nowrap shrink-0">
                 = {(form.tiempo_estimado / 60).toFixed(1)}h
@@ -263,8 +272,8 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
           </div>
 
           <div>
-            <label className={labelCls}>Tarea / Observaciones</label>
-            <textarea name="observaciones" value={form.observaciones} onChange={set} rows={3}
+            <label htmlFor="turno-observaciones" className={labelCls}>Tarea / Observaciones</label>
+            <textarea id="turno-observaciones" name="observaciones" value={form.observaciones} onChange={set} rows={3}
               placeholder="Describe la tarea específica, instrucciones, etc."
               className={`${inputCls} h-auto py-2.5 resize-none`} />
           </div>
