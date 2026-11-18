@@ -39,6 +39,37 @@ describe('maquinaria.create', () => {
   })
 })
 
+describe('maquinaria: errores de MySQL con respuesta clara', () => {
+  it.each([
+    ['crear', (res) => create({ body: { nombre: 'X', codigo: 'MAQ-01' } }, res)],
+    ['actualizar', (res) => update({ params: { id: 3 }, body: { nombre: 'X', codigo: 'MAQ-01' } }, res)],
+  ])('debe responder 409 al %s un equipo con un código que ya existe', async (_accion, accion) => {
+    // Arrange
+    pool.query.mockRejectedValueOnce(Object.assign(new Error('Duplicate entry'), { code: 'ER_DUP_ENTRY' }))
+    const res = crearRes()
+
+    // Act
+    await accion(res)
+
+    // Assert
+    expect(res.status).toHaveBeenCalledWith(409)
+    expect(res.json).toHaveBeenCalledWith({ message: 'El código del equipo ya existe' })
+  })
+
+  it.each([
+    ['crear', (res) => create({ body: { nombre: 'X', codigo: 'C'.repeat(21) } }, res)],
+    ['actualizar', (res) => update({ params: { id: 3 }, body: { nombre: 'X', codigo: 'C'.repeat(21) } }, res)],
+  ])('debe responder 400 al %s un equipo con un campo más largo que su columna', async (_accion, accion) => {
+    pool.query.mockRejectedValueOnce(Object.assign(new Error('Data too long'), { code: 'ER_DATA_TOO_LONG' }))
+    const res = crearRes()
+
+    await accion(res)
+
+    expect(res.status).toHaveBeenCalledWith(400)
+    expect(res.json).toHaveBeenCalledWith({ message: 'Uno de los campos supera la longitud permitida' })
+  })
+})
+
 describe('maquinaria.getOne, update y remove', () => {
   it('debe devolver el equipo con su historial de mantenimientos', async () => {
     pool.query

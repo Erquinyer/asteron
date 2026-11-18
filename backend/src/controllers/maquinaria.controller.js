@@ -11,6 +11,19 @@ const BASE = `
   LEFT JOIN mantenimientos      mt ON mt.id_maquina = m.id_maquina
   LEFT JOIN programacion_planta pp ON pp.id_maquina = m.id_maquina AND pp.fecha = CURDATE()`
 
+// Traduce errores reales de MySQL a una respuesta clara (mismo patrón que
+// clientes.controller.js, semana 6). Lo encontró la suite E2E de la semana 7:
+// - `codigo` es VARCHAR(20): uno más largo caía en ER_DATA_TOO_LONG y el
+//   catch genérico respondía 500 en vez de 400.
+// - `codigo` es UNIQUE (uq_maquina_codigo): un código repetido también era 500.
+const mensajeErrorMaquina = (err) => {
+  if (err.code === 'ER_DUP_ENTRY') return { status: 409, message: 'El código del equipo ya existe' }
+  if (err.code === 'ER_DATA_TOO_LONG') {
+    return { status: 400, message: 'Uno de los campos supera la longitud permitida' }
+  }
+  return null
+}
+
 export const getAll = async (_req, res) => {
   try {
     const [rows] = await pool.query(`${BASE} GROUP BY m.id_maquina ORDER BY m.categoria, m.nombre`)
@@ -52,6 +65,8 @@ export const create = async (req, res) => {
     const [rows] = await pool.query(`${BASE} WHERE m.id_maquina = ? GROUP BY m.id_maquina`, [result.insertId])
     res.status(201).json(rows[0])
   } catch (err) {
+    const conocido = mensajeErrorMaquina(err)
+    if (conocido) return res.status(conocido.status).json({ message: conocido.message })
     console.error('[maquinaria.create]', err)
     res.status(500).json({ message: 'Error al crear equipo' })
   }
@@ -70,6 +85,8 @@ export const update = async (req, res) => {
     const [rows] = await pool.query(`${BASE} WHERE m.id_maquina = ? GROUP BY m.id_maquina`, [req.params.id])
     res.json(rows[0])
   } catch (err) {
+    const conocido = mensajeErrorMaquina(err)
+    if (conocido) return res.status(conocido.status).json({ message: conocido.message })
     console.error('[maquinaria.update]', err)
     res.status(500).json({ message: 'Error al actualizar equipo' })
   }
