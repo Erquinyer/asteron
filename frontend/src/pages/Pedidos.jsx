@@ -122,7 +122,8 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
       <div className="min-h-full flex items-center justify-center">
-      <div className="bg-surface border border-border rounded-[18px] shadow-modal
+      <div role="dialog" aria-modal="true" aria-labelledby="pedido-modal-titulo"
+        className="bg-surface border border-border rounded-[18px] shadow-modal
         w-full max-w-2xl my-4 overflow-hidden animate-md-in"
       >
         {/* Header */}
@@ -136,7 +137,7 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
               <Package size={18} className="text-primary" />
             </div>
             <div>
-              <h3 className="text-[16px] font-semibold text-ink">
+              <h3 id="pedido-modal-titulo" className="text-[16px] font-semibold text-ink">
                 {pedido ? 'Editar pedido' : 'Nuevo pedido'}
               </h3>
               <p className="text-[12px] text-muted">
@@ -144,7 +145,7 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
               </p>
             </div>
           </div>
-          <button onClick={onClose}
+          <button onClick={onClose} aria-label="Cerrar"
             className="w-8 h-8 flex items-center justify-center rounded-[8px]
               bg-surface2 text-faint hover:text-muted transition-colors"
           >
@@ -184,8 +185,8 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
           </div>
 
           <div>
-            <label className={labelCls}>Descripción del pedido</label>
-            <textarea name="descripcion" value={form.descripcion} onChange={setField} rows={2}
+            <label htmlFor="pedido-descripcion" className={labelCls}>Descripción del pedido</label>
+            <textarea id="pedido-descripcion" name="descripcion" value={form.descripcion} onChange={setField} rows={2}
               placeholder="Descripción general del pedido / proyecto a fabricar"
               className={`${inputCls} h-auto py-2.5 resize-none`}
             />
@@ -226,6 +227,7 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
                       value={item.producto}
                       onChange={e => setItem(i, 'producto', e.target.value)}
                       placeholder="Producto / descripción"
+                      aria-label={`Producto del ítem ${i + 1}`}
                       className={`col-span-4 ${itemInputCls}`}
                     />
                     <input
@@ -234,11 +236,13 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
                       value={item.cantidad}
                       onChange={e => setItem(i, 'cantidad', e.target.value.replace(/\D/g, ''))}
                       placeholder="Cantidad"
+                      aria-label={`Cantidad del ítem ${i + 1}`}
                       className={`col-span-2 ${itemInputCls} text-center`}
                     />
                     <select
                       value={item.punto_descargue}
                       onChange={e => setItem(i, 'punto_descargue', e.target.value)}
+                      aria-label={`Punto de entrega del ítem ${i + 1}`}
                       disabled={!form.id_cliente || loadingDirecciones}
                       title={!form.id_cliente ? 'Selecciona primero un cliente' : undefined}
                       className={`col-span-3 ${itemInputCls} disabled:opacity-60 disabled:cursor-not-allowed`}
@@ -266,10 +270,12 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
                       value={item.fecha_entrega_estimada}
                       onChange={e => setItem(i, 'fecha_entrega_estimada', e.target.value)}
                       title="Fecha de entrega estimada de este ítem"
+                      aria-label={`Fecha de entrega del ítem ${i + 1}`}
                       min={!item.id_detalle ? hoy : undefined}
                       className={`col-span-2 ${itemInputCls}`}
                     />
                     <button type="button" onClick={() => removeItem(i)}
+                      aria-label={`Quitar ítem ${i + 1}`}
                       className="col-span-1 flex justify-center items-center
                         text-faint hover:text-error transition-colors"
                     >
@@ -342,7 +348,7 @@ function PedidoDetailModal({ pedidoId, onClose }) {
               </p>
             </div>
           </div>
-          <button onClick={onClose}
+          <button onClick={onClose} aria-label="Cerrar"
             className="w-8 h-8 flex items-center justify-center rounded-[8px]
               bg-surface2 text-faint hover:text-muted transition-colors"
           >
@@ -586,7 +592,7 @@ export default function Pedidos() {
                       <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
                           {canDo('pedidos', 'editar') && (
-                            <button onClick={() => setModal(p)}
+                            <button onClick={() => setModal(p)} aria-label={`Editar pedido #${p.id_pedido}`}
                               className="w-7 h-7 flex items-center justify-center rounded-badge
                                 text-faint hover:bg-primary/10 hover:text-primary transition-colors"
                             >
@@ -594,7 +600,7 @@ export default function Pedidos() {
                             </button>
                           )}
                           {canDo('pedidos', 'eliminar') && (
-                            <button onClick={() => handleDelete(p)}
+                            <button onClick={() => handleDelete(p)} aria-label={`Eliminar pedido #${p.id_pedido}`}
                               className="w-7 h-7 flex items-center justify-center rounded-badge
                                 text-faint hover:bg-error/10 hover:text-error transition-colors"
                             >
