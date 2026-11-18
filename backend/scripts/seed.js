@@ -85,18 +85,31 @@ const seed = async () => {
   console.log('✅ Usuarios (13 usuarios: 1 admin sistema + 12 equipo Macromet)')
 
   // ── CLIENTES reales ────────────────────────────────
+  // direcciones_cliente tiene ON DELETE CASCADE desde clientes, así que se
+  // limpia sola — no hace falta un DELETE FROM direcciones_cliente aparte.
   await pool.query(`DELETE FROM contactos_cliente`)
   await pool.query(`DELETE FROM clientes`)
   await pool.query(`ALTER TABLE clientes AUTO_INCREMENT = 1`)
-  await pool.query(`INSERT INTO clientes (nombre, nit, codigo_cliente, direccion) VALUES
-    ('Castrol Colombia',         '900112233-1', 'CLI-001', 'Bogotá, Colombia'),
-    ('Bosch Colombia',           '800223344-2', 'CLI-002', 'Bogotá, Colombia'),
-    ('Alpina Productos Alimenticios','900334455-3','CLI-003','Sopó, Cundinamarca'),
-    ('Juan Valdez Café',         '860034313-4', 'CLI-004', 'Bogotá, Colombia'),
-    ('LEGO Colombia',            '900556677-5', 'CLI-005', 'Bogotá, Colombia'),
-    ('Papa John''s Colombia',    '900667788-6', 'CLI-006', 'Bogotá, Colombia'),
-    ('Makita Colombia',          '900778899-7', 'CLI-007', 'Bogotá, Colombia'),
-    ('3M Colombia',              '860051234-8', 'CLI-008', 'Bogotá, Colombia')`)
+  await pool.query(`INSERT INTO clientes (nombre, nit, codigo_cliente) VALUES
+    ('Castrol Colombia',         '900112233-1', 'CLI-001'),
+    ('Bosch Colombia',           '800223344-2', 'CLI-002'),
+    ('Alpina Productos Alimenticios','900334455-3','CLI-003'),
+    ('Juan Valdez Café',         '860034313-4', 'CLI-004'),
+    ('LEGO Colombia',            '900556677-5', 'CLI-005'),
+    ('Papa John''s Colombia',    '900667788-6', 'CLI-006'),
+    ('Makita Colombia',          '900778899-7', 'CLI-007'),
+    ('3M Colombia',              '860051234-8', 'CLI-008')`)
+  // clientes.direccion no existe (normalizado en 1FN) — cada dirección vive
+  // en direcciones_cliente, igual que clientes.controller.js (guardarDirecciones).
+  await pool.query(`INSERT INTO direcciones_cliente (id_cliente, etiqueta, direccion, principal) VALUES
+    (1, 'Sede principal', 'Bogotá, Colombia',        1),
+    (2, 'Sede principal', 'Bogotá, Colombia',        1),
+    (3, 'Sede principal', 'Sopó, Cundinamarca',      1),
+    (4, 'Sede principal', 'Bogotá, Colombia',        1),
+    (5, 'Sede principal', 'Bogotá, Colombia',        1),
+    (6, 'Sede principal', 'Bogotá, Colombia',        1),
+    (7, 'Sede principal', 'Bogotá, Colombia',        1),
+    (8, 'Sede principal', 'Bogotá, Colombia',        1)`)
   console.log('✅ Clientes (marcas reales de Macromet)')
 
   // ── PEDIDOS ────────────────────────────────────────
