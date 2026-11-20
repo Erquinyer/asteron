@@ -17,6 +17,7 @@ import FieldFilter from '../components/ui/FieldFilter'
 import TurnoModal    from '../components/programacion/TurnoModal'
 import ImportarModal from '../components/programacion/ImportarModal'
 import toast      from 'react-hot-toast'
+import { clicConTeclado } from '../utils/teclado'
 
 // ── Helpers de fecha ──────────────────────────────────────────────────────────
 // Componentes locales, no toISOString(): esa convierte a UTC y en zonas
@@ -171,7 +172,7 @@ function ActivityRow({ item, onClick, onIniciar, onCompletar, onEditar, onCancel
 
   return (
     <div
-      onClick={onClick}
+      {...clicConTeclado(onClick)}
       className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3
         cursor-pointer hover:bg-hover transition-colors
         ${item.estado === 'cancelado' ? 'opacity-60' : ''}`}
@@ -247,7 +248,7 @@ function ActivityRow({ item, onClick, onIniciar, onCompletar, onEditar, onCancel
       {!isDone && canManagePlanta() && (
         <div className="flex items-center gap-1.5 ml-auto" onClick={e => e.stopPropagation()}>
           {item.estado === 'programado' && canDo('programacion', 'editar') && (
-            <button
+            <button aria-label={`Editar la actividad de ${item.operario || 'sin operario'}`}
               onClick={(e) => { e.stopPropagation(); onEditar(item) }}
               className="w-7 h-7 flex items-center justify-center rounded-badge
                 text-faint hover:bg-primary/10 hover:text-primary transition-colors"
@@ -258,7 +259,7 @@ function ActivityRow({ item, onClick, onIniciar, onCompletar, onEditar, onCancel
           )}
 
           {canDo('programacion', 'eliminar') && (
-            <button
+            <button aria-label={`Cancelar la actividad de ${item.operario || 'sin operario'}`}
               onClick={(e) => { e.stopPropagation(); onCancelar(item) }}
               className="w-7 h-7 flex items-center justify-center rounded-badge
                 text-faint hover:bg-warning/10 hover:text-warning transition-colors"
@@ -269,7 +270,7 @@ function ActivityRow({ item, onClick, onIniciar, onCompletar, onEditar, onCancel
           )}
 
           {canDo('programacion', 'eliminar') && (
-            <button
+            <button aria-label={`Eliminar la actividad de ${item.operario || 'sin operario'}`}
               onClick={(e) => { e.stopPropagation(); onDelete(item) }}
               className="w-7 h-7 flex items-center justify-center rounded-badge
                 text-faint hover:bg-error/10 hover:text-error transition-colors"
@@ -368,7 +369,7 @@ function ProjectGroup({ nombre, items, collapsed, onToggle, onSelect, onIniciar,
 // ── Modal de confirmación de completar ────────────────────────────────────────
 function ConfirmModal({ item, onConfirm, onCancel }) {
   return (
-    <div className="fixed inset-0 z-[60] overflow-y-auto
+    <div role="dialog" aria-modal="true" aria-label="¿Confirmar finalización?" className="fixed inset-0 z-[60] overflow-y-auto
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
       <div className="min-h-full flex items-center justify-center">
@@ -557,7 +558,7 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
 
   return (
     <>
-      <div className="fixed inset-0 z-50 overflow-y-auto
+      <div role="dialog" aria-modal="true" aria-label="Detalle de actividad" className="fixed inset-0 z-50 overflow-y-auto
         bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
       >
         <div className="min-h-full flex items-center justify-center">
@@ -572,7 +573,7 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
               <StateBadge estado={item.estado} />
               <h3 className="text-[15px] font-semibold text-ink">Detalle de actividad</h3>
             </div>
-            <button onClick={onClose}
+            <button aria-label="Cerrar" onClick={onClose}
               className="w-8 h-8 flex items-center justify-center rounded-[8px]
                 bg-surface2 text-faint hover:text-muted transition-colors"
             >
@@ -669,6 +670,7 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
                 </div>
                 <input
                   type="range" min={0} max={99} value={avance}
+                  aria-label="Avance de la actividad (%)"
                   onChange={e => setAvance(Number(e.target.value))}
                   className="w-full accent-primary cursor-pointer"
                 />
@@ -725,7 +727,7 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
             {!isDone && canManagePlanta() ? (
               <div className="flex gap-3">
                 {item.estado === 'programado' && canDo('programacion', 'editar') && (
-                  <button
+                  <button aria-label="Editar actividad"
                     onClick={() => { onEditar(item); onClose() }}
                     className="w-10 h-10 flex items-center justify-center rounded-control
                       border border-border text-primary hover:bg-primary/10 transition-colors"
@@ -735,7 +737,7 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
                   </button>
                 )}
                 {canDo('programacion', 'eliminar') && (
-                  <button
+                  <button aria-label="Cancelar actividad"
                     onClick={() => { onCancelar(item); onClose() }}
                     className="w-10 h-10 flex items-center justify-center rounded-control
                       border border-border text-warning hover:bg-warning/10 transition-colors"
@@ -745,7 +747,7 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
                   </button>
                 )}
                 {canDo('programacion', 'eliminar') && (
-                  <button
+                  <button aria-label="Eliminar actividad"
                     onClick={() => { onDelete(item); onClose() }}
                     className="w-10 h-10 flex items-center justify-center rounded-control
                       border border-border text-error hover:bg-error/10 transition-colors"
@@ -809,7 +811,7 @@ function KanbanCard({ item, draggable, onDragStart, onClick }) {
     <div
       draggable={draggable}
       onDragStart={draggable ? onDragStart : undefined}
-      onClick={onClick}
+      {...clicConTeclado(onClick)}
       className={`bg-surface border border-border rounded-control p-3 shadow-card
         dark:shadow-card-dk transition-colors hover:bg-hover
         ${draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
@@ -1114,7 +1116,7 @@ export default function Programacion() {
 
         {/* Navegador de fecha */}
         <div className="flex items-center gap-1">
-          <button onClick={prevDay}
+          <button aria-label="Periodo anterior" onClick={prevDay}
             className="w-[38px] h-[38px] flex items-center justify-center
               bg-surface border border-border rounded-control
               text-muted hover:bg-hover hover:text-ink transition-colors"
@@ -1167,6 +1169,7 @@ export default function Programacion() {
                       tracking-[.08em] text-faint mb-1.5">Ir a una fecha</p>
                     <input
                       type="date"
+                      aria-label="Ir a una fecha"
                       value={fecha}
                       onChange={e => { if (e.target.value) { setFecha(e.target.value); setModoMenu(false) } }}
                       className="w-full h-9 border border-border rounded-control px-2.5 text-[12px]
@@ -1178,7 +1181,7 @@ export default function Programacion() {
             )}
           </div>
 
-          <button onClick={nextDay}
+          <button aria-label="Periodo siguiente" onClick={nextDay}
             className="w-[38px] h-[38px] flex items-center justify-center
               bg-surface border border-border rounded-control
               text-muted hover:bg-hover hover:text-ink transition-colors"

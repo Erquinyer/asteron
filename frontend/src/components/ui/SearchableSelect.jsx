@@ -91,6 +91,7 @@ export default function SearchableSelect({
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
             <input
               ref={inputRef}
+              aria-label={searchPlaceholder.replace('…', '')}
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder={searchPlaceholder}

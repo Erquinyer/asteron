@@ -493,6 +493,7 @@ export default function ProyectoDetalle() {
 
           {/* Select de estado */}
           <select
+            aria-label={`Estado de la fase ${fase.fase_nombre}`}
             value={edit.estado}
             disabled={locked || soloLectura}
             onChange={e =>
@@ -523,6 +524,7 @@ export default function ProyectoDetalle() {
             </div>
             <input
               type="number" min={0} max={100}
+              aria-label={`Avance de la fase ${fase.fase_nombre} (%)`}
               value={edit.porcentaje_avance}
               disabled={locked || soloLectura}
               onChange={e =>
@@ -606,7 +608,7 @@ export default function ProyectoDetalle() {
 
       {/* ── Encabezado ── */}
       <div className="flex items-start gap-3">
-        <button
+        <button aria-label="Volver a proyectos"
           onClick={() => navigate('/proyectos')}
           className="mt-0.5 w-9 h-9 flex items-center justify-center shrink-0
             border border-border rounded-control

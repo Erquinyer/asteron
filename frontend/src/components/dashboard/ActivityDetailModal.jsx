@@ -27,7 +27,7 @@ export default function ActivityDetailModal({ item, onClose }) {
   const { Icon } = cfg
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto
+    <div role="dialog" aria-modal="true" aria-label="Detalle de actividad" className="fixed inset-0 z-50 overflow-y-auto
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
       <div className="min-h-full flex items-center justify-center">
@@ -46,7 +46,7 @@ export default function ActivityDetailModal({ item, onClose }) {
             </span>
             <h3 className="text-[15px] font-semibold text-ink">Detalle de actividad</h3>
           </div>
-          <button onClick={onClose}
+          <button aria-label="Cerrar" onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-[8px]
               bg-surface2 text-faint hover:text-muted transition-colors"
           >

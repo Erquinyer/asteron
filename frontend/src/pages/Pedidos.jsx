@@ -10,6 +10,7 @@ import EmptyState       from '../components/ui/EmptyState'
 import FieldFilter      from '../components/ui/FieldFilter'
 import SearchableSelect from '../components/ui/SearchableSelect'
 import toast      from 'react-hot-toast'
+import { clicConTeclado } from '../utils/teclado'
 
 const estadoConfig = {
   pendiente:  { label: 'Pendiente',  badge: 'bg-warning/10 text-warning',  dot: 'bg-warning'  },
@@ -146,7 +147,7 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto
+    <div role="dialog" aria-modal="true" aria-label={pedido ? 'Editar pedido' : 'Nuevo pedido'} className="fixed inset-0 z-50 overflow-y-auto
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
       <div className="min-h-full flex items-center justify-center">
@@ -172,7 +173,7 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
               </p>
             </div>
           </div>
-          <button onClick={onClose}
+          <button aria-label="Cerrar" onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-[8px]
               bg-surface2 text-faint hover:text-muted transition-colors"
           >
@@ -213,7 +214,7 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
 
           <div>
             <label className={labelCls}>Descripción del pedido</label>
-            <textarea name="descripcion" value={form.descripcion} onChange={setField} rows={2}
+            <textarea aria-label="Descripción del pedido" name="descripcion" value={form.descripcion} onChange={setField} rows={2}
               placeholder="Descripción general del pedido / proyecto a fabricar"
               className={`${inputCls} h-auto py-2.5 resize-none`}
             />
@@ -258,6 +259,7 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
                           value={item.producto}
                           onChange={e => setItem(i, 'producto', e.target.value)}
                           placeholder="Producto / descripción"
+                          aria-label={`Producto del ítem ${i + 1}`}
                           className={`col-span-5 ${itemInputCls}`}
                         />
                         <input
@@ -266,6 +268,7 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
                           value={item.cantidad}
                           onChange={e => setItem(i, 'cantidad', e.target.value.replace(/\D/g, ''))}
                           placeholder="Cantidad"
+                          aria-label={`Cantidad del ítem ${i + 1}`}
                           className={`col-span-2 ${itemInputCls} text-center`}
                         />
                         <input type="date"
@@ -275,7 +278,7 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
                           min={!item.id_detalle ? hoy : undefined}
                           className={`col-span-4 ${itemInputCls}`}
                         />
-                        <button type="button" onClick={() => removeItem(i)}
+                        <button aria-label={`Quitar el ítem ${i + 1}`} type="button" onClick={() => removeItem(i)}
                           className="col-span-1 flex justify-center items-center
                             text-faint hover:text-error transition-colors"
                         >
@@ -305,6 +308,7 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
                               <select
                                 value={u.direccion}
                                 onChange={e => setUbicacion(i, j, 'direccion', e.target.value)}
+                                aria-label={`Punto de entrega ${j + 1} del ítem ${i + 1}`}
                                 disabled={!form.id_cliente || loadingDirecciones}
                                 title={!form.id_cliente ? 'Selecciona primero un cliente' : undefined}
                                 className={`flex-1 ${itemInputCls} disabled:opacity-60 disabled:cursor-not-allowed`}
@@ -334,9 +338,10 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
                                 value={u.cantidad}
                                 onChange={e => setUbicacion(i, j, 'cantidad', e.target.value.replace(/\D/g, ''))}
                                 placeholder="Cant."
+                                aria-label={`Cantidad para el punto de entrega ${j + 1} del ítem ${i + 1}`}
                                 className={`w-20 shrink-0 ${itemInputCls} text-center`}
                               />
-                              <button type="button" onClick={() => removeUbicacion(i, j)}
+                              <button aria-label={`Quitar el punto de entrega ${j + 1}`} type="button" onClick={() => removeUbicacion(i, j)}
                                 className="shrink-0 text-faint hover:text-error transition-colors"
                               >
                                 <MinusCircle size={14} />
@@ -394,7 +399,7 @@ function PedidoDetailModal({ pedidoId, onClose }) {
   const { data: pedido, loading, error } = useFetch(() => getPedido(pedidoId), [pedidoId])
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto
+    <div role="dialog" aria-modal="true" aria-label={`Pedido #${pedidoId}`} className="fixed inset-0 z-50 overflow-y-auto
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
       <div className="min-h-full flex items-center justify-center">
@@ -420,7 +425,7 @@ function PedidoDetailModal({ pedidoId, onClose }) {
               </p>
             </div>
           </div>
-          <button onClick={onClose}
+          <button aria-label="Cerrar" onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-[8px]
               bg-surface2 text-faint hover:text-muted transition-colors"
           >
@@ -714,7 +719,7 @@ export default function Pedidos() {
                   const cfg = estadoConfig[p.estado] || estadoConfig.pendiente
                   return (
                     <tr key={p.id_pedido}
-                      onClick={() => setViewingId(p.id_pedido)}
+                      {...clicConTeclado(() => setViewingId(p.id_pedido), { fila: true })}
                       className="hover:bg-hover transition-colors cursor-pointer"
                     >
                       <td className="px-5 py-3.5 font-mono text-[11px] text-faint">
@@ -746,7 +751,7 @@ export default function Pedidos() {
                       <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
                           {canDo('pedidos', 'editar') && (
-                            <button onClick={() => setModal(p)}
+                            <button aria-label={`Editar el pedido OP-${p.id_pedido}`} onClick={() => setModal(p)}
                               className="w-7 h-7 flex items-center justify-center rounded-badge
                                 text-faint hover:bg-primary/10 hover:text-primary transition-colors"
                             >
@@ -754,7 +759,7 @@ export default function Pedidos() {
                             </button>
                           )}
                           {canDo('pedidos', 'eliminar') && (
-                            <button onClick={() => handleDelete(p)}
+                            <button aria-label={`Eliminar el pedido OP-${p.id_pedido}`} onClick={() => handleDelete(p)}
                               className="w-7 h-7 flex items-center justify-center rounded-badge
                                 text-faint hover:bg-error/10 hover:text-error transition-colors"
                             >

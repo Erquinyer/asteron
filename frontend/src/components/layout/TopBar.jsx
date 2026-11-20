@@ -84,7 +84,7 @@ const TopBar = ({ user, onMenuToggle }) => {
       border-b border-border sticky top-0 z-10"
     >
       {/* ── Hamburger móvil ── */}
-      <button
+      <button aria-label="Abrir o cerrar el menú"
         onClick={onMenuToggle}
         className="lg:hidden p-2 rounded-control text-faint hover:bg-surface2
           hover:text-muted transition-colors"
@@ -150,7 +150,7 @@ const TopBar = ({ user, onMenuToggle }) => {
                     </span>
                   )}
                 </p>
-                <button onClick={() => setNotifOpen(false)}
+                <button aria-label="Cerrar alertas" onClick={() => setNotifOpen(false)}
                   className="text-faint hover:text-muted transition-colors">
                   <XCircle size={14} />
                 </button>

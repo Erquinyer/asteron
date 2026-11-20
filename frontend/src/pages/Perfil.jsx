@@ -76,12 +76,14 @@ export default function Perfil() {
       <div className="relative">
         <input
           type={showPass[field] ? 'text' : 'password'}
+          aria-label={label}
           value={pass[field]}
           onChange={e => setPass(p => ({ ...p, [field]: e.target.value }))}
           placeholder={placeholder}
           className={`${inputCls} pr-10`}
         />
-        <button type="button" onClick={() => toggleShow(field)}
+        <button type="button" aria-label={`${showPass[field] ? 'Ocultar' : 'Mostrar'} ${label.toLowerCase()}`}
+          onClick={() => toggleShow(field)}
           className="absolute right-3 top-1/2 -translate-y-1/2
             text-faint hover:text-muted transition-colors"
         >
@@ -166,6 +168,7 @@ export default function Perfil() {
             value={nombre}
             onChange={e => setNombre(e.target.value)}
             placeholder="Tu nombre completo"
+            aria-label="Nombre completo"
             className={`flex-1 ${inputCls}`}
           />
           <button type="submit"

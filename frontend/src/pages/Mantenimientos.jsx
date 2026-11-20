@@ -70,7 +70,7 @@ function MantenimientoModal({ maquinas, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto
+    <div role="dialog" aria-modal="true" aria-label="Registrar mantenimiento" className="fixed inset-0 z-50 overflow-y-auto
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
       <div className="min-h-full flex items-center justify-center">
@@ -92,7 +92,7 @@ function MantenimientoModal({ maquinas, onClose, onSaved }) {
               <p className="text-[12px] text-muted">Historial de intervención de equipo</p>
             </div>
           </div>
-          <button onClick={onClose}
+          <button aria-label="Cerrar" onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-[8px]
               bg-surface2 text-faint hover:text-muted transition-colors"
           >
@@ -118,7 +118,7 @@ function MantenimientoModal({ maquinas, onClose, onSaved }) {
 
           <div>
             <label className={labelCls}>Equipo *</label>
-            <select name="id_maquina" value={form.id_maquina}
+            <select aria-label="Equipo" name="id_maquina" value={form.id_maquina}
               onChange={set} required className={inputCls}
             >
               <option value="">Seleccionar equipo</option>
@@ -133,13 +133,13 @@ function MantenimientoModal({ maquinas, onClose, onSaved }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>{programado ? 'Fecha prevista *' : 'Fecha *'}</label>
-              <input type="date" name="fecha" value={form.fecha} min={programado ? hoyLocal() : undefined}
+              <input type="date" name="fecha" aria-label={programado ? 'Fecha prevista' : 'Fecha'} value={form.fecha} min={programado ? hoyLocal() : undefined}
                 onChange={set} className={inputCls}
               />
             </div>
             <div>
               <label className={labelCls}>Tipo *</label>
-              <select name="tipo" value={form.tipo} onChange={set} className={inputCls}>
+              <select aria-label="Tipo" name="tipo" value={form.tipo} onChange={set} className={inputCls}>
                 <option value="preventivo">Preventivo</option>
                 <option value="correctivo">Correctivo</option>
                 <option value="calibracion">Calibración</option>
@@ -160,7 +160,7 @@ function MantenimientoModal({ maquinas, onClose, onSaved }) {
 
           <div>
             <label className={labelCls}>Descripción / Trabajo realizado</label>
-            <textarea name="descripcion" value={form.descripcion} onChange={set} rows={3}
+            <textarea aria-label="Descripción / Trabajo realizado" name="descripcion" value={form.descripcion} onChange={set} rows={3}
               placeholder="Detalle del trabajo realizado o a realizar"
               className={`${inputCls} h-auto py-2.5 resize-none`}
             />
@@ -250,7 +250,7 @@ export default function Mantenimientos() {
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
           <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar por equipo, técnico…"
+            placeholder="Buscar por equipo, técnico…" aria-label="Buscar mantenimientos"
             className="w-full h-[38px] pl-9 pr-4 border border-border rounded-control
               text-[13px] bg-surface2 text-ink placeholder:text-faint
               focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary
@@ -380,7 +380,7 @@ export default function Mantenimientos() {
                           </button>
                         )}
                         {canDo('mantenimientos', 'eliminar') && (
-                          <button onClick={() => handleDelete(m)}
+                          <button aria-label={`Eliminar el mantenimiento de ${m.maquina}`} onClick={() => handleDelete(m)}
                             className="w-7 h-7 inline-flex items-center justify-center rounded-badge
                               text-faint hover:bg-error/10 hover:text-error transition-colors"
                           >

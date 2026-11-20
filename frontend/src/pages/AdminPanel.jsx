@@ -165,7 +165,7 @@ function UsuarioModal({ usuario, roles, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto
+    <div role="dialog" aria-modal="true" aria-label={usuario ? 'Editar usuario' : 'Nuevo usuario'} className="fixed inset-0 z-50 overflow-y-auto
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
       <div className="min-h-full flex items-center justify-center">
@@ -191,7 +191,7 @@ function UsuarioModal({ usuario, roles, onClose, onSaved }) {
               </p>
             </div>
           </div>
-          <button onClick={onClose}
+          <button aria-label="Cerrar" onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-[8px]
               bg-surface2 text-faint hover:text-muted transition-colors"
           >
@@ -204,14 +204,14 @@ function UsuarioModal({ usuario, roles, onClose, onSaved }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Código empleado</label>
-              <input name="codigo_empleado" value={form.codigo_empleado} onChange={set}
+              <input aria-label="Código empleado" name="codigo_empleado" value={form.codigo_empleado} onChange={set}
                 placeholder="Auto (EMP-XXX)"
                 className={`${inputCls} font-mono`}
               />
             </div>
             <div>
               <label className={labelCls}>Nombre completo *</label>
-              <input name="nombre" value={form.nombre} onChange={set}
+              <input aria-label="Nombre completo" name="nombre" value={form.nombre} onChange={set}
                 placeholder="Ej: Alejandro Acuña" className={inputCls}
               />
             </div>
@@ -219,7 +219,7 @@ function UsuarioModal({ usuario, roles, onClose, onSaved }) {
 
           <div>
             <label className={labelCls}>Correo electrónico *</label>
-            <input name="correo" type="email" value={form.correo} onChange={set}
+            <input aria-label="Correo electrónico" name="correo" type="email" value={form.correo} onChange={set}
               placeholder="nombre@macromet.com.co" className={inputCls}
             />
           </div>
@@ -230,11 +230,13 @@ function UsuarioModal({ usuario, roles, onClose, onSaved }) {
             </label>
             <div className="relative">
               <input name="password" type={showPass ? 'text' : 'password'}
+                aria-label={usuario ? 'Nueva contraseña' : 'Contraseña'}
                 value={form.password} onChange={set}
                 placeholder={usuario ? '••••••••' : 'Mínimo 6 caracteres'}
                 className={`${inputCls} pr-10`}
               />
-              <button type="button" onClick={() => setShowPass(s => !s)}
+              <button type="button" aria-label={showPass ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                onClick={() => setShowPass(s => !s)}
                 className="absolute right-3 top-1/2 -translate-y-1/2
                   text-faint hover:text-muted transition-colors"
               >
@@ -246,7 +248,7 @@ function UsuarioModal({ usuario, roles, onClose, onSaved }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Rol</label>
-              <select name="id_rol" value={form.id_rol} onChange={set} className={inputCls}>
+              <select aria-label="Rol" name="id_rol" value={form.id_rol} onChange={set} className={inputCls}>
                 <option value="">Sin rol</option>
                 {roles.map(r => (
                   <option key={r.id_rol} value={r.id_rol}>{r.nombre}</option>
@@ -255,7 +257,7 @@ function UsuarioModal({ usuario, roles, onClose, onSaved }) {
             </div>
             <div>
               <label className={labelCls}>Estado</label>
-              <select name="estado" value={form.estado} onChange={set} className={inputCls}>
+              <select aria-label="Estado" name="estado" value={form.estado} onChange={set} className={inputCls}>
                 <option value={1}>Activo</option>
                 <option value={0}>Inactivo</option>
               </select>
@@ -349,7 +351,7 @@ function GestionUsuarios({ onNavigateToRole }) {
       <div className="relative max-w-sm">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
         <input value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Buscar por nombre, correo, rol…"
+          placeholder="Buscar por nombre, correo, rol…" aria-label="Buscar usuarios"
           className="w-full h-[38px] pl-9 pr-4 border border-border rounded-control
             text-[13px] bg-surface2 text-ink placeholder:text-faint
             focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary
@@ -437,7 +439,7 @@ function GestionUsuarios({ onNavigateToRole }) {
                   <td className="px-4 py-3">
                     {!isAdminUser && (
                       <div className="flex items-center gap-1 justify-end">
-                        <button onClick={() => setModal(u)}
+                        <button aria-label={`Editar ${u.nombre}`} onClick={() => setModal(u)}
                           className="w-7 h-7 flex items-center justify-center rounded-badge
                             text-faint hover:bg-primary/10 hover:text-primary transition-colors"
                           title="Editar"
@@ -511,7 +513,7 @@ function RolModal({ rol, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto
+    <div role="dialog" aria-modal="true" aria-label={rol ? 'Editar rol' : 'Nuevo rol'} className="fixed inset-0 z-50 overflow-y-auto
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
       <div className="min-h-full flex items-center justify-center">
@@ -537,7 +539,7 @@ function RolModal({ rol, onClose, onSaved }) {
               </p>
             </div>
           </div>
-          <button onClick={onClose}
+          <button aria-label="Cerrar" onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-[8px]
               bg-surface2 text-faint hover:text-muted transition-colors"
           >
@@ -549,21 +551,21 @@ function RolModal({ rol, onClose, onSaved }) {
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label className={labelCls}>Nombre del rol *</label>
-            <input name="nombre" value={form.nombre} onChange={set}
+            <input aria-label="Nombre del rol" name="nombre" value={form.nombre} onChange={set}
               placeholder="Ej: Coordinador de Calidad"
               className={inputCls} autoFocus
             />
           </div>
           <div>
             <label className={labelCls}>Descripción</label>
-            <textarea name="descripcion" value={form.descripcion} onChange={set} rows={3}
+            <textarea aria-label="Descripción" name="descripcion" value={form.descripcion} onChange={set} rows={3}
               placeholder="Describe las responsabilidades de este rol"
               className={`${inputCls} h-auto py-2.5 resize-none`}
             />
           </div>
           {COSTOS_HABILITADOS && <div>
             <label className={labelCls}>Valor hora (COP)</label>
-            <input type="number" min={0} step="any" name="valor_hora" value={form.valor_hora} onChange={set}
+            <input aria-label="Valor hora (COP)" type="number" min={0} step="any" name="valor_hora" value={form.valor_hora} onChange={set}
               placeholder="Sin definir"
               className={inputCls}
             />
@@ -727,7 +729,7 @@ function GestionRoles({ onNavigateToRole }) {
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-1 justify-end">
-                      <button onClick={() => onNavigateToRole?.(rol.id_rol)}
+                      <button aria-label={`Configurar permisos de ${rol.nombre}`} onClick={() => onNavigateToRole?.(rol.id_rol)}
                         className="w-7 h-7 flex items-center justify-center rounded-badge
                           text-faint hover:bg-primary/10 hover:text-primary transition-colors"
                         title="Configurar permisos"
@@ -736,7 +738,7 @@ function GestionRoles({ onNavigateToRole }) {
                       </button>
                       {!isAdmin && (
                         <>
-                          <button onClick={() => setModal(rol)}
+                          <button aria-label={`Editar el rol ${rol.nombre}`} onClick={() => setModal(rol)}
                             className="w-7 h-7 flex items-center justify-center rounded-badge
                               text-faint hover:bg-primary/10 hover:text-primary transition-colors"
                             title="Editar"

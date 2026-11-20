@@ -11,6 +11,7 @@ import EmptyState       from '../components/ui/EmptyState'
 import FieldFilter      from '../components/ui/FieldFilter'
 import SearchableSelect from '../components/ui/SearchableSelect'
 import toast      from 'react-hot-toast'
+import { clicConTeclado } from '../utils/teclado'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const prioridadCfg = {
@@ -104,7 +105,7 @@ function ProyectoModal({ proyecto, pedidos, proyectos, usuarios, onClose, onSave
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto
+    <div role="dialog" aria-modal="true" aria-label={proyecto ? 'Editar proyecto' : 'Nuevo proyecto'} className="fixed inset-0 z-50 overflow-y-auto
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
       <div className="min-h-full flex items-center justify-center">
@@ -129,7 +130,7 @@ function ProyectoModal({ proyecto, pedidos, proyectos, usuarios, onClose, onSave
               </p>
             </div>
           </div>
-          <button onClick={onClose}
+          <button aria-label="Cerrar" onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-[8px]
               bg-surface2 text-faint hover:text-muted transition-colors"
           >
@@ -154,13 +155,13 @@ function ProyectoModal({ proyecto, pedidos, proyectos, usuarios, onClose, onSave
 
           <div>
             <label className={labelCls}>Nombre del proyecto *</label>
-            <input name="nombre" value={form.nombre} onChange={handleChange} required
+            <input aria-label="Nombre del proyecto" name="nombre" value={form.nombre} onChange={handleChange} required
               className={inputCls} placeholder="Ej: Display POP Bavaria Q3" />
           </div>
 
           <div>
             <label className={labelCls}>Objetivo</label>
-            <textarea name="objetivo" value={form.objetivo} onChange={handleChange} rows={2}
+            <textarea aria-label="Objetivo" name="objetivo" value={form.objetivo} onChange={handleChange} rows={2}
               className={`${inputCls} h-auto py-2.5 resize-none`}
               placeholder="Descripción del objetivo" />
           </div>
@@ -168,7 +169,7 @@ function ProyectoModal({ proyecto, pedidos, proyectos, usuarios, onClose, onSave
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Prioridad</label>
-              <select name="prioridad" value={form.prioridad} onChange={handleChange}
+              <select aria-label="Prioridad" name="prioridad" value={form.prioridad} onChange={handleChange}
                 className={inputCls}
               >
                 <option value="alta">Alta</option>
@@ -178,7 +179,7 @@ function ProyectoModal({ proyecto, pedidos, proyectos, usuarios, onClose, onSave
             </div>
             <div>
               <label className={labelCls}>Responsable</label>
-              <select name="id_usuario_responsable" value={form.id_usuario_responsable}
+              <select aria-label="Responsable" name="id_usuario_responsable" value={form.id_usuario_responsable}
                 onChange={handleChange} className={inputCls}
               >
                 <option value="">Sin asignar</option>
@@ -192,12 +193,12 @@ function ProyectoModal({ proyecto, pedidos, proyectos, usuarios, onClose, onSave
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Fecha inicio</label>
-              <input type="date" name="fecha_inicio" value={form.fecha_inicio}
+              <input aria-label="Fecha inicio" type="date" name="fecha_inicio" value={form.fecha_inicio}
                 onChange={handleChange} min={minFechaInicio} className={inputCls} />
             </div>
             <div>
               <label className={labelCls}>Fecha límite</label>
-              <input type="date" name="fecha_fin_estimada" value={form.fecha_fin_estimada}
+              <input aria-label="Fecha límite" type="date" name="fecha_fin_estimada" value={form.fecha_fin_estimada}
                 onChange={handleChange} min={form.fecha_inicio || hoy} className={inputCls} />
             </div>
           </div>
@@ -230,7 +231,7 @@ function ClienteProjectRow({ p, navigate, onEdit, onDelete }) {
   const pCfg = prioridadCfg[p.prioridad] || prioridadCfg.baja
   return (
     <div
-      onClick={() => navigate(`/proyectos/${p.id_proyecto}`)}
+      {...clicConTeclado(() => navigate(`/proyectos/${p.id_proyecto}`))}
       className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3
         cursor-pointer hover:bg-hover transition-colors"
     >
@@ -268,7 +269,7 @@ function ClienteProjectRow({ p, navigate, onEdit, onDelete }) {
 
       <div className="flex items-center gap-0.5 ml-auto shrink-0" onClick={e => e.stopPropagation()}>
         {canDo('proyectos', 'editar') && (
-          <button
+          <button aria-label={`Editar ${p.nombre}`}
             onClick={() => onEdit(p)}
             title="Editar"
             className="w-7 h-7 flex items-center justify-center rounded-badge
@@ -278,7 +279,7 @@ function ClienteProjectRow({ p, navigate, onEdit, onDelete }) {
           </button>
         )}
         {canDo('proyectos', 'eliminar') && (
-          <button
+          <button aria-label={`Eliminar ${p.nombre}`}
             onClick={() => onDelete(p)}
             title="Eliminar"
             className="w-7 h-7 flex items-center justify-center rounded-badge
@@ -548,7 +549,7 @@ export default function Proyectos() {
                   const pCfg = prioridadCfg[p.prioridad] || prioridadCfg.baja
                   return (
                     <tr key={p.id_proyecto}
-                      onClick={() => navigate(`/proyectos/${p.id_proyecto}`)}
+                      {...clicConTeclado(() => navigate(`/proyectos/${p.id_proyecto}`), { fila: true })}
                       className="hover:bg-hover transition-colors duration-100 cursor-pointer"
                     >
                       {/* Proyecto */}
@@ -628,7 +629,7 @@ export default function Proyectos() {
                       <td className="px-[18px] py-[13px]" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-0.5">
                           {canDo('proyectos', 'editar') && (
-                            <button
+                            <button aria-label={`Editar ${p.nombre}`}
                               onClick={() => setModal(p)}
                               title="Editar"
                               className="w-7 h-7 flex items-center justify-center rounded-badge
@@ -638,7 +639,7 @@ export default function Proyectos() {
                             </button>
                           )}
                           {canDo('proyectos', 'eliminar') && (
-                            <button
+                            <button aria-label={`Eliminar ${p.nombre}`}
                               onClick={() => handleDelete(p)}
                               title="Eliminar"
                               className="w-7 h-7 flex items-center justify-center rounded-badge

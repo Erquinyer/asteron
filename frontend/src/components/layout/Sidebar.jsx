@@ -84,7 +84,7 @@ const Sidebar = ({ open, onClose, collapsed, onToggleCollapse }) => {
 
           {/* Botón cerrar — solo móvil */}
           {!collapsed && (
-            <button
+            <button aria-label="Cerrar menú"
               onClick={onClose}
               className="lg:hidden p-1.5 rounded-[8px] text-faint hover:text-muted
                 hover:bg-surface2 transition-colors"

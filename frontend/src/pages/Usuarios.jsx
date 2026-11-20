@@ -52,31 +52,31 @@ function UsuarioModal({ usuario, roles, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-4">
+    <div role="dialog" aria-modal="true" aria-label={usuario ? 'Editar usuario' : 'Nuevo usuario'} className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-4">
       <div className="min-h-full flex items-center justify-center">
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md my-4">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700">
           <h3 className="text-base font-semibold text-slate-800 dark:text-white">{usuario ? 'Editar usuario' : 'Nuevo usuario'}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><X size={18}/></button>
+          <button aria-label="Cerrar" onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><X size={18}/></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Código empleado</label>
-              <input name="codigo_empleado" value={form.codigo_empleado} onChange={set}
+              <input aria-label="Código empleado" name="codigo_empleado" value={form.codigo_empleado} onChange={set}
                 placeholder="Auto (EMP-XXX)"
                 className={`${inputCls} font-mono`}/>
             </div>
             <div>
               <label className={labelCls}>Nombre completo *</label>
-              <input name="nombre" value={form.nombre} onChange={set}
+              <input aria-label="Nombre completo" name="nombre" value={form.nombre} onChange={set}
                 placeholder="Ej: Alejandro Acuña" className={inputCls}/>
             </div>
           </div>
 
           <div>
             <label className={labelCls}>Correo electrónico *</label>
-            <input name="correo" type="email" value={form.correo} onChange={set}
+            <input aria-label="Correo electrónico" name="correo" type="email" value={form.correo} onChange={set}
               placeholder="nombre@macromet.com.co" className={inputCls}/>
           </div>
 
@@ -86,10 +86,12 @@ function UsuarioModal({ usuario, roles, onClose, onSaved }) {
             </label>
             <div className="relative">
               <input name="password" type={showPass ? 'text' : 'password'}
+                aria-label={usuario ? 'Nueva contraseña' : 'Contraseña'}
                 value={form.password} onChange={set}
                 placeholder={usuario ? '••••••••' : 'Mínimo 6 caracteres'}
                 className={`${inputCls} pr-10`}/>
-              <button type="button" onClick={() => setShowPass(s => !s)}
+              <button type="button" aria-label={showPass ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                onClick={() => setShowPass(s => !s)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                 {showPass ? <EyeOff size={15}/> : <Eye size={15}/>}
               </button>
@@ -99,14 +101,14 @@ function UsuarioModal({ usuario, roles, onClose, onSaved }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Rol</label>
-              <select name="id_rol" value={form.id_rol} onChange={set} className={inputCls}>
+              <select aria-label="Rol" name="id_rol" value={form.id_rol} onChange={set} className={inputCls}>
                 <option value="">Sin rol</option>
                 {roles.map(r => <option key={r.id_rol} value={r.id_rol}>{r.nombre}</option>)}
               </select>
             </div>
             <div>
               <label className={labelCls}>Estado</label>
-              <select name="estado" value={form.estado} onChange={set} className={inputCls}>
+              <select aria-label="Estado" name="estado" value={form.estado} onChange={set} className={inputCls}>
                 <option value={1}>Activo</option>
                 <option value={0}>Inactivo</option>
               </select>
@@ -182,7 +184,7 @@ export default function Usuarios() {
       <div className="relative max-w-sm">
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
         <input value={search} onChange={e => handleSearch(e.target.value)}
-          placeholder="Buscar por nombre, correo, código o rol…"
+          placeholder="Buscar por nombre, correo, código o rol…" aria-label="Buscar usuarios"
           className="pl-9 pr-4 py-2 w-full border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
       </div>
 
@@ -202,7 +204,7 @@ export default function Usuarios() {
                   </div>
                   <div className="flex gap-1">
                     {canDo('usuarios', 'editar') && (
-                      <button onClick={() => setModal(u)}
+                      <button aria-label={`Editar ${u.nombre}`} onClick={() => setModal(u)}
                         className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-600 transition-colors" title="Editar">
                         <Pencil size={13}/>
                       </button>

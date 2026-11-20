@@ -151,7 +151,7 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
     && (!faseSeleccionada?.categoria_equipo || m.categoria === faseSeleccionada.categoria_equipo))
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto
+    <div role="dialog" aria-modal="true" aria-label={turno ? 'Editar actividad' : 'Nueva actividad'} className="fixed inset-0 z-50 overflow-y-auto
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
       <div className="min-h-full flex items-center justify-center">
@@ -175,7 +175,7 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
               </p>
             </div>
           </div>
-          <button onClick={onClose}
+          <button aria-label="Cerrar" onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-[8px]
               bg-surface2 text-faint hover:text-muted transition-colors"
           >
@@ -187,7 +187,7 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label className={labelCls}>Fecha</label>
-            <input type="date" name="fecha" value={form.fecha} onChange={set}
+            <input aria-label="Fecha" type="date" name="fecha" value={form.fecha} onChange={set}
               min={minFecha} className={inputCls} />
           </div>
 
@@ -235,7 +235,7 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
 
           <div>
             <label className={labelCls}>Operario *</label>
-            <select name="id_operario" value={form.id_operario} onChange={set}
+            <select aria-label="Operario" name="id_operario" value={form.id_operario} onChange={set}
               required className={inputCls}
             >
               <option value="">Seleccionar operario</option>
@@ -247,7 +247,7 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
 
           <div>
             <label className={labelCls}>Máquina / Equipo{maquinaRequerida ? ' *' : ''}</label>
-            <select name="id_maquina" value={form.id_maquina} onChange={set}
+            <select aria-label="Máquina / Equipo" name="id_maquina" value={form.id_maquina} onChange={set}
               required={maquinaRequerida} className={inputCls}
             >
               <option value="">{maquinaRequerida ? 'Seleccionar equipo' : 'Sin equipo específico'}</option>
@@ -269,7 +269,7 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
           <div>
             <label className={labelCls}>Tiempo estimado (minutos)</label>
             <div className="flex items-center gap-2">
-              <input type="number" name="tiempo_estimado" value={form.tiempo_estimado}
+              <input aria-label="Tiempo estimado (minutos)" type="number" name="tiempo_estimado" value={form.tiempo_estimado}
                 onChange={set} min={30} step={30} className={inputCls} />
               <span className="font-mono text-[11px] text-faint whitespace-nowrap shrink-0">
                 = {(form.tiempo_estimado / 60).toFixed(1)}h
@@ -279,7 +279,7 @@ export default function TurnoModal({ fecha, turno, usuarios, maquinas, proyectos
 
           <div>
             <label className={labelCls}>Tarea / Observaciones</label>
-            <textarea name="observaciones" value={form.observaciones} onChange={set} rows={3}
+            <textarea aria-label="Tarea / Observaciones" name="observaciones" value={form.observaciones} onChange={set} rows={3}
               placeholder="Describe la tarea específica, instrucciones, etc."
               className={`${inputCls} h-auto py-2.5 resize-none`} />
           </div>
