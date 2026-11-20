@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs'
 import pool from '../config/db.js'
 import { esFechaPasada, hoyISO, fechaColumnaISO } from '../utils/dates.js'
+import { ErrorApp, responderError } from '../utils/errores.js'
 import {
   leerFilas, cargarContexto, resolverFila, valoresParaMostrar, COLUMNAS_PLANTILLA,
   crearRegistroSimulado, estaOcupadoSimulado, marcarOcupadoSimulado,
@@ -60,8 +61,7 @@ export const getOcupados = async (req, res) => {
       maquinas:  [...new Set(rows.map(r => r.id_maquina).filter(Boolean))],
     })
   } catch (err) {
-    console.error('[programacion.getOcupados]', err)
-    res.status(500).json({ message: 'Error al obtener disponibilidad' })
+    responderError(res, err, 'programacion.getOcupados', 'Error al obtener disponibilidad')
   }
 }
 
@@ -95,8 +95,7 @@ export const getAll = async (req, res) => {
       [desde, hasta])
     res.json(rows)
   } catch (err) {
-    console.error('[programacion.getAll]', err)
-    res.status(500).json({ message: 'Error al obtener programación' })
+    responderError(res, err, 'programacion.getAll', 'Error al obtener programación')
   }
 }
 
@@ -118,8 +117,7 @@ export const getByFase = async (req, res) => {
       [req.params.idFase])
     res.json(rows)
   } catch (err) {
-    console.error('[programacion.getByFase]', err)
-    res.status(500).json({ message: 'Error al obtener actividades de la fase' })
+    responderError(res, err, 'programacion.getByFase', 'Error al obtener actividades de la fase')
   }
 }
 
@@ -222,8 +220,7 @@ export const create = async (req, res) => {
     if (!resultado.ok) return res.status(resultado.status).json({ message: resultado.message })
     res.status(201).json(resultado.turno)
   } catch (err) {
-    console.error('[programacion.create]', err)
-    res.status(500).json({ message: 'Error al crear programación' })
+    responderError(res, err, 'programacion.create', 'Error al crear programación')
   }
 }
 
@@ -273,8 +270,7 @@ export const getPlantilla = async (_req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="plantilla_programacion.xlsx"')
     res.send(Buffer.from(buffer))
   } catch (err) {
-    console.error('[programacion.getPlantilla]', err)
-    res.status(500).json({ message: 'Error al generar la plantilla' })
+    responderError(res, err, 'programacion.getPlantilla', 'Error al generar la plantilla')
   }
 }
 
@@ -307,9 +303,17 @@ export const importar = async (req, res) => {
 
     res.json({ total: filas.length, creados, errores })
   } catch (err) {
-    console.error('[programacion.importar]', err)
-    res.status(400).json({ message: err.message || 'No se pudo leer el archivo. Verifica que sea un .xlsx o .csv válido.' })
+    errorImportacion(res, err, 'programacion.importar')
   }
+}
+
+// Errores de la importación: los de formato del archivo (ErrorApp) se muestran tal
+// cual; los de la base van al manejo central (500 sin detalles); cualquier otro es
+// el lector de Excel/CSV que no pudo abrir el archivo.
+const errorImportacion = (res, err, contexto) => {
+  if (err instanceof ErrorApp || err?.sqlMessage) return responderError(res, err, contexto, 'Error al importar la programación')
+  console.error(`[${contexto}]`, err)
+  res.status(400).json({ message: 'No se pudo leer el archivo. Verifica que sea un .xlsx o .csv válido.' })
 }
 
 // POST /importar/preview — dry-run: parsea y valida el archivo (misma lógica
@@ -362,8 +366,7 @@ export const previsualizarImportar = async (req, res) => {
       validas: resultado.filter(r => r.estado === 'ok').length,
     })
   } catch (err) {
-    console.error('[programacion.previsualizarImportar]', err)
-    res.status(400).json({ message: err.message || 'No se pudo leer el archivo. Verifica que sea un .xlsx o .csv válido.' })
+    errorImportacion(res, err, 'programacion.previsualizarImportar')
   }
 }
 
@@ -461,17 +464,23 @@ export const update = async (req, res) => {
 
     res.json(row)
   } catch (err) {
-    console.error('[programacion.update]', err)
-    res.status(500).json({ message: 'Error al actualizar programación' })
+    responderError(res, err, 'programacion.update', 'Error al actualizar programación')
   }
 }
+
+const ESTADOS_TURNO = ['programado', 'en_proceso', 'completado', 'cancelado']
+
+const minutosEntre = (inicio, fin) => Math.round((fin.getTime() - inicio.getTime()) / 60000)
 
 export const updateEstado = async (req, res) => {
   const { estado, tiempo_real } = req.body
   const { id } = req.params
+  if (!ESTADOS_TURNO.includes(estado)) {
+    return res.status(400).json({ message: 'Estado no válido' })
+  }
   try {
     const [[prog]] = await pool.query(
-      'SELECT id_fase_proyecto, id_operario, id_maquina FROM programacion_planta WHERE id_programacion=?', [id])
+      'SELECT id_fase_proyecto, id_operario, id_maquina, hora_inicio FROM programacion_planta WHERE id_programacion=?', [id])
     if (!prog) return res.status(404).json({ message: 'Registro no encontrado' })
 
     if (estado === 'en_proceso') {
@@ -492,21 +501,106 @@ export const updateEstado = async (req, res) => {
       }
     }
 
+    // Las horas las fija el servidor al cambiar de estado. Se usa un Date de Node
+    // (no NOW() de MySQL) para no depender de la zona horaria del motor.
+    const ahora = new Date()
+    const horas = {
+      programado: { hora_inicio: null, hora_fin: null, tiempo_real: null },
+      en_proceso: { hora_inicio: prog.hora_inicio || ahora, hora_fin: null, tiempo_real: null },
+      cancelado:  { hora_inicio: prog.hora_inicio, hora_fin: ahora, tiempo_real: null },
+      // El tiempo real se calcula con las horas registradas; el valor enviado por
+      // el cliente solo se usa si la actividad nunca se inició (no hay hora_inicio).
+      completado: {
+        hora_inicio: prog.hora_inicio,
+        hora_fin: ahora,
+        tiempo_real: prog.hora_inicio ? minutosEntre(prog.hora_inicio, ahora) : (Number(tiempo_real) || null),
+      },
+    }[estado]
+
     const porcentaje_avance = estado === 'completado' ? 100 : undefined
     await pool.query(
       porcentaje_avance !== undefined
-        ? `UPDATE programacion_planta SET estado=?, tiempo_real=?, porcentaje_avance=? WHERE id_programacion=?`
-        : `UPDATE programacion_planta SET estado=?, tiempo_real=? WHERE id_programacion=?`,
+        ? `UPDATE programacion_planta SET estado=?, hora_inicio=?, hora_fin=?, tiempo_real=?, porcentaje_avance=? WHERE id_programacion=?`
+        : `UPDATE programacion_planta SET estado=?, hora_inicio=?, hora_fin=?, tiempo_real=? WHERE id_programacion=?`,
       porcentaje_avance !== undefined
-        ? [estado, tiempo_real || null, porcentaje_avance, id]
-        : [estado, tiempo_real || null, id])
+        ? [estado, horas.hora_inicio, horas.hora_fin, horas.tiempo_real, porcentaje_avance, id]
+        : [estado, horas.hora_inicio, horas.hora_fin, horas.tiempo_real, id])
 
     if (prog.id_fase_proyecto) await recomputeFase(prog.id_fase_proyecto)
 
     res.json({ message: 'Estado actualizado' })
   } catch (err) {
-    console.error('[programacion.updateEstado]', err)
-    res.status(500).json({ message: 'Error al actualizar estado' })
+    responderError(res, err, 'programacion.updateEstado', 'Error al actualizar estado')
+  }
+}
+
+// PATCH /:id/tiempos — corrige las horas de una actividad completada. El motivo es
+// obligatorio y cada corrección queda en correcciones_tiempo con el valor anterior,
+// el nuevo y quién la hizo.
+export const corregirTiempos = async (req, res) => {
+  const { id } = req.params
+  const motivo = req.body.motivo?.trim()
+  const inicio = new Date(req.body.hora_inicio)
+  const fin    = new Date(req.body.hora_fin)
+
+  if (!motivo) return res.status(400).json({ message: 'El motivo de la corrección es requerido' })
+  if (isNaN(inicio) || isNaN(fin)) return res.status(400).json({ message: 'Las horas de inicio y fin son requeridas' })
+  if (fin <= inicio) return res.status(400).json({ message: 'La hora de fin debe ser posterior a la de inicio' })
+  if (fin > new Date()) return res.status(400).json({ message: 'La hora de fin no puede estar en el futuro' })
+
+  const conn = await pool.getConnection()
+  try {
+    const [[prog]] = await conn.query(
+      'SELECT estado, id_operario, hora_inicio, hora_fin, tiempo_real FROM programacion_planta WHERE id_programacion=?', [id])
+    if (!prog) return res.status(404).json({ message: 'Registro no encontrado' })
+    if (prog.estado !== 'completado') {
+      return res.status(400).json({ message: 'Solo se pueden corregir los tiempos de una actividad completada' })
+    }
+
+    if (prog.id_operario) {
+      const [[solapada]] = await conn.query(
+        `SELECT id_programacion FROM programacion_planta
+         WHERE id_operario=? AND id_programacion!=? AND estado!='cancelado'
+           AND hora_inicio IS NOT NULL AND hora_inicio < ? AND COALESCE(hora_fin, ?) > ?
+         LIMIT 1`,
+        [prog.id_operario, id, fin, new Date(), inicio])
+      if (solapada) {
+        return res.status(409).json({ message: 'Esas horas se cruzan con otra actividad del mismo operario' })
+      }
+    }
+
+    const tiempo_real = minutosEntre(inicio, fin)
+    await conn.beginTransaction()
+    await conn.query(
+      'UPDATE programacion_planta SET hora_inicio=?, hora_fin=?, tiempo_real=? WHERE id_programacion=?',
+      [inicio, fin, tiempo_real, id])
+    await conn.query(
+      `INSERT INTO correcciones_tiempo
+       (id_programacion, hora_inicio_anterior, hora_fin_anterior, tiempo_real_anterior,
+        hora_inicio_nueva, hora_fin_nueva, tiempo_real_nuevo, motivo, corregido_por)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
+      [id, prog.hora_inicio, prog.hora_fin, prog.tiempo_real, inicio, fin, tiempo_real, motivo, req.user.id])
+    await conn.commit()
+    res.json({ message: 'Tiempos corregidos', tiempo_real })
+  } catch (err) {
+    await conn.rollback()
+    responderError(res, err, 'programacion.corregirTiempos', 'Error al corregir los tiempos')
+  } finally {
+    conn.release()
+  }
+}
+
+export const getCorrecciones = async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT c.*, u.nombre AS corregido_por_nombre
+       FROM correcciones_tiempo c
+       LEFT JOIN usuarios u ON u.id_usuario = c.corregido_por
+       WHERE c.id_programacion = ?
+       ORDER BY c.corregido_en DESC`, [req.params.id])
+    res.json(rows)
+  } catch (err) {
+    responderError(res, err, 'programacion.getCorrecciones', 'Error al obtener las correcciones')
   }
 }
 
@@ -531,8 +625,7 @@ export const updateAvance = async (req, res) => {
 
     res.json({ message: 'Avance actualizado', porcentaje_avance })
   } catch (err) {
-    console.error('[programacion.updateAvance]', err)
-    res.status(500).json({ message: 'Error al actualizar avance' })
+    responderError(res, err, 'programacion.updateAvance', 'Error al actualizar avance')
   }
 }
 
@@ -549,7 +642,6 @@ export const remove = async (req, res) => {
 
     res.json({ message: 'Registro eliminado' })
   } catch (err) {
-    console.error('[programacion.remove]', err)
-    res.status(500).json({ message: 'Error al eliminar' })
+    responderError(res, err, 'programacion.remove', 'Error al eliminar')
   }
 }

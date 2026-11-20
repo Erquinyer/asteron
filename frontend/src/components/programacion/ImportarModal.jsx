@@ -81,7 +81,7 @@ export default function ImportarModal({ onClose, onImported }) {
   const puedeImportar = hayVistaPrevia && preview.validas > 0 && !importing
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto
+    <div role="dialog" aria-modal="true" aria-label="Importar programación" className="fixed inset-0 z-50 overflow-y-auto
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
       <div className="min-h-full flex items-center justify-center">
@@ -102,7 +102,7 @@ export default function ImportarModal({ onClose, onImported }) {
               <p className="text-[12px] text-muted">Carga varios turnos a la vez desde Excel/CSV</p>
             </div>
           </div>
-          <button onClick={onClose}
+          <button aria-label="Cerrar" onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-[8px]
               bg-surface2 text-faint hover:text-muted transition-colors"
           >

@@ -40,7 +40,8 @@ describe('pedidos.create', () => {
     // Assert
     const insertsDeItems = conn.query.mock.calls.filter(([sql]) => sql.includes('INSERT INTO detalle_pedido'))
     expect(insertsDeItems).toHaveLength(1)
-    expect(insertsDeItems[0][1]).toEqual([30, 'Góndola', 1, null, 'pendiente', FECHA_FUTURA])
+    // Sin punto_descargue: los puntos de entrega van en puntos_entrega_detalle (varios por producto)
+    expect(insertsDeItems[0][1]).toEqual([30, 'Góndola', 1, 'pendiente', FECHA_FUTURA])
     expect(conn.commit).toHaveBeenCalledOnce()
     expect(conn.release).toHaveBeenCalledOnce()
     expect(res.status).toHaveBeenCalledWith(201)
@@ -103,16 +104,17 @@ describe('pedidos.update', () => {
   })
 
   it('debe conservar el ítem existente, borrar los quitados y crear las fases del ítem nuevo si hay proyecto', async () => {
-    // Arrange: había ítems 8 y 9; se conserva el 8, se quita el 9 y se agrega uno nuevo
-    conn.query
-      .mockResolvedValueOnce([{ affectedRows: 1 }])                   // UPDATE pedido
-      .mockResolvedValueOnce([[{ id_detalle: 8 }, { id_detalle: 9 }]]) // ítems actuales
-      .mockResolvedValueOnce([{}])                                    // DELETE de los quitados
-      .mockResolvedValueOnce([{}])                                    // UPDATE ítem 8
-      .mockResolvedValueOnce([{ insertId: 10 }])                      // INSERT ítem nuevo
-      .mockResolvedValueOnce([[{ id_proyecto: 77 }]])                 // proyecto del pedido
-      .mockResolvedValueOnce([[{ id_fase_estandar: 3 }]])             // fases por ítem
-      .mockResolvedValueOnce([{}])                                    // INSERT fases del ítem 10
+    // Arrange: había ítems 8 y 9; se conserva el 8, se quita el 9 y se agrega uno nuevo.
+    // Las respuestas se eligen por el SQL y no por posición: cada ítem guarda además sus
+    // puntos de entrega, y contar posiciones rompía el test con cualquier consulta nueva.
+    conn.query.mockImplementation(async (sql) => {
+      if (sql.includes('UPDATE pedidos'))                    return [{ affectedRows: 1 }]
+      if (sql.includes('SELECT id_detalle FROM detalle_pedido')) return [[{ id_detalle: 8 }, { id_detalle: 9 }]]
+      if (sql.includes('INSERT INTO detalle_pedido'))        return [{ insertId: 10 }]
+      if (sql.includes('SELECT id_proyecto FROM proyectos')) return [[{ id_proyecto: 77 }]]
+      if (sql.includes('FROM fases_estandar'))               return [[{ id_fase_estandar: 3 }]]
+      return [{}] // DELETE / UPDATE de ítems y puntos de entrega, INSERT de fases
+    })
     pool.query.mockResolvedValueOnce([[{ id_pedido: 30 }]])
     const items = [
       { id_detalle: 8, producto: 'Góndola' },
@@ -124,10 +126,11 @@ describe('pedidos.update', () => {
     await update({ params: { id: 30 }, body: { id_cliente: 4, items } }, res)
 
     // Assert
-    const [sqlDelete, paramsDelete] = conn.query.mock.calls[2]
+    const consulta = (texto) => conn.query.mock.calls.find(([sql]) => sql.includes(texto))
+    const [sqlDelete, paramsDelete] = consulta('DELETE FROM detalle_pedido')
     expect(sqlDelete).toContain('NOT IN (?)')
     expect(paramsDelete).toEqual([30, 8])
-    const [, [filasFases]] = conn.query.mock.calls[7]
+    const [, [filasFases]] = consulta('INSERT INTO fases_proyecto')
     expect(filasFases).toEqual([[77, 3, 10, null, 'pendiente', 0]])
     expect(conn.commit).toHaveBeenCalledOnce()
   })

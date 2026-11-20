@@ -96,7 +96,7 @@ const Dashboard = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={refresh} title="Actualizar ahora"
+          <button aria-label="Actualizar ahora" onClick={refresh} title="Actualizar ahora"
             className="h-9 w-9 flex items-center justify-center border border-border rounded-control
               text-muted hover:text-ink hover:bg-hover transition-colors"
           >

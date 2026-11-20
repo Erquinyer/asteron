@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Pencil, Trash2, Package, X, PlusCircle, MinusCircle } from 'lucide-react'
 import { useFetch }   from '../hooks/useFetch'
 import { getPedidos, getPedido, createPedido, updatePedido, deletePedido } from '../api/pedidos.service'
@@ -10,6 +10,7 @@ import EmptyState       from '../components/ui/EmptyState'
 import FieldFilter      from '../components/ui/FieldFilter'
 import SearchableSelect from '../components/ui/SearchableSelect'
 import toast      from 'react-hot-toast'
+import { clicConTeclado } from '../utils/teclado'
 
 const estadoConfig = {
   pendiente:  { label: 'Pendiente',  badge: 'bg-warning/10 text-warning',  dot: 'bg-warning'  },
@@ -18,7 +19,14 @@ const estadoConfig = {
   cancelado:  { label: 'Cancelado',  badge: 'bg-error/10 text-error',      dot: 'bg-error'    },
 }
 
-const EMPTY_ITEM = { producto: '', cantidad: 1, punto_descargue: '', estado: 'pendiente', fecha_entrega_estimada: '' }
+const EMPTY_ITEM = { producto: '', cantidad: 1, ubicaciones: [], estado: 'pendiente', fecha_entrega_estimada: '' }
+const EMPTY_UBICACION = { direccion: '', cantidad: '' }
+
+// Suma de cantidades de los puntos de entrega de un ítem — null si el ítem
+// todavía no tiene ninguno asignado (válido: se guarda sin punto de entrega).
+const sumaUbicaciones = (item) =>
+  item.ubicaciones.length === 0 ? null
+    : item.ubicaciones.reduce((acc, u) => acc + (parseInt(u.cantidad, 10) || 0), 0)
 
 const inputCls = `w-full h-10 border border-border rounded-control px-3 text-[13px]
   bg-surface2 text-ink placeholder:text-faint
@@ -65,7 +73,9 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
               id_detalle: it.id_detalle,
               producto: it.producto || '',
               cantidad: it.cantidad || 1,
-              punto_descargue: it.punto_descargue || '',
+              ubicaciones: (it.ubicaciones || []).map(u => ({
+                direccion: u.direccion, cantidad: String(u.cantidad),
+              })),
               estado: it.estado || 'pendiente',
               fecha_entrega_estimada: it.fecha_entrega_estimada?.slice(0, 10) || '',
             }))
@@ -92,16 +102,35 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
   const addItem    = () => setItems(prev => [...prev, { ...EMPTY_ITEM }])
   const removeItem = (i) => setItems(prev => prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev)
 
+  // Cada producto puede despacharse a varias ubicaciones (ver CLAUDE.md:
+  // puntos_entrega_detalle) — la suma de sus cantidades debe coincidir con
+  // la cantidad total del producto, igual que valida el backend.
+  const addUbicacion = (i) => setItems(prev => prev.map((it, idx) =>
+    idx === i ? { ...it, ubicaciones: [...it.ubicaciones, { ...EMPTY_UBICACION }] } : it))
+  const removeUbicacion = (i, j) => setItems(prev => prev.map((it, idx) =>
+    idx === i ? { ...it, ubicaciones: it.ubicaciones.filter((_, k) => k !== j) } : it))
+  const setUbicacion = (i, j, field, value) => setItems(prev => prev.map((it, idx) =>
+    idx === i
+      ? { ...it, ubicaciones: it.ubicaciones.map((u, k) => k === j ? { ...u, [field]: value } : u) }
+      : it))
+
   const handleSubmit = async e => {
     e.preventDefault()
     if (!form.id_cliente) { toast.error('Selecciona un cliente'); return }
+    const itemsValidos = items.filter(it => it.producto.trim())
+    for (const it of itemsValidos) {
+      const suma = sumaUbicaciones(it)
+      const cantidad = Math.max(1, parseInt(it.cantidad, 10) || 1)
+      if (suma !== null && suma !== cantidad) {
+        toast.error(`"${it.producto}" tiene ${cantidad} unidades pero sus puntos de entrega suman ${suma}`)
+        return
+      }
+    }
     setSaving(true)
     try {
       const payload = {
         ...form,
-        items: items
-          .filter(it => it.producto.trim())
-          .map(it => ({ ...it, cantidad: Math.max(1, parseInt(it.cantidad, 10) || 1) })),
+        items: itemsValidos.map(it => ({ ...it, cantidad: Math.max(1, parseInt(it.cantidad, 10) || 1) })),
       }
       if (pedido) {
         await updatePedido(pedido.id_pedido, payload)
@@ -118,12 +147,11 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto
+    <div role="dialog" aria-modal="true" aria-label={pedido ? 'Editar pedido' : 'Nuevo pedido'} className="fixed inset-0 z-50 overflow-y-auto
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
       <div className="min-h-full flex items-center justify-center">
-      <div role="dialog" aria-modal="true" aria-labelledby="pedido-modal-titulo"
-        className="bg-surface border border-border rounded-[18px] shadow-modal
+      <div className="bg-surface border border-border rounded-[18px] shadow-modal
         w-full max-w-2xl my-4 overflow-hidden animate-md-in"
       >
         {/* Header */}
@@ -145,7 +173,7 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
               </p>
             </div>
           </div>
-          <button onClick={onClose} aria-label="Cerrar"
+          <button aria-label="Cerrar" onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-[8px]
               bg-surface2 text-faint hover:text-muted transition-colors"
           >
@@ -155,7 +183,7 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
 
         {/* Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          <div className={`grid ${pedido ? 'grid-cols-2' : 'grid-cols-1'} gap-4`}>
+          <div className={`grid grid-cols-1 ${pedido ? 'sm:grid-cols-2' : ''} gap-4`}>
             <div>
               <label className={labelCls}>Cliente *</label>
               <SearchableSelect
@@ -210,79 +238,128 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
             {loadingItems ? (
               <p className="font-mono text-[11px] text-faint py-2">Cargando ítems…</p>
             ) : (
-              <div className="space-y-2">
-                {/* Encabezado de columnas */}
+              <div className="space-y-2.5">
+                {/* Encabezado de columnas (fila principal del ítem) */}
                 <div className="grid grid-cols-12 gap-2 px-1 text-[10.5px] font-semibold
                   uppercase tracking-wide text-faint"
                 >
-                  <span className="col-span-4">Producto / descripción</span>
+                  <span className="col-span-5">Producto / descripción</span>
                   <span className="col-span-2">Cantidad</span>
-                  <span className="col-span-3">Punto de entrega</span>
-                  <span className="col-span-2">Fecha entrega</span>
+                  <span className="col-span-4">Fecha entrega</span>
                   <span className="col-span-1" />
                 </div>
-                {items.map((item, i) => (
-                  <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                    <input
-                      value={item.producto}
-                      onChange={e => setItem(i, 'producto', e.target.value)}
-                      placeholder="Producto / descripción"
-                      aria-label={`Producto del ítem ${i + 1}`}
-                      className={`col-span-4 ${itemInputCls}`}
-                    />
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={item.cantidad}
-                      onChange={e => setItem(i, 'cantidad', e.target.value.replace(/\D/g, ''))}
-                      placeholder="Cantidad"
-                      aria-label={`Cantidad del ítem ${i + 1}`}
-                      className={`col-span-2 ${itemInputCls} text-center`}
-                    />
-                    <select
-                      value={item.punto_descargue}
-                      onChange={e => setItem(i, 'punto_descargue', e.target.value)}
-                      aria-label={`Punto de entrega del ítem ${i + 1}`}
-                      disabled={!form.id_cliente || loadingDirecciones}
-                      title={!form.id_cliente ? 'Selecciona primero un cliente' : undefined}
-                      className={`col-span-3 ${itemInputCls} disabled:opacity-60 disabled:cursor-not-allowed`}
-                    >
-                      <option value="">
-                        {!form.id_cliente
-                          ? 'Selecciona un cliente'
-                          : loadingDirecciones
-                            ? 'Cargando direcciones…'
-                            : 'Sin punto de entrega'}
-                      </option>
-                      {/* Si el valor actual no coincide con ninguna dirección vigente del
-                          cliente (dato antiguo o cliente cambiado), se preserva como opción
-                          aparte para no perderlo silenciosamente. */}
-                      {item.punto_descargue && !direcciones.some(d => d.direccion === item.punto_descargue) && (
-                        <option value={item.punto_descargue}>{item.punto_descargue} (actual)</option>
-                      )}
-                      {direcciones.map(d => (
-                        <option key={d.id_direccion} value={d.direccion}>
-                          {d.etiqueta ? `${d.etiqueta} — ${d.direccion}` : d.direccion}
-                        </option>
-                      ))}
-                    </select>
-                    <input type="date"
-                      value={item.fecha_entrega_estimada}
-                      onChange={e => setItem(i, 'fecha_entrega_estimada', e.target.value)}
-                      title="Fecha de entrega estimada de este ítem"
-                      aria-label={`Fecha de entrega del ítem ${i + 1}`}
-                      min={!item.id_detalle ? hoy : undefined}
-                      className={`col-span-2 ${itemInputCls}`}
-                    />
-                    <button type="button" onClick={() => removeItem(i)}
-                      aria-label={`Quitar ítem ${i + 1}`}
-                      className="col-span-1 flex justify-center items-center
-                        text-faint hover:text-error transition-colors"
-                    >
-                      <MinusCircle size={15} />
-                    </button>
-                  </div>
-                ))}
+                {items.map((item, i) => {
+                  const suma = sumaUbicaciones(item)
+                  const cantidad = parseInt(item.cantidad, 10) || 0
+                  const desbalanceado = suma !== null && suma !== cantidad
+                  return (
+                    <div key={i} className="border border-border rounded-control p-2.5 space-y-2.5">
+                      <div className="grid grid-cols-12 gap-2 items-center">
+                        <input
+                          value={item.producto}
+                          onChange={e => setItem(i, 'producto', e.target.value)}
+                          placeholder="Producto / descripción"
+                          aria-label={`Producto del ítem ${i + 1}`}
+                          className={`col-span-5 ${itemInputCls}`}
+                        />
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={item.cantidad}
+                          onChange={e => setItem(i, 'cantidad', e.target.value.replace(/\D/g, ''))}
+                          placeholder="Cantidad"
+                          aria-label={`Cantidad del ítem ${i + 1}`}
+                          className={`col-span-2 ${itemInputCls} text-center`}
+                        />
+                        <input type="date"
+                          value={item.fecha_entrega_estimada}
+                          onChange={e => setItem(i, 'fecha_entrega_estimada', e.target.value)}
+                          title="Fecha de entrega estimada de este ítem"
+                          aria-label={`Fecha de entrega del ítem ${i + 1}`}
+                          min={!item.id_detalle ? hoy : undefined}
+                          className={`col-span-4 ${itemInputCls}`}
+                        />
+                        <button aria-label={`Quitar el ítem ${i + 1}`} type="button" onClick={() => removeItem(i)}
+                          className="col-span-1 flex justify-center items-center
+                            text-faint hover:text-error transition-colors"
+                        >
+                          <MinusCircle size={15} />
+                        </button>
+                      </div>
+
+                      {/* Un mismo producto puede despacharse a varias ubicaciones, cada
+                          una con su propia cantidad — deben sumar el total del producto. */}
+                      <div className="pl-1 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10.5px] font-semibold uppercase tracking-wide text-faint">
+                            Puntos de entrega
+                          </p>
+                          <button type="button" onClick={() => addUbicacion(i)}
+                            className="flex items-center gap-1 text-[11px] font-medium
+                              text-primary hover:text-primary-hover transition-colors"
+                          >
+                            <PlusCircle size={12} /> Agregar punto
+                          </button>
+                        </div>
+                        {item.ubicaciones.length === 0 ? (
+                          <p className="text-[11px] text-faint">Sin punto de entrega asignado todavía.</p>
+                        ) : (
+                          item.ubicaciones.map((u, j) => (
+                            <div key={j} className="flex items-center gap-2">
+                              <select
+                                value={u.direccion}
+                                onChange={e => setUbicacion(i, j, 'direccion', e.target.value)}
+                                aria-label={`Punto de entrega ${j + 1} del ítem ${i + 1}`}
+                                disabled={!form.id_cliente || loadingDirecciones}
+                                title={!form.id_cliente ? 'Selecciona primero un cliente' : undefined}
+                                className={`flex-1 ${itemInputCls} disabled:opacity-60 disabled:cursor-not-allowed`}
+                              >
+                                <option value="">
+                                  {!form.id_cliente
+                                    ? 'Selecciona un cliente'
+                                    : loadingDirecciones
+                                      ? 'Cargando direcciones…'
+                                      : 'Seleccionar dirección'}
+                                </option>
+                                {/* Si el valor actual no coincide con ninguna dirección vigente
+                                    del cliente (dato antiguo o cliente cambiado), se preserva
+                                    como opción aparte para no perderlo silenciosamente. */}
+                                {u.direccion && !direcciones.some(d => d.direccion === u.direccion) && (
+                                  <option value={u.direccion}>{u.direccion} (actual)</option>
+                                )}
+                                {direcciones.map(d => (
+                                  <option key={d.id_direccion} value={d.direccion}>
+                                    {d.etiqueta ? `${d.etiqueta} — ${d.direccion}` : d.direccion}
+                                  </option>
+                                ))}
+                              </select>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={u.cantidad}
+                                onChange={e => setUbicacion(i, j, 'cantidad', e.target.value.replace(/\D/g, ''))}
+                                placeholder="Cant."
+                                aria-label={`Cantidad para el punto de entrega ${j + 1} del ítem ${i + 1}`}
+                                className={`w-20 shrink-0 ${itemInputCls} text-center`}
+                              />
+                              <button aria-label={`Quitar el punto de entrega ${j + 1}`} type="button" onClick={() => removeUbicacion(i, j)}
+                                className="shrink-0 text-faint hover:text-error transition-colors"
+                              >
+                                <MinusCircle size={14} />
+                              </button>
+                            </div>
+                          ))
+                        )}
+                        {suma !== null && (
+                          <p className={`text-[11px] ${desbalanceado ? 'text-error font-semibold' : 'text-success'}`}>
+                            {suma} / {cantidad} unidades asignadas
+                            {desbalanceado ? ' — no coincide con la cantidad del producto' : ''}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -319,10 +396,11 @@ const itemEstadoConfig = {
 
 // ── Modal de detalle (solo lectura) ───────────────────────────────────────────
 function PedidoDetailModal({ pedidoId, onClose }) {
+  const navigate = useNavigate()
   const { data: pedido, loading, error } = useFetch(() => getPedido(pedidoId), [pedidoId])
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto
+    <div role="dialog" aria-modal="true" aria-label={`Pedido #${pedidoId}`} className="fixed inset-0 z-50 overflow-y-auto
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
       <div className="min-h-full flex items-center justify-center">
@@ -348,7 +426,7 @@ function PedidoDetailModal({ pedidoId, onClose }) {
               </p>
             </div>
           </div>
-          <button onClick={onClose} aria-label="Cerrar"
+          <button aria-label="Cerrar" onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-[8px]
               bg-surface2 text-faint hover:text-muted transition-colors"
           >
@@ -364,7 +442,7 @@ function PedidoDetailModal({ pedidoId, onClose }) {
             <EmptyState title="Error" description={error} />
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className={labelCls}>Cliente</p>
                   <p className="text-[13.5px] font-medium text-ink">{pedido.cliente}</p>
@@ -379,6 +457,16 @@ function PedidoDetailModal({ pedidoId, onClose }) {
                   </span>
                 </div>
               </div>
+
+              {pedido.id_proyecto && (
+                <button type="button"
+                  onClick={() => navigate(`/proyectos/${pedido.id_proyecto}`)}
+                  className="text-[12.5px] font-medium text-primary hover:text-primary-hover
+                    transition-colors inline-flex items-center gap-1"
+                >
+                  Ver proyecto asociado →
+                </button>
+              )}
 
               {pedido.descripcion && (
                 <div>
@@ -395,6 +483,7 @@ function PedidoDetailModal({ pedidoId, onClose }) {
                   <p className="font-mono text-[12px] text-faint py-2">Sin ítems registrados.</p>
                 ) : (
                   <div className="border border-border rounded-[10px] overflow-hidden">
+                    <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
                         <tr className="bg-surface2 border-b border-border">
@@ -414,7 +503,15 @@ function PedidoDetailModal({ pedidoId, onClose }) {
                             <tr key={it.id_detalle}>
                               <td className="px-3 py-2.5 text-[13px] text-ink font-medium">{it.producto}</td>
                               <td className="px-3 py-2.5 text-[13px] text-muted">{it.cantidad}</td>
-                              <td className="px-3 py-2.5 text-[13px] text-muted">{it.punto_descargue || '—'}</td>
+                              <td className="px-3 py-2.5 text-[13px] text-muted">
+                                {!it.ubicaciones?.length ? '—' : (
+                                  <div className="space-y-0.5">
+                                    {it.ubicaciones.map(u => (
+                                      <p key={u.id_entrega}>{u.cantidad} · {u.direccion}</p>
+                                    ))}
+                                  </div>
+                                )}
+                              </td>
                               <td className="px-3 py-2.5 font-mono text-[11.5px] text-muted">
                                 {it.fecha_entrega_estimada
                                   ? new Date(it.fecha_entrega_estimada).toLocaleDateString('es-CO')
@@ -432,6 +529,7 @@ function PedidoDetailModal({ pedidoId, onClose }) {
                         })}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 )}
               </div>
@@ -454,18 +552,44 @@ function PedidoDetailModal({ pedidoId, onClose }) {
   )
 }
 
+const filtroCls = `h-[38px] border border-border rounded-control px-3 text-[12.5px] bg-surface text-ink
+  focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-colors`
+
+// Con componentes locales: toISOString() pasa a UTC y puede correr la fecha un día.
+const fechaLocalISO = (valor) => {
+  if (!valor) return null
+  const d = new Date(valor)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export default function Pedidos() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { data, loading, error, refresh } = useFetch(getPedidos)
   const { data: clientes }                = useFetch(getClientes)
   const [search, setSearch] = useState('')
-  const [searchField, setSearchField] = useState('todos') // 'todos' | 'cliente'
+  const [searchField, setSearchField] = useState('todos') // 'todos' | 'cliente' | 'op'
+  const [estadoFiltro, setEstadoFiltro] = useState('')
+  const [fechaDesde, setFechaDesde] = useState('')
+  const [fechaHasta, setFechaHasta] = useState('')
   const [modal,  setModal]  = useState(null)
   const [viewingId, setViewingId] = useState(null)
+
+  // Llega desde ProyectoDetalle.jsx ("Ver pedido asociado") con ?ver=X —
+  // mismo patrón que ?nuevo=1&id_pedido=X en Proyectos.jsx.
+  useEffect(() => {
+    const ver = searchParams.get('ver')
+    if (ver) {
+      setViewingId(Number(ver))
+      setSearchParams({}, { replace: true })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const SEARCH_FIELDS = [
     { value: 'todos',   label: 'Todo',    placeholder: 'Buscar por cliente o descripción…' },
     { value: 'cliente', label: 'Cliente', placeholder: 'Nombre del cliente…' },
+    { value: 'op',      label: 'N.º OP',  placeholder: 'Número de OP, ej: 12…' },
   ]
 
   const handlePedidoCreado = (pedidoCreado) => {
@@ -489,12 +613,21 @@ export default function Pedidos() {
   if (error)   return <EmptyState title="Error" description={error} />
 
   const q = search.trim().toLowerCase()
+  // El número de OP es el id del pedido; se acepta escrito como "12", "#12" u "OP-12".
+  const numeroOP = q.replace(/^(op-?|#)\s*/, '')
   const lista = (data || []).filter(p => {
+    if (estadoFiltro && p.estado !== estadoFiltro) return false
+    const fecha = fechaLocalISO(p.fecha_pedido)
+    if (fechaDesde && (!fecha || fecha < fechaDesde)) return false
+    if (fechaHasta && (!fecha || fecha > fechaHasta)) return false
     if (!q) return true
+    if (searchField === 'op') return String(p.id_pedido) === numeroOP
     if (searchField === 'cliente') return (p.cliente || '').toLowerCase().includes(q)
-    return (p.cliente || '').toLowerCase().includes(q) ||
+    return String(p.id_pedido) === numeroOP ||
+      (p.cliente || '').toLowerCase().includes(q) ||
       (p.descripcion || '').toLowerCase().includes(q)
   })
+  const hayFiltros = q || estadoFiltro || fechaDesde || fechaHasta
 
   const counts = Object.fromEntries(
     Object.keys(estadoConfig).map(k => [k, (data || []).filter(p => p.estado === k).length])
@@ -520,6 +653,33 @@ export default function Pedidos() {
           onValueChange={setSearch}
           className="flex-1 min-w-[220px] max-w-sm"
         />
+
+        <select aria-label="Filtrar por estado" value={estadoFiltro}
+          onChange={e => setEstadoFiltro(e.target.value)} className={filtroCls}
+        >
+          <option value="">Todos los estados</option>
+          {Object.entries(estadoConfig).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
+        <label className="flex items-center gap-1.5 text-[12px] text-muted">
+          Desde
+          <input type="date" value={fechaDesde} max={fechaHasta || undefined}
+            onChange={e => setFechaDesde(e.target.value)} className={filtroCls}
+          />
+        </label>
+        <label className="flex items-center gap-1.5 text-[12px] text-muted">
+          Hasta
+          <input type="date" value={fechaHasta} min={fechaDesde || undefined}
+            onChange={e => setFechaHasta(e.target.value)} className={filtroCls}
+          />
+        </label>
+        {hayFiltros && (
+          <button type="button"
+            onClick={() => { setSearch(''); setEstadoFiltro(''); setFechaDesde(''); setFechaHasta('') }}
+            className="h-[38px] px-3 text-[12px] font-medium text-primary hover:underline"
+          >
+            Limpiar
+          </button>
+        )}
 
         <div className="flex-1" />
 
@@ -560,7 +720,7 @@ export default function Pedidos() {
                   const cfg = estadoConfig[p.estado] || estadoConfig.pendiente
                   return (
                     <tr key={p.id_pedido}
-                      onClick={() => setViewingId(p.id_pedido)}
+                      {...clicConTeclado(() => setViewingId(p.id_pedido), { fila: true })}
                       className="hover:bg-hover transition-colors cursor-pointer"
                     >
                       <td className="px-5 py-3.5 font-mono text-[11px] text-faint">
@@ -592,7 +752,7 @@ export default function Pedidos() {
                       <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
                           {canDo('pedidos', 'editar') && (
-                            <button onClick={() => setModal(p)} aria-label={`Editar pedido #${p.id_pedido}`}
+                            <button aria-label={`Editar el pedido OP-${p.id_pedido}`} onClick={() => setModal(p)}
                               className="w-7 h-7 flex items-center justify-center rounded-badge
                                 text-faint hover:bg-primary/10 hover:text-primary transition-colors"
                             >
@@ -600,7 +760,7 @@ export default function Pedidos() {
                             </button>
                           )}
                           {canDo('pedidos', 'eliminar') && (
-                            <button onClick={() => handleDelete(p)} aria-label={`Eliminar pedido #${p.id_pedido}`}
+                            <button aria-label={`Eliminar el pedido OP-${p.id_pedido}`} onClick={() => handleDelete(p)}
                               className="w-7 h-7 flex items-center justify-center rounded-badge
                                 text-faint hover:bg-error/10 hover:text-error transition-colors"
                             >

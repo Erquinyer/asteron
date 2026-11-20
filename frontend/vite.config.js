@@ -24,11 +24,13 @@ export default defineConfig({
       // cargan. El umbral queda fijado en lo real (regla de trinquete: no
       // puede bajar) — hace falta que el grupo sume tests de componentes
       // (Sidebar, TopBar, páginas, hooks, router guards) para cerrar esto.
+      // Sube con las pruebas de evidencias, teclado y login (gabriel/develop):
+      // lines 7,4% · statements 6,9% · functions 5,3% · branches 5,87%.
       thresholds: {
-        lines: 3,
-        functions: 2,
-        branches: 2,
-        statements: 2,
+        lines: 7,
+        functions: 5,
+        branches: 5,
+        statements: 6,
       },
     },
   },

@@ -91,7 +91,7 @@ export default function ResetPassword() {
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nueva contraseña</label>
                 <div className="relative">
-                  <input
+                  <input aria-label="Nueva contraseña"
                     name="nueva"
                     type={showNueva ? 'text' : 'password'}
                     value={form.nueva}
@@ -99,7 +99,7 @@ export default function ResetPassword() {
                     placeholder="••••••••"
                     className="w-full px-4 py-2.5 pr-10 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
                   />
-                  <button type="button" onClick={() => setShowNueva(v => !v)}
+                  <button aria-label={showNueva ? 'Ocultar contraseña' : 'Mostrar contraseña'} type="button" onClick={() => setShowNueva(v => !v)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                     <EyeIcon show={showNueva}/>
                   </button>
@@ -109,7 +109,7 @@ export default function ResetPassword() {
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Confirmar contraseña</label>
                 <div className="relative">
-                  <input
+                  <input aria-label="Confirmar contraseña"
                     name="confirmar"
                     type={showConfirmar ? 'text' : 'password'}
                     value={form.confirmar}
@@ -117,7 +117,7 @@ export default function ResetPassword() {
                     placeholder="••••••••"
                     className="w-full px-4 py-2.5 pr-10 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
                   />
-                  <button type="button" onClick={() => setShowConfirmar(v => !v)}
+                  <button aria-label={showConfirmar ? 'Ocultar contraseña' : 'Mostrar contraseña'} type="button" onClick={() => setShowConfirmar(v => !v)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                     <EyeIcon show={showConfirmar}/>
                   </button>

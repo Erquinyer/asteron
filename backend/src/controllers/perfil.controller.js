@@ -1,10 +1,14 @@
 import pool   from '../config/db.js'
 import bcrypt  from 'bcryptjs'
+import { POLITICA_DATOS_VERSION } from '../utils/politicaDatos.js'
+import { fotoUsuario, registrarBitacora } from '../utils/bitacora.js'
+import { responderError } from '../utils/errores.js'
 
 export const getPerfil = async (req, res) => {
   try {
     const [[user]] = await pool.query(
       `SELECT u.id_usuario, u.nombre, u.correo, u.estado, u.ultimo_login, u.created_at,
+              u.politica_datos_version, u.politica_datos_aceptada_en,
               r.id_rol, r.nombre AS rol, r.descripcion AS rol_descripcion
        FROM usuarios u
        LEFT JOIN roles r ON u.id_rol = r.id_rol
@@ -12,8 +16,7 @@ export const getPerfil = async (req, res) => {
     if (!user) return res.status(404).json({ message: 'Usuario no encontrado' })
     res.json(user)
   } catch (err) {
-    console.error('[perfil.get]', err)
-    res.status(500).json({ message: 'Error al obtener perfil' })
+    responderError(res, err, 'perfil.get', 'Error al obtener perfil')
   }
 }
 
@@ -21,16 +24,20 @@ export const updatePerfil = async (req, res) => {
   const { nombre } = req.body
   if (!nombre?.trim()) return res.status(400).json({ message: 'El nombre es requerido' })
   try {
+    const antes = await fotoUsuario(req.user.id)
     await pool.query(
       `UPDATE usuarios SET nombre = ? WHERE id_usuario = ?`, [nombre.trim(), req.user.id])
+    await registrarBitacora({
+      entidad: 'usuario', id_registro: req.user.id, accion: 'editar',
+      antes, despues: await fotoUsuario(req.user.id), autor: req.user.id, detalle: 'Desde su perfil',
+    })
     const [[user]] = await pool.query(
       `SELECT u.id_usuario, u.nombre, u.correo, r.nombre AS rol
        FROM usuarios u LEFT JOIN roles r ON u.id_rol = r.id_rol
        WHERE u.id_usuario = ?`, [req.user.id])
     res.json(user)
   } catch (err) {
-    console.error('[perfil.update]', err)
-    res.status(500).json({ message: 'Error al actualizar perfil' })
+    responderError(res, err, 'perfil.update', 'Error al actualizar perfil')
   }
 }
 
@@ -49,9 +56,26 @@ export const changePassword = async (req, res) => {
 
     const hash = await bcrypt.hash(nueva, 10)
     await pool.query('UPDATE usuarios SET password_hash = ? WHERE id_usuario = ?', [hash, req.user.id])
+    await registrarBitacora({
+      entidad: 'usuario', id_registro: req.user.id, accion: 'contrasena',
+      antes: await fotoUsuario(req.user.id), autor: req.user.id, detalle: 'Cambiada por el usuario desde su perfil',
+    })
     res.json({ message: 'Contraseña actualizada correctamente' })
   } catch (err) {
-    console.error('[perfil.changePassword]', err)
-    res.status(500).json({ message: 'Error al cambiar contraseña' })
+    responderError(res, err, 'perfil.changePassword', 'Error al cambiar contraseña')
+  }
+}
+
+// Autorización del tratamiento de datos personales (Ley 1581 de 2012).
+// La fecha y la versión quedan guardadas como prueba de la autorización (Decreto 1377 de 2013).
+export const aceptarPoliticaDatos = async (req, res) => {
+  try {
+    const aceptadaEn = new Date()
+    await pool.query(
+      'UPDATE usuarios SET politica_datos_version = ?, politica_datos_aceptada_en = ? WHERE id_usuario = ?',
+      [POLITICA_DATOS_VERSION, aceptadaEn, req.user.id])
+    res.json({ version: POLITICA_DATOS_VERSION, aceptada_en: aceptadaEn })
+  } catch (err) {
+    responderError(res, err, 'perfil.aceptarPoliticaDatos', 'Error al registrar la autorización')
   }
 }

@@ -4,23 +4,23 @@ import { getUser } from '../utils/auth'
 export const ROLE_PERMISSIONS = {
   'Administrador Sistema': [
     'dashboard', 'proyectos', 'pedidos', 'clientes',
-    'maquinaria', 'mantenimientos', 'programacion', 'usuarios',
+    'maquinaria', 'mantenimientos', 'programacion', 'usuarios', 'reportes',
   ],
   'Gerente General': [
     'dashboard', 'proyectos', 'pedidos', 'clientes',
-    'maquinaria', 'mantenimientos', 'programacion', 'usuarios',
+    'maquinaria', 'mantenimientos', 'programacion', 'usuarios', 'reportes',
   ],
   'Consultor Estrategia': [
     'dashboard', 'proyectos', 'pedidos', 'clientes',
   ],
   'Coordinador de Producción': [
-    'dashboard', 'proyectos', 'pedidos', 'programacion',
+    'dashboard', 'proyectos', 'pedidos', 'programacion', 'reportes',
   ],
   'Coordinador de Planta': [
-    'dashboard', 'proyectos', 'maquinaria', 'mantenimientos', 'programacion',
+    'dashboard', 'proyectos', 'maquinaria', 'mantenimientos', 'programacion', 'reportes',
   ],
   'Ejecutivo Comercial': [
-    'dashboard', 'pedidos', 'clientes',
+    'dashboard', 'proyectos', 'pedidos', 'clientes',
   ],
   'Jefe de Almacén': [
     'dashboard', 'maquinaria', 'mantenimientos',
