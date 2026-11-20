@@ -1,20 +1,23 @@
 import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ChevronLeft, ChevronRight, ChevronDown, Plus, Trash2, X,
   Play, Check, CheckCircle, Wrench, Pencil, Ban, List, LayoutGrid, Upload,
 } from 'lucide-react'
 import { useFetch }          from '../hooks/useFetch'
-import { getProgramacion, updateEstadoTurno, updateAvanceTurno, deleteProgramacion } from '../api/programacion.service'
+import { getProgramacion, updateEstadoTurno, updateAvanceTurno, deleteProgramacion, corregirTiempos, getCorrecciones } from '../api/programacion.service'
 import { getUsuarios }       from '../api/usuarios.service'
 import { getMaquinaria }     from '../api/maquinaria.service'
 import { getProyectos }      from '../api/proyectos.service'
-import { canDo, canManagePlanta } from '../utils/auth'
+import { canDo, canManagePlanta, getUser } from '../utils/auth'
 import Spinner     from '../components/ui/Spinner'
+import GaleriaEvidencias from '../components/evidencias/GaleriaEvidencias'
 import EmptyState  from '../components/ui/EmptyState'
 import FieldFilter from '../components/ui/FieldFilter'
 import TurnoModal    from '../components/programacion/TurnoModal'
 import ImportarModal from '../components/programacion/ImportarModal'
 import toast      from 'react-hot-toast'
+import { clicConTeclado } from '../utils/teclado'
 
 // ── Helpers de fecha ──────────────────────────────────────────────────────────
 // Componentes locales, no toISOString(): esa convierte a UTC y en zonas
@@ -155,9 +158,11 @@ function StateBadge({ estado }) {
 
 // ── Fila compacta de actividad ────────────────────────────────────────────────
 function ActivityRow({ item, onClick, onIniciar, onCompletar, onEditar, onCancelar, onDelete, showProyecto = false }) {
+  const navigate = useNavigate()
+  const verProyecto = (e) => { e.stopPropagation(); navigate(`/proyectos/${item.id_proyecto}`) }
   const isLive    = item.estado === 'en_proceso'
   const isDone    = item.estado === 'completado' || item.estado === 'cancelado'
-  const elapsed   = useTimer(item.updated_at, isLive)
+  const elapsed   = useTimer(item.hora_inicio || item.updated_at, isLive)
 
   const handleCompletar = (e) => {
     e.stopPropagation()
@@ -167,7 +172,7 @@ function ActivityRow({ item, onClick, onIniciar, onCompletar, onEditar, onCancel
 
   return (
     <div
-      onClick={onClick}
+      {...clicConTeclado(onClick)}
       className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3
         cursor-pointer hover:bg-hover transition-colors
         ${item.estado === 'cancelado' ? 'opacity-60' : ''}`}
@@ -186,7 +191,13 @@ function ActivityRow({ item, onClick, onIniciar, onCompletar, onEditar, onCancel
         </p>
         {showProyecto && (
           <p className="text-[11px] text-faint truncate mt-0.5">
-            {item.proyecto || 'Sin proyecto'}
+            {item.id_proyecto ? (
+              <button type="button" onClick={verProyecto}
+                className="hover:text-primary hover:underline transition-colors"
+              >
+                {item.proyecto}
+              </button>
+            ) : 'Sin proyecto'}
             {item.cliente ? ` · ${item.cliente}` : ''}
           </p>
         )}
@@ -237,7 +248,7 @@ function ActivityRow({ item, onClick, onIniciar, onCompletar, onEditar, onCancel
       {!isDone && canManagePlanta() && (
         <div className="flex items-center gap-1.5 ml-auto" onClick={e => e.stopPropagation()}>
           {item.estado === 'programado' && canDo('programacion', 'editar') && (
-            <button
+            <button aria-label={`Editar la actividad de ${item.operario || 'sin operario'}`}
               onClick={(e) => { e.stopPropagation(); onEditar(item) }}
               className="w-7 h-7 flex items-center justify-center rounded-badge
                 text-faint hover:bg-primary/10 hover:text-primary transition-colors"
@@ -248,7 +259,7 @@ function ActivityRow({ item, onClick, onIniciar, onCompletar, onEditar, onCancel
           )}
 
           {canDo('programacion', 'eliminar') && (
-            <button
+            <button aria-label={`Cancelar la actividad de ${item.operario || 'sin operario'}`}
               onClick={(e) => { e.stopPropagation(); onCancelar(item) }}
               className="w-7 h-7 flex items-center justify-center rounded-badge
                 text-faint hover:bg-warning/10 hover:text-warning transition-colors"
@@ -259,7 +270,7 @@ function ActivityRow({ item, onClick, onIniciar, onCompletar, onEditar, onCancel
           )}
 
           {canDo('programacion', 'eliminar') && (
-            <button
+            <button aria-label={`Eliminar la actividad de ${item.operario || 'sin operario'}`}
               onClick={(e) => { e.stopPropagation(); onDelete(item) }}
               className="w-7 h-7 flex items-center justify-center rounded-badge
                 text-faint hover:bg-error/10 hover:text-error transition-colors"
@@ -358,7 +369,7 @@ function ProjectGroup({ nombre, items, collapsed, onToggle, onSelect, onIniciar,
 // ── Modal de confirmación de completar ────────────────────────────────────────
 function ConfirmModal({ item, onConfirm, onCancel }) {
   return (
-    <div className="fixed inset-0 z-[60] overflow-y-auto
+    <div role="dialog" aria-modal="true" aria-label="¿Confirmar finalización?" className="fixed inset-0 z-[60] overflow-y-auto
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
       <div className="min-h-full flex items-center justify-center">
@@ -400,14 +411,126 @@ function ConfirmModal({ item, onConfirm, onCancel }) {
 }
 
 // ── Modal de detalle de actividad ─────────────────────────────────────────────
-function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCancelar, onDelete, onAvance }) {
+// datetime-local trabaja con hora local: nunca toISOString(), que la pasa a UTC.
+const aInputLocal = (valor) => {
+  if (!valor) return ''
+  const d = new Date(valor)
+  const dos = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}T${dos(d.getHours())}:${dos(d.getMinutes())}`
+}
+const fmtFechaHora = (valor) => valor
+  ? new Date(valor).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })
+  : '—'
+
+// Corrección de horas de una actividad completada: exige motivo y deja historial.
+function CorreccionTiempos({ item, onCorregido }) {
+  const [abierto, setAbierto] = useState(false)
+  const [form, setForm] = useState({
+    hora_inicio: aInputLocal(item.hora_inicio), hora_fin: aInputLocal(item.hora_fin), motivo: '',
+  })
+  const [saving, setSaving] = useState(false)
+  const { data: correcciones, refresh } = useFetch(() => getCorrecciones(item.id_programacion), [item.id_programacion])
+  const set = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
+  const puedeCorregir = canManagePlanta() && canDo('programacion', 'editar')
+  const campoCls = `w-full h-9 border border-border rounded-control px-2.5 text-[12.5px]
+    bg-surface text-ink focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary`
+
+  const handleGuardar = async () => {
+    setSaving(true)
+    try {
+      await corregirTiempos(item.id_programacion, {
+        hora_inicio: form.hora_inicio ? new Date(form.hora_inicio).toISOString() : null,
+        hora_fin:    form.hora_fin    ? new Date(form.hora_fin).toISOString()    : null,
+        motivo: form.motivo,
+      })
+      toast.success('Tiempos corregidos')
+      setAbierto(false)
+      setForm(f => ({ ...f, motivo: '' }))
+      refresh()
+      onCorregido()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error al corregir los tiempos')
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="bg-surface2 rounded-[11px] p-4 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="font-mono text-[9px] font-semibold uppercase tracking-[.08em] text-faint mb-1">
+            Horas registradas
+          </p>
+          <p className="font-mono text-[12px] text-ink">
+            {fmtFechaHora(item.hora_inicio)} → {fmtFechaHora(item.hora_fin)}
+          </p>
+        </div>
+        {puedeCorregir && !abierto && (
+          <button type="button" onClick={() => setAbierto(true)}
+            className="shrink-0 text-[12px] font-semibold text-primary hover:underline"
+          >
+            Corregir
+          </button>
+        )}
+      </div>
+
+      {abierto && (
+        <div className="space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <label className="text-[11px] text-muted">Inicio
+              <input type="datetime-local" name="hora_inicio" value={form.hora_inicio} onChange={set} className={campoCls} />
+            </label>
+            <label className="text-[11px] text-muted">Fin
+              <input type="datetime-local" name="hora_fin" value={form.hora_fin} onChange={set} className={campoCls} />
+            </label>
+          </div>
+          <label className="block text-[11px] text-muted">Motivo de la corrección *
+            <input name="motivo" value={form.motivo} onChange={set}
+              placeholder="Ej: el operario olvidó finalizar la actividad" className={campoCls}
+            />
+          </label>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setAbierto(false)}
+              className="flex-1 h-9 border border-border rounded-control text-[12px] text-muted hover:bg-hover transition-colors"
+            >
+              Cancelar
+            </button>
+            <button type="button" onClick={handleGuardar} disabled={saving}
+              className="flex-1 h-9 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white
+                rounded-control text-[12px] font-semibold transition-colors"
+            >
+              {saving ? 'Guardando…' : 'Guardar corrección'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {correcciones?.length > 0 && (
+        <div className="border-t border-border pt-2.5 space-y-1.5">
+          <p className="font-mono text-[9px] font-semibold uppercase tracking-[.08em] text-faint">
+            Historial de correcciones
+          </p>
+          {correcciones.map(c => (
+            <p key={c.id_correccion} className="text-[11.5px] text-muted">
+              <span className="font-medium text-ink">{c.corregido_por_nombre || 'Usuario eliminado'}</span>
+              {' · '}{fmtFechaHora(c.corregido_en)}{' · '}
+              {c.tiempo_real_anterior ?? '—'} → {c.tiempo_real_nuevo} min{' · '}{c.motivo}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCancelar, onDelete, onAvance, onCorregido }) {
+  const navigate = useNavigate()
   const [showConfirm,   setShowConfirm]   = useState(false)
   const [loadingAction, setLoadingAction] = useState(false)
   const [avance,        setAvance]        = useState(item.porcentaje_avance ?? 0)
   const [savingAvance,  setSavingAvance]  = useState(false)
   const cfg       = estadoConfig[item.estado] || estadoConfig.programado
   const isLive    = item.estado === 'en_proceso'
-  const elapsed   = useTimer(item.updated_at, isLive)
+  const elapsed   = useTimer(item.hora_inicio || item.updated_at, isLive)
   const isDone    = item.estado === 'completado' || item.estado === 'cancelado'
   const avanceDirty = avance !== (item.porcentaje_avance ?? 0)
 
@@ -435,7 +558,7 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
 
   return (
     <>
-      <div className="fixed inset-0 z-50 overflow-y-auto
+      <div role="dialog" aria-modal="true" aria-label="Detalle de actividad" className="fixed inset-0 z-50 overflow-y-auto
         bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
       >
         <div className="min-h-full flex items-center justify-center">
@@ -450,7 +573,7 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
               <StateBadge estado={item.estado} />
               <h3 className="text-[15px] font-semibold text-ink">Detalle de actividad</h3>
             </div>
-            <button onClick={onClose}
+            <button aria-label="Cerrar" onClick={onClose}
               className="w-8 h-8 flex items-center justify-center rounded-[8px]
                 bg-surface2 text-faint hover:text-muted transition-colors"
             >
@@ -465,7 +588,13 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
               <p className="font-mono text-[9px] font-semibold uppercase
                 tracking-[.08em] text-faint mb-1">Proyecto</p>
               <p className="text-[18px] font-bold text-ink">
-                {item.proyecto || 'Sin proyecto asignado'}
+                {item.id_proyecto ? (
+                  <button type="button" onClick={() => navigate(`/proyectos/${item.id_proyecto}`)}
+                    className="hover:text-primary hover:underline transition-colors text-left"
+                  >
+                    {item.proyecto}
+                  </button>
+                ) : 'Sin proyecto asignado'}
               </p>
               {item.fase_nombre && (
                 <p className="text-[13px] text-primary mt-1 font-medium">
@@ -482,7 +611,7 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
             </div>
 
             {/* Info grid */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="font-mono text-[9px] font-semibold uppercase
                   tracking-[.08em] text-faint mb-1">Operario</p>
@@ -526,6 +655,10 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
               </div>
             </div>
 
+            {item.estado === 'completado' && (
+              <CorreccionTiempos item={item} onCorregido={onCorregido} />
+            )}
+
             {isLive && canManagePlanta() && (
               <div className="bg-surface2 rounded-[11px] p-4">
                 <div className="flex items-center justify-between mb-2">
@@ -537,6 +670,7 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
                 </div>
                 <input
                   type="range" min={0} max={99} value={avance}
+                  aria-label="Avance de la actividad (%)"
                   onChange={e => setAvance(Number(e.target.value))}
                   className="w-full accent-primary cursor-pointer"
                 />
@@ -551,6 +685,17 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
                   </button>
                 )}
               </div>
+            )}
+
+            {/* Fotos de la actividad: el operario del turno también puede adjuntarlas */}
+            {item.id_proyecto && (
+              <GaleriaEvidencias compacto
+                idProyecto={item.id_proyecto}
+                idProgramacion={item.id_programacion}
+                puedeSubir={item.estado !== 'cancelado' && (
+                  item.id_operario === getUser()?.id_usuario
+                  || canDo('proyectos', 'editar') || canDo('programacion', 'editar'))}
+              />
             )}
 
             {item.observaciones && (
@@ -582,7 +727,7 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
             {!isDone && canManagePlanta() ? (
               <div className="flex gap-3">
                 {item.estado === 'programado' && canDo('programacion', 'editar') && (
-                  <button
+                  <button aria-label="Editar actividad"
                     onClick={() => { onEditar(item); onClose() }}
                     className="w-10 h-10 flex items-center justify-center rounded-control
                       border border-border text-primary hover:bg-primary/10 transition-colors"
@@ -592,7 +737,7 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
                   </button>
                 )}
                 {canDo('programacion', 'eliminar') && (
-                  <button
+                  <button aria-label="Cancelar actividad"
                     onClick={() => { onCancelar(item); onClose() }}
                     className="w-10 h-10 flex items-center justify-center rounded-control
                       border border-border text-warning hover:bg-warning/10 transition-colors"
@@ -602,7 +747,7 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
                   </button>
                 )}
                 {canDo('programacion', 'eliminar') && (
-                  <button
+                  <button aria-label="Eliminar actividad"
                     onClick={() => { onDelete(item); onClose() }}
                     className="w-10 h-10 flex items-center justify-center rounded-control
                       border border-border text-error hover:bg-error/10 transition-colors"
@@ -661,11 +806,12 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
 const KANBAN_ESTADOS = ['programado', 'en_proceso', 'completado', 'cancelado']
 
 function KanbanCard({ item, draggable, onDragStart, onClick }) {
+  const navigate = useNavigate()
   return (
     <div
       draggable={draggable}
       onDragStart={draggable ? onDragStart : undefined}
-      onClick={onClick}
+      {...clicConTeclado(onClick)}
       className={`bg-surface border border-border rounded-control p-3 shadow-card
         dark:shadow-card-dk transition-colors hover:bg-hover
         ${draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
@@ -682,7 +828,14 @@ function KanbanCard({ item, draggable, onDragStart, onClick }) {
         </span>
       )}
       <p className="text-[11px] text-faint truncate mt-1">
-        {item.proyecto || 'Sin proyecto'}
+        {item.id_proyecto ? (
+          <button type="button"
+            onClick={e => { e.stopPropagation(); navigate(`/proyectos/${item.id_proyecto}`) }}
+            className="hover:text-primary hover:underline transition-colors"
+          >
+            {item.proyecto}
+          </button>
+        ) : 'Sin proyecto'}
         {item.cliente ? ` · ${item.cliente}` : ''}
       </p>
       <div className="flex items-center justify-between mt-2">
@@ -755,6 +908,7 @@ function KanbanBoard({ items, onSelect, onDrop }) {
 
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function Programacion() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [fecha,           setFecha]           = useState(toISO(new Date()))
   const [modo,            setModo]            = useState('dia') // 'dia' | 'semana' | 'mes'
   const [modoMenu,        setModoMenu]        = useState(false)
@@ -768,6 +922,20 @@ export default function Programacion() {
   // Grupos abiertos manualmente (por defecto todos colapsados; al buscar se
   // autoexpanden los que tengan coincidencias, sin tocar este estado).
   const [expandedGroups,  setExpandedGroups]  = useState(new Set())
+  // Llega desde ProyectoDetalle.jsx ("Ver en Programación" / "Actividades en
+  // curso") con ?proyecto=X y, opcionalmente, ?tab=en_proceso — mismo patrón
+  // que ?nuevo=1&id_pedido=X en Proyectos.jsx.
+  const [filtroProyectoId, setFiltroProyectoId] = useState(null)
+  useEffect(() => {
+    const proyecto = searchParams.get('proyecto')
+    const tab = searchParams.get('tab')
+    if (proyecto) {
+      setFiltroProyectoId(Number(proyecto))
+      if (['todas', 'en_proceso', 'programado', 'completado'].includes(tab)) setActiveTab(tab)
+      setSearchParams({}, { replace: true })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const toggleGroup = (key) => setExpandedGroups(prev => {
     const next = new Set(prev)
@@ -899,11 +1067,16 @@ export default function Programacion() {
       (item.cliente || '').toLowerCase().includes(q) ||
       (item.fase_nombre || '').toLowerCase().includes(q)
   }
+  // Filtro exacto por proyecto (llega por ?proyecto=X desde ProyectoDetalle.jsx),
+  // independiente del buscador de texto — se combinan los dos.
+  const matchesProyectoFiltro = item => !filtroProyectoId || item.id_proyecto === filtroProyectoId
+  const matchesTodo = item => matchesSearch(item) && matchesProyectoFiltro(item)
+
   // Vista Kanban: todas las actividades del periodo (sin filtrar por pestaña de
   // estado, ya que cada estado es una columna), solo respetando el buscador.
-  const kanbanItems = (data || []).filter(matchesSearch)
+  const kanbanItems = (data || []).filter(matchesTodo)
 
-  const filtradasPorSearch = filtradasPorTab.filter(matchesSearch)
+  const filtradasPorSearch = filtradasPorTab.filter(matchesTodo)
 
   // En vista día se agrupa por proyecto; en semana / mes por fecha.
   const agruparPorFecha = modo !== 'dia'
@@ -943,7 +1116,7 @@ export default function Programacion() {
 
         {/* Navegador de fecha */}
         <div className="flex items-center gap-1">
-          <button onClick={prevDay}
+          <button aria-label="Periodo anterior" onClick={prevDay}
             className="w-[38px] h-[38px] flex items-center justify-center
               bg-surface border border-border rounded-control
               text-muted hover:bg-hover hover:text-ink transition-colors"
@@ -996,6 +1169,7 @@ export default function Programacion() {
                       tracking-[.08em] text-faint mb-1.5">Ir a una fecha</p>
                     <input
                       type="date"
+                      aria-label="Ir a una fecha"
                       value={fecha}
                       onChange={e => { if (e.target.value) { setFecha(e.target.value); setModoMenu(false) } }}
                       className="w-full h-9 border border-border rounded-control px-2.5 text-[12px]
@@ -1007,7 +1181,7 @@ export default function Programacion() {
             )}
           </div>
 
-          <button onClick={nextDay}
+          <button aria-label="Periodo siguiente" onClick={nextDay}
             className="w-[38px] h-[38px] flex items-center justify-center
               bg-surface border border-border rounded-control
               text-muted hover:bg-hover hover:text-ink transition-colors"
@@ -1035,6 +1209,17 @@ export default function Programacion() {
           onValueChange={setSearch}
           className="flex-1 min-w-[260px] max-w-md"
         />
+
+        {filtroProyectoId && (
+          <button type="button" onClick={() => setFiltroProyectoId(null)}
+            className="h-[38px] flex items-center gap-1.5 px-3 font-mono text-[12px]
+              text-primary border border-primary/30 bg-primary/8 hover:bg-primary/15
+              rounded-control transition-colors"
+          >
+            Proyecto: {proyectos?.find(p => p.id_proyecto === filtroProyectoId)?.nombre || `#${filtroProyectoId}`}
+            <X size={13} />
+          </button>
+        )}
 
         <div className="flex-1" />
 
@@ -1178,6 +1363,7 @@ export default function Programacion() {
           onCancelar={handleCancelar}
           onDelete={handleDelete}
           onAvance={handleAvance}
+          onCorregido={() => { setSelectedItem(null); refresh() }}
         />
       )}
 

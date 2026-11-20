@@ -99,14 +99,16 @@ node scripts/seed.js
 ```bash
 # Terminal 1 — Backend (puerto 3000)
 cd backend
-npm install
-npm run dev
+pnpm install
+pnpm dev
 
 # Terminal 2 — Frontend (puerto 5173)
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
+
+> El proyecto usa **pnpm** (no npm/yarn): `npm install -g pnpm` si no lo tienes instalado.
 
 Abre el navegador en: http://localhost:5173
 

@@ -5,6 +5,9 @@ import { crearRes } from './helpers/express.js'
 
 // Doble de prueba de la BD: cada test define qué responde cada consulta, en orden
 vi.mock('../src/config/db.js', () => ({ default: { query: vi.fn() } }))
+// Bitácora de auditoría (RNF-22): hace sus propias consultas antes y después del cambio.
+// Se reemplaza para que las respuestas simuladas de la BD sigan siendo solo las del controlador.
+vi.mock('../src/utils/bitacora.js', () => ({ fotoUsuario: vi.fn(), fotoMaquina: vi.fn(), registrarBitacora: vi.fn() }))
 
 const usuario = { id: 5, rol: 'Coordinador de Planta' }
 
@@ -49,14 +52,15 @@ describe('mantenimientos.create', () => {
     expect(cambioEstadoMaquina()).toBe(false)
   })
 
-  it('debe guardar quién registró el mantenimiento', async () => {
+  it('debe guardar quién registró el mantenimiento y que ya fue realizado', async () => {
     pool.query
       .mockResolvedValueOnce([{ insertId: 42 }])
       .mockResolvedValueOnce([[{ id_mantenimiento: 42 }]])
 
     await create({ body: { id_maquina: 3, fecha: '2026-10-21', tipo: 'preventivo' }, user: usuario }, crearRes())
 
-    expect(pool.query.mock.calls[0][1]).toEqual([3, '2026-10-21', 'preventivo', null, 5])
+    // Sin estado = mantenimiento ya hecho: queda 'realizado' (los 'programado' son a futuro, RF-24)
+    expect(pool.query.mock.calls[0][1]).toEqual([3, '2026-10-21', 'preventivo', null, 5, 'realizado'])
   })
 
   it.each([

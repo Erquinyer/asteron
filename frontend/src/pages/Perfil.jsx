@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { User, Mail, Shield, Clock, Key, Save, Eye, EyeOff } from 'lucide-react'
+import { User, Mail, Shield, ShieldCheck, Clock, Key, Save, Eye, EyeOff } from 'lucide-react'
 import { useFetch }   from '../hooks/useFetch'
 import { getPerfil, updatePerfil, changePassword } from '../api/perfil.service'
 import { login, getUser } from '../utils/auth'
@@ -76,12 +76,14 @@ export default function Perfil() {
       <div className="relative">
         <input
           type={showPass[field] ? 'text' : 'password'}
+          aria-label={label}
           value={pass[field]}
           onChange={e => setPass(p => ({ ...p, [field]: e.target.value }))}
           placeholder={placeholder}
           className={`${inputCls} pr-10`}
         />
-        <button type="button" onClick={() => toggleShow(field)}
+        <button type="button" aria-label={`${showPass[field] ? 'Ocultar' : 'Mostrar'} ${label.toLowerCase()}`}
+          onClick={() => toggleShow(field)}
           className="absolute right-3 top-1/2 -translate-y-1/2
             text-faint hover:text-muted transition-colors"
         >
@@ -131,6 +133,11 @@ export default function Perfil() {
             { icon: Shield, label: 'Rol',            value: perfil.rol },
             { icon: Clock,  label: 'Último acceso',  value: fmtFecha(perfil.ultimo_login) },
             { icon: User,   label: 'Miembro desde',  value: fmtFecha(perfil.created_at) },
+            // Prueba de la autorización que el titular puede consultar (Ley 1581, art. 8 lit. b)
+            { icon: ShieldCheck, label: 'Autorizó tratamiento de datos',
+              value: perfil.politica_datos_aceptada_en
+                ? `${fmtFecha(perfil.politica_datos_aceptada_en)} · v${perfil.politica_datos_version}`
+                : 'Pendiente' },
           ].map(({ icon: Icon, label, value }, i) => (
             <div key={i} className="flex items-start gap-3">
               <div className="w-8 h-8 rounded-[8px] bg-surface2 flex items-center
@@ -161,6 +168,7 @@ export default function Perfil() {
             value={nombre}
             onChange={e => setNombre(e.target.value)}
             placeholder="Tu nombre completo"
+            aria-label="Nombre completo"
             className={`flex-1 ${inputCls}`}
           />
           <button type="submit"

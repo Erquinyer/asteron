@@ -14,6 +14,8 @@ export const updateProgramacion = (id, data)    => api.put(`/programacion/${id}`
 export const updateEstadoTurno  = (id, data)    => api.patch(`/programacion/${id}/estado`, data)
 export const updateAvanceTurno  = (id, porcentaje_avance) => api.patch(`/programacion/${id}/avance`, { porcentaje_avance })
 export const deleteProgramacion = (id)          => api.delete(`/programacion/${id}`)
+export const corregirTiempos    = (id, data)    => api.patch(`/programacion/${id}/tiempos`, data)
+export const getCorrecciones    = (id)          => api.get(`/programacion/${id}/correcciones`)
 
 export const descargarPlantillaProgramacion = () =>
   api.get('/programacion/plantilla', { responseType: 'blob' })

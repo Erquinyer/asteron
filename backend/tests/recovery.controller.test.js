@@ -11,6 +11,9 @@ import { crearRes } from './helpers/express.js'
 // - Notificador: MOCK/SPY de la interfaz propia (src/services/notificador.js), no de
 //   nodemailer. Se verifica si se llamó, cuántas veces y con qué datos.
 vi.mock('../src/config/db.js', () => ({ default: { query: vi.fn() } }))
+// Bitácora de auditoría (RNF-22): hace sus propias consultas antes y después del cambio.
+// Se reemplaza para que las respuestas simuladas de la BD sigan siendo solo las del controlador.
+vi.mock('../src/utils/bitacora.js', () => ({ fotoUsuario: vi.fn(), fotoMaquina: vi.fn(), registrarBitacora: vi.fn() }))
 vi.mock('../src/services/notificador.js', () => ({
   notificador: { enviarRecuperacionContrasena: vi.fn() },
 }))

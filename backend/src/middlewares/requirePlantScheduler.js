@@ -1,7 +1,7 @@
 // Solo el líder de planta y la coordinación de producción crean, inician y
 // finalizan turnos de planta (fases "Corte" → "Pintura y acabados"); el operario
 // asignado conserva acceso de solo lectura a su turno del día.
-const ROLES_PROGRAMACION = [
+export const ROLES_PROGRAMACION = [
   'Coordinador de Planta',
   'Coordinador de Producción',
   'Gerente General',

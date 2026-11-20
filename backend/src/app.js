@@ -1,6 +1,7 @@
 import express from 'express'
 import cors    from 'cors'
 import dotenv  from 'dotenv'
+import swaggerUi from 'swagger-ui-express'
 
 import { verifyToken }        from './middlewares/auth.middleware.js'
 import authRoutes             from './routes/auth.routes.js'
@@ -15,6 +16,10 @@ import perfilRoutes           from './routes/perfil.routes.js'
 import mantenimientosRoutes   from './routes/mantenimientos.routes.js'
 import notificacionesRoutes   from './routes/notificaciones.routes.js'
 import adminRoutes             from './routes/admin.routes.js'
+import reportesRoutes          from './routes/reportes.routes.js'
+import evidenciasRoutes        from './routes/evidencias.routes.js'
+import { openapi }             from './docs/openapi.js'
+import { responderError }      from './utils/errores.js'
 
 dotenv.config()
 
@@ -38,6 +43,14 @@ app.use(express.json())
 app.use('/api/auth',   authRoutes)
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', sistema: 'Asteron' }))
 
+// ── Documentación de la API (OpenAPI / Swagger) ───────
+// Pública: solo describe las rutas; para probarlas igual hay que iniciar sesión.
+app.get('/api/docs.json', (_req, res) => res.json(openapi))
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapi, {
+  customSiteTitle: 'Asteron API',
+  swaggerOptions: { persistAuthorization: true },
+}))
+
 // ── Rutas protegidas (requieren JWT) ──────────────────
 app.use('/api/dashboard',       verifyToken, dashboardRoutes)
 app.use('/api/proyectos',       verifyToken, proyectosRoutes)
@@ -50,6 +63,8 @@ app.use('/api/perfil',          verifyToken, perfilRoutes)
 app.use('/api/mantenimientos',  verifyToken, mantenimientosRoutes)
 app.use('/api/notificaciones',  verifyToken, notificacionesRoutes)
 app.use('/api/admin',           verifyToken, adminRoutes)
+app.use('/api/reportes',        verifyToken, reportesRoutes)
+app.use('/api/evidencias',      verifyToken, evidenciasRoutes)
 
 // ── Rutas del API que no existen: 404 en JSON (antes respondía una página HTML) ──
 app.use('/api', (_req, res) => {
@@ -71,8 +86,9 @@ app.use((err, _req, res, _next) => {
   if (err.code === 'LIMIT_FILE_SIZE') {
     return res.status(413).json({ message: 'El archivo supera el tamaño máximo permitido (2 MB)' })
   }
-  console.error('[app]', err)
-  res.status(500).json({ message: 'Error interno del servidor' })
+  // El resto (incluidos los errores que un controlador deja escapar: Express 5 los
+  // trae aquí) pasa por el mismo manejo central que usan los controladores (RNF-06).
+  responderError(res, err, 'app')
 })
 
 export default app

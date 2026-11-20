@@ -10,6 +10,13 @@ node_modules/
 dist/
 dist-ssr/
 build/
+coverage/
+
+# ── Respaldos de la base (datos reales, NUNCA subir al repo) ──
+respaldos/
+
+# ── Fotos de evidencia subidas por los usuarios (datos reales, NUNCA subir al repo) ──
+uploads/
 
 # ── Logs ──────────────────────────────────────────────
 *.log

@@ -3,11 +3,16 @@ import request from 'supertest'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import pool from '../../src/config/db.js'
 import app from '../../src/app.js'
+import { fotoUsuario, registrarBitacora } from '../../src/utils/bitacora.js'
 
 // Se prueba la app real de Express (rutas, middlewares y manejador de errores)
 // con supertest, sin levantar el servidor. Lo único reemplazado es la BD:
 // un doble de prueba para que los tests no necesiten MySQL ni Docker.
 vi.mock('../../src/config/db.js', () => ({ default: { query: vi.fn(), getConnection: vi.fn() } }))
+// La bitácora de auditoría (RNF-22) hace sus propias consultas antes y después de cada
+// cambio en usuarios; se reemplaza para que estos tests sigan midiendo solo la regla de
+// cada endpoint. Que se registre el cambio se comprueba en los tests de usuarios.
+vi.mock('../../src/utils/bitacora.js', () => ({ fotoUsuario: vi.fn(), fotoMaquina: vi.fn(), registrarBitacora: vi.fn() }))
 
 const SECRETO = 'secreto-de-pruebas'
 const tokenDe = (rol, opciones = {}) => jwt.sign({ id: 1, correo: 'x@macromet.com.co', rol }, SECRETO, opciones)
@@ -49,7 +54,9 @@ describe('Autenticación: rutas protegidas sin un token válido (401)', () => {
   })
 
   it('debe responder 200 con un token válido', async () => {
-    pool.query.mockResolvedValueOnce([[{ id_cliente: 1, nombre: 'Postobón' }]])
+    pool.query
+      .mockResolvedValueOnce([[{ permitido: 1 }]])                    // permiso de lectura del módulo
+      .mockResolvedValueOnce([[{ id_cliente: 1, nombre: 'Postobón' }]])
 
     const res = await conToken(request(app).get('/api/clientes'), 'Ejecutivo Comercial')
 
@@ -87,8 +94,8 @@ describe('Autorización por rol (403 frente a autorizado)', () => {
 describe('Hallazgo de seguridad: gestión de usuarios (/api/usuarios)', () => {
   const nuevoUsuario = { nombre: 'Intruso', correo: 'intruso@macromet.com.co', password: 'Clave1234', id_rol: 9 }
 
-  it('debe responder 403 a un rol sin el permiso "usuarios" y no crear el usuario', async () => {
-    // Arrange: el rol Operario no tiene el módulo "usuarios" en roles_permisos
+  it('debe responder 403 a un rol sin la acción "crear" en usuarios y no crear el usuario', async () => {
+    // Arrange: el rol Operario no tiene la acción "crear" de "usuarios" en acciones_modulo
     pool.query.mockResolvedValueOnce([[]])
 
     // Act: un operario intenta crearse una cuenta de administrador
@@ -112,10 +119,10 @@ describe('Hallazgo de seguridad: gestión de usuarios (/api/usuarios)', () => {
     expect(pool.query).toHaveBeenCalledOnce() // solo la consulta del permiso
   })
 
-  it('debe permitir crear usuarios a un rol que tiene el permiso "usuarios"', async () => {
-    // Arrange: el rol Administrativo sí tiene el módulo "usuarios"
+  it('debe permitir crear usuarios a un rol que tiene la acción "crear" en usuarios', async () => {
+    // Arrange: el rol Administrativo sí tiene la acción "crear" de "usuarios"
     pool.query
-      .mockResolvedValueOnce([[{ permitido: 1 }]])                          // permiso del rol
+      .mockResolvedValueOnce([[{ permitido: 1 }]])                          // acción del rol
       .mockResolvedValueOnce([[{ codigo_empleado: 'EMP-012' }]])            // último código
       .mockResolvedValueOnce([{ insertId: 14 }])                            // INSERT
       .mockResolvedValueOnce([[{ id_usuario: 14, codigo_empleado: 'EMP-013', nombre: 'Intruso' }]])
@@ -127,6 +134,7 @@ describe('Hallazgo de seguridad: gestión de usuarios (/api/usuarios)', () => {
     expect(res.status).toBe(201)
     expect(res.body.codigo_empleado).toBe('EMP-013')
     expect(seInsertoUnUsuario()).toBe(true)
+    expect(registrarBitacora).toHaveBeenCalledWith(expect.objectContaining({ entidad: 'usuario', id_registro: 14, accion: 'crear' }))
   })
 
   it('debe permitir al Administrador Sistema sin consultar permisos', async () => {
@@ -175,7 +183,9 @@ describe('Contrato de errores: siempre JSON y sin información interna', () => {
 
   it('debe responder 500 con un mensaje genérico, sin el SQL, cuando falla la BD', async () => {
     // Arrange: un error de MySQL trae la consulta en su mensaje
-    pool.query.mockRejectedValueOnce(new Error("ER_BAD_FIELD_ERROR: Unknown column 'x' in 'SELECT c.* FROM clientes c'"))
+    pool.query
+      .mockResolvedValueOnce([[{ permitido: 1 }]]) // permiso de lectura del módulo
+      .mockRejectedValueOnce(new Error("ER_BAD_FIELD_ERROR: Unknown column 'x' in 'SELECT c.* FROM clientes c'"))
 
     // Act
     const res = await conToken(request(app).get('/api/clientes'), 'Ejecutivo Comercial')
@@ -184,6 +194,66 @@ describe('Contrato de errores: siempre JSON y sin información interna', () => {
     expect(res.status).toBe(500)
     expect(res.body).toEqual({ message: 'Error al obtener clientes' })
     expect(res.text).not.toMatch(/SELECT|ER_BAD_FIELD_ERROR/)
+  })
+
+  it('debe incluir un código de referencia (X-Error-Ref) en los 500 para rastrearlos en el log', async () => {
+    pool.query
+      .mockResolvedValueOnce([[{ permitido: 1 }]])
+      .mockRejectedValueOnce(new Error('ECONNRESET'))
+
+    const res = await conToken(request(app).get('/api/clientes'), 'Ejecutivo Comercial')
+
+    expect(res.status).toBe(500)
+    expect(res.headers['x-error-ref']).toMatch(/^[0-9a-f]{8}$/)
+    expect(console.error).toHaveBeenCalledWith(`[clientes.getAll] ref=${res.headers['x-error-ref']}`, expect.any(Error))
+  })
+
+  it('debe responder 409 y no 500 cuando se elimina un registro que está en uso (error de MySQL)', async () => {
+    const enUso = Object.assign(new Error('ER_ROW_IS_REFERENCED_2: Cannot delete or update a parent row'), { code: 'ER_ROW_IS_REFERENCED_2' })
+    pool.query
+      .mockResolvedValueOnce([[{ permitido: 1 }]]) // acción "eliminar" en clientes
+      .mockRejectedValueOnce(enUso)
+
+    const res = await conToken(request(app).delete('/api/clientes/4'), 'Gerente General')
+
+    expect(res.status).toBe(409)
+    expect(res.body).toEqual({ message: 'No se puede eliminar: el registro está en uso' })
+    expect(res.text).not.toMatch(/parent row/)
+  })
+
+  it('debe responder 400 con el mensaje del filtro cuando el rango de fechas de un reporte es inválido', async () => {
+    pool.query.mockResolvedValueOnce([[{ permitido: 1 }]]) // lectura del módulo reportes
+
+    const res = await conToken(request(app).get('/api/reportes/horas?desde=2026-12-01&hasta=2026-01-01'), 'Coordinador de Planta')
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ message: 'La fecha inicial no puede ser posterior a la final' })
+  })
+
+  it('no debe mostrar el SQL al cliente cuando la base falla durante una importación', async () => {
+    // Antes, la importación respondía err.message de cualquier error, incluido el de MySQL
+    pool.query
+      .mockResolvedValueOnce([[{ permitido: 1 }]])
+      .mockRejectedValue(Object.assign(new Error("ER_NO_SUCH_TABLE: Table 'asteron.usuarios' doesn't exist"), { sqlMessage: 'x' }))
+    const csv = 'Fecha,Operario,Maquina,Proyecto,Item,Fase,TiempoEstimado,Observaciones\n2999-01-01,Soldador 1,,,,,60,\n'
+
+    const res = await conToken(
+      request(app).post('/api/programacion/importar/preview').attach('archivo', Buffer.from(csv), 'turnos.csv'),
+      'Coordinador de Planta')
+
+    expect(res.status).toBe(500)
+    expect(res.text).not.toMatch(/ER_NO_SUCH_TABLE|asteron\.usuarios/)
+  })
+
+  it('debe responder 400 con un mensaje claro cuando el archivo de importación no se puede leer', async () => {
+    pool.query.mockResolvedValueOnce([[{ permitido: 1 }]])
+
+    const res = await conToken(
+      request(app).post('/api/programacion/importar/preview').attach('archivo', Buffer.from('no es excel'), 'turnos.xlsx'),
+      'Coordinador de Planta')
+
+    expect(res.status).toBe(400)
+    expect(res.body.message).toMatch(/No se pudo leer el archivo|columnas requeridas/)
   })
 
   it('debe responder 500 genérico cuando falla la consulta de permisos', async () => {
@@ -290,6 +360,7 @@ describe('Contrato de errores: validación y límites de tamaño', () => {
 
   it('debe responder 413 en JSON cuando el archivo a importar supera los 2 MB', async () => {
     const archivo = Buffer.alloc(2 * 1024 * 1024 + 1, 'a')
+    pool.query.mockResolvedValueOnce([[{ permitido: 1 }]]) // acción "crear" en programación
 
     const res = await conToken(
       request(app).post('/api/programacion/importar/preview').attach('archivo', archivo, 'turnos.csv'),
@@ -342,6 +413,7 @@ describe('Casos autorizados de usuarios y perfil', () => {
   })
 
   it('debe activar o desactivar un usuario y devolver su estado nuevo', async () => {
+    fotoUsuario.mockResolvedValue({ nombre: 'Martín', estado: 'activo' }) // el usuario existe
     pool.query
       .mockResolvedValueOnce([{}])
       .mockResolvedValueOnce([[{ id_usuario: 2, estado: 0 }]])
@@ -350,6 +422,7 @@ describe('Casos autorizados de usuarios y perfil', () => {
 
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ id_usuario: 2, estado: 0 })
+    expect(registrarBitacora).toHaveBeenCalledWith(expect.objectContaining({ accion: 'estado', id_registro: 2 }))
   })
 
   it('debe devolver el perfil de la persona autenticada y nunca el de otra', async () => {

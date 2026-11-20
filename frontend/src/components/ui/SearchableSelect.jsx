@@ -91,6 +91,7 @@ export default function SearchableSelect({
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
             <input
               ref={inputRef}
+              aria-label={searchPlaceholder.replace('…', '')}
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder={searchPlaceholder}
@@ -116,9 +117,11 @@ export default function SearchableSelect({
                   <button
                     type="button"
                     key={opt.value}
-                    onClick={() => handleSelect(opt)}
+                    disabled={opt.disabled}
+                    onClick={() => !opt.disabled && handleSelect(opt)}
                     className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left
-                      transition-colors hover:bg-hover
+                      transition-colors
+                      ${opt.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-hover'}
                       ${isSelected ? 'bg-primary/5' : ''}`}
                   >
                     <span className="min-w-0">

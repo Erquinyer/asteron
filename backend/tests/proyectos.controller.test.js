@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import pool from '../src/config/db.js'
 import { create, remove, update, updateFase } from '../src/controllers/proyectos.controller.js'
+import { borrarArchivos } from '../src/utils/evidencias.js'
 import { crearRes, FECHA_FUTURA, FECHA_PASADA } from './helpers/express.js'
 
 // Doble de prueba de la BD: cada test define qué responde cada consulta, en orden
 vi.mock('../src/config/db.js', () => ({ default: { query: vi.fn() } }))
+// Fotos de evidencia: el borrado de archivos en disco se reemplaza por un MOCK para
+// comprobar que se pide sin tocar el sistema de archivos real.
+vi.mock('../src/utils/evidencias.js', () => ({ borrarArchivos: vi.fn() }))
 
 const usuario = { id: 5, rol: 'Gerente General' }
 
@@ -180,6 +184,7 @@ describe('proyectos.updateFase', () => {
   it('debe responder 409 cuando la fase se controla desde Programación de planta', async () => {
     pool.query
       .mockResolvedValueOnce([[{ id_usuario_asignado: null }]])
+      .mockResolvedValueOnce([[{ permitido: 1 }]])          // acción "editar" en proyectos
       .mockResolvedValueOnce([[{ turnos_vinculados: 1 }]])  // valor límite: basta un turno
     const res = crearRes()
 
@@ -203,14 +208,30 @@ describe('proyectos.remove', () => {
     expect(res.json.mock.calls[0][0].message).toContain(texto)
   })
 
-  it('debe borrar el proyecto cuando no tiene actividades', async () => {
+  it('debe borrar el proyecto y los archivos de sus fotos cuando no tiene actividades', async () => {
     pool.query
       .mockResolvedValueOnce([[{ total_actividades: 0 }]])
+      .mockResolvedValueOnce([[{ archivo: 'a1.jpg' }, { archivo: 'b2.png' }]]) // fotos del proyecto
       .mockResolvedValueOnce([{ affectedRows: 1 }])
     const res = crearRes()
 
     await remove({ params: { id: 7 } }, res)
 
     expect(res.json).toHaveBeenCalledWith({ message: 'Proyecto eliminado' })
+    // El CASCADE borra las filas; los archivos en disco los borra el controlador
+    expect(borrarArchivos).toHaveBeenCalledWith(['a1.jpg', 'b2.png'])
+  })
+
+  it('no debe borrar archivos cuando el proyecto no existe', async () => {
+    pool.query
+      .mockResolvedValueOnce([[{ total_actividades: 0 }]])
+      .mockResolvedValueOnce([[{ archivo: 'a1.jpg' }]])
+      .mockResolvedValueOnce([{ affectedRows: 0 }])
+    const res = crearRes()
+
+    await remove({ params: { id: 999 } }, res)
+
+    expect(res.status).toHaveBeenCalledWith(404)
+    expect(borrarArchivos).not.toHaveBeenCalled()
   })
 })

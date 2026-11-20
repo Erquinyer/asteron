@@ -1,5 +1,7 @@
 import pool   from '../config/db.js'
 import bcrypt  from 'bcryptjs'
+import { fotoUsuario, registrarBitacora } from '../utils/bitacora.js'
+import { responderError } from '../utils/errores.js'
 
 export const getAll = async (_req, res) => {
   try {
@@ -11,8 +13,7 @@ export const getAll = async (_req, res) => {
       ORDER BY u.codigo_empleado, u.nombre`)
     res.json(rows)
   } catch (err) {
-    console.error('[usuarios.getAll]', err)
-    res.status(500).json({ message: 'Error al obtener usuarios' })
+    responderError(res, err, 'usuarios.getAll', 'Error al obtener usuarios')
   }
 }
 
@@ -21,7 +22,7 @@ export const getRoles = async (_req, res) => {
     const [rows] = await pool.query('SELECT id_rol, nombre, descripcion FROM roles ORDER BY id_rol')
     res.json(rows)
   } catch (err) {
-    res.status(500).json({ message: 'Error al obtener roles' })
+    responderError(res, err, 'usuarios.getRoles', 'Error al obtener roles')
   }
 }
 
@@ -48,17 +49,21 @@ export const create = async (req, res) => {
       `SELECT u.id_usuario, u.codigo_empleado, u.nombre, u.correo, u.estado, r.nombre AS rol
        FROM usuarios u LEFT JOIN roles r ON u.id_rol = r.id_rol WHERE u.id_usuario = ?`,
       [result.insertId])
+    await registrarBitacora({
+      entidad: 'usuario', id_registro: result.insertId, accion: 'crear',
+      despues: await fotoUsuario(result.insertId), autor: req.user.id,
+    })
     res.status(201).json(user)
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'El correo o código ya está registrado' })
-    console.error('[usuarios.create]', err)
-    res.status(500).json({ message: 'Error al crear usuario' })
+    responderError(res, err, 'usuarios.create', 'Error al crear usuario')
   }
 }
 
 export const update = async (req, res) => {
   const { nombre, correo, password, id_rol, estado, codigo_empleado } = req.body
   try {
+    const antes = await fotoUsuario(req.params.id)
     if (password) {
       const hash = await bcrypt.hash(password, 10)
       await pool.query(
@@ -74,24 +79,41 @@ export const update = async (req, res) => {
        FROM usuarios u LEFT JOIN roles r ON u.id_rol = r.id_rol WHERE u.id_usuario = ?`,
       [req.params.id])
     if (!user) return res.status(404).json({ message: 'Usuario no encontrado' })
+    await registrarBitacora({
+      entidad: 'usuario', id_registro: user.id_usuario, accion: 'editar',
+      antes, despues: await fotoUsuario(user.id_usuario), autor: req.user.id,
+    })
+    // La contraseña nunca se guarda en la bitácora, solo que fue cambiada y por quién
+    if (password) {
+      await registrarBitacora({
+        entidad: 'usuario', id_registro: user.id_usuario, accion: 'contrasena',
+        antes, autor: req.user.id, detalle: 'Contraseña restablecida por un administrador',
+      })
+    }
     res.json(user)
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'El correo o código ya está registrado' })
-    console.error('[usuarios.update]', err)
-    res.status(500).json({ message: 'Error al actualizar usuario' })
+    responderError(res, err, 'usuarios.update', 'Error al actualizar usuario')
   }
 }
 
 export const toggleEstado = async (req, res) => {
   try {
+    const antes = await fotoUsuario(req.params.id)
     await pool.query(
       `UPDATE usuarios SET estado = IF(estado=1, 0, 1) WHERE id_usuario=?`, [req.params.id])
     const [[user]] = await pool.query(
       `SELECT u.id_usuario, u.nombre, u.estado, r.nombre AS rol
        FROM usuarios u LEFT JOIN roles r ON u.id_rol = r.id_rol WHERE u.id_usuario=?`,
       [req.params.id])
+    if (antes) {
+      await registrarBitacora({
+        entidad: 'usuario', id_registro: Number(req.params.id), accion: 'estado',
+        antes, despues: await fotoUsuario(req.params.id), autor: req.user.id,
+      })
+    }
     res.json(user)
   } catch (err) {
-    res.status(500).json({ message: 'Error al cambiar estado' })
+    responderError(res, err, 'usuarios.toggleEstado', 'Error al cambiar estado')
   }
 }

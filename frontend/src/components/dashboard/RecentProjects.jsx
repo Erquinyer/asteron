@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { initials } from '../../utils/initials'
 import EmptyState from '../ui/EmptyState'
+import { clicConTeclado } from '../../utils/teclado'
 
 const PRIORIDAD_DOT = { alta: 'bg-error', media: 'bg-warning', baja: 'bg-success' }
 const PROGRESS_COLOR = (avance) => (avance >= 80 ? 'bg-success' : avance < 35 ? 'bg-warning' : 'bg-primary')
@@ -83,7 +84,7 @@ const RecentProjects = ({ projects }) => {
 
                 return (
                   <tr key={p.id}
-                    onClick={() => navigate(`/proyectos/${p.id}`)}
+                    {...clicConTeclado(() => navigate(`/proyectos/${p.id}`), { fila: true })}
                     className="hover:bg-hover transition-colors cursor-pointer"
                   >
                     <td className="px-[18px] py-3">

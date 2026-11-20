@@ -26,7 +26,12 @@ const mañana = () => {
 }
 
 describe('POST /api/programacion — crea un turno (validarTurnoInterno)', () => {
-  beforeEach(() => vi.resetAllMocks())
+  // Toda escritura pasa primero por requireAccion('programacion', ...): la primera consulta
+  // es el permiso del rol (acciones_modulo). Las respuestas simuladas de cada test van después.
+  beforeEach(() => {
+    vi.resetAllMocks()
+    pool.query.mockResolvedValueOnce([[{ permitido: 1 }]])
+  })
 
   it('400 si falta fecha o id_operario', async () => {
     const res = await request(app)
@@ -36,7 +41,9 @@ describe('POST /api/programacion — crea un turno (validarTurnoInterno)', () =>
 
     expect(res.status).toBe(400)
     expect(res.body.message).toMatch(/fecha y operario/i)
-    expect(pool.query).not.toHaveBeenCalled()
+    // Solo se consultó el permiso: la validación corta antes de tocar los datos
+    expect(pool.query).toHaveBeenCalledOnce()
+    expect(pool.query.mock.calls[0][0]).toContain('acciones_modulo')
   })
 
   it('400 si la fecha es anterior a hoy (no-backdating)', async () => {
@@ -150,7 +157,12 @@ describe('POST /api/programacion — crea un turno (validarTurnoInterno)', () =>
 })
 
 describe('PUT /api/programacion/:id — regla "la fecha solo se revalida si cambió"', () => {
-  beforeEach(() => vi.resetAllMocks())
+  // Toda escritura pasa primero por requireAccion('programacion', ...): la primera consulta
+  // es el permiso del rol (acciones_modulo). Las respuestas simuladas de cada test van después.
+  beforeEach(() => {
+    vi.resetAllMocks()
+    pool.query.mockResolvedValueOnce([[{ permitido: 1 }]])
+  })
 
   it('200: no bloquea editar otros campos de un turno cuya fecha ya quedó en el pasado, si la fecha no cambia', async () => {
     const fechaAntigua = new Date('2020-01-01T00:00:00')

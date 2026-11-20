@@ -14,6 +14,7 @@ Instala estas herramientas antes de empezar. Si ya las tienes, verifica las vers
 | Herramienta | Versión mínima | Descarga |
 |---|---|---|
 | Node.js | 18 o superior | https://nodejs.org |
+| pnpm | cualquiera reciente | `npm install -g pnpm` (ya viene con Node) |
 | MySQL | 8.0 o superior | https://dev.mysql.com/downloads/mysql/ |
 | Git | cualquiera | https://git-scm.com |
 
@@ -21,7 +22,7 @@ Para verificar que están instalados, abre una terminal y ejecuta:
 
 ```bash
 node -v
-npm -v
+pnpm -v
 mysql --version
 git --version
 ```
@@ -173,8 +174,10 @@ EMAIL_PASS=         ← opcional
 Desde la carpeta `backend/`:
 
 ```bash
-npm install
+pnpm install
 ```
+
+> El proyecto usa **pnpm** (no npm/yarn) — instálalo con `npm install -g pnpm` si no lo tienes. Cada `package.json` ya fija versiones exactas; `pnpm install` respeta eso tal cual, sin actualizar nada por su cuenta.
 
 ### 3.3 — Ejecutar migraciones
 
@@ -183,6 +186,10 @@ Estos scripts crean tablas adicionales y configuran permisos. Ejecútalos **una 
 ```bash
 node scripts/migrate_admin_role.js
 node scripts/migrate_acciones_modulo.js
+node scripts/migrate_tiempos_reportes.js
+node scripts/migrate_politica_datos.js
+node scripts/migrate_bitacora.js
+node scripts/migrate_evidencias.js
 ```
 
 ### 3.4 — Cargar datos de prueba (seed)
@@ -190,7 +197,7 @@ node scripts/migrate_acciones_modulo.js
 Carga los datos reales de Macromet: clientes, proyectos, maquinaria, usuarios, etc.
 
 ```bash
-npm run seed
+pnpm seed
 ```
 
 > **Advertencia:** el seed borra y recrea todos los datos. Ejecútalo solo en la configuración inicial, nunca sobre una base de datos con datos propios.
@@ -198,7 +205,7 @@ npm run seed
 ### 3.5 — Iniciar el servidor backend
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 Deberías ver:
@@ -215,8 +222,8 @@ Abre una **nueva terminal** (el backend debe seguir corriendo) y desde la raíz 
 
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Deberías ver:
@@ -387,6 +394,116 @@ Producción:     git checkout main
 
 ---
 
+## Correr todo con Docker (alternativa a las secciones 2-4)
+
+Si tienes **Docker Desktop** instalado, puedes levantar MySQL + backend + frontend sin instalar Node ni MySQL localmente.
+
+### Primera vez
+
+```bash
+# 1. Crea backend/.env a partir del ejemplo (lo lee el contenedor del backend)
+cp backend/.env.example backend/.env
+
+# 2. Construye e inicia los tres servicios
+docker compose up --build -d
+
+# 3. Solo la PRIMERA vez (o si borraste el volumen de datos): crea el rol
+#    admin, los permisos por módulo y carga los datos de prueba de Macromet
+docker compose exec backend node scripts/migrate_admin_role.js
+docker compose exec backend node scripts/migrate_acciones_modulo.js
+docker compose exec backend node scripts/migrate_tiempos_reportes.js
+docker compose exec backend node scripts/migrate_politica_datos.js
+docker compose exec backend node scripts/migrate_bitacora.js
+docker compose exec backend node scripts/migrate_evidencias.js
+docker compose exec backend pnpm seed
+```
+
+Abre `http://localhost:5173`.
+
+### Uso diario
+
+```bash
+docker compose up -d       # levantar
+docker compose logs -f     # ver logs en vivo
+docker compose down        # detener (los datos de MySQL persisten en el volumen db_data)
+```
+
+### Cómo está armado
+
+| Archivo | Qué hace |
+|---|---|
+| `backend/Dockerfile` | Imagen de Node 22 + pnpm (pnpm 11.x exige Node ≥22.13), corre `node server.js`. |
+| `frontend/Dockerfile` | Compila con Vite (`pnpm build`) y sirve `dist/` con nginx — `VITE_API_URL` se "hornea" en el bundle en tiempo de build, no se puede cambiar después sin reconstruir la imagen. |
+| `frontend/nginx.conf` | Redirige cualquier ruta a `index.html` para que funcione el enrutado de React Router (`/proyectos/12`, etc.) en vez de dar 404. |
+| `docker-compose.yml` | Orquesta `mysql` (con el esquema de `Data Base/asteron_v2.sql` precargado), `backend` y `frontend`, en ese orden de arranque, más el servicio `respaldo` (copia de seguridad diaria, ver abajo). |
+
+> **Nota de la base de datos:** el esquema de `Data Base/asteron_v2.sql` solo se importa la **primera vez** que se crea el volumen `db_data` (es el comportamiento estándar de la imagen oficial de MySQL — si el volumen ya tiene datos, lo ignora). Para empezar desde cero: `docker compose down -v` (borra el volumen) y vuelve a correr los 3 pasos de "Primera vez".
+>
+> **No probado en este equipo:** Docker no está instalado en esta máquina, así que estos archivos no se construyeron/ejecutaron realmente aquí — están escritos con cuidado pero conviene validar el primer `docker compose up --build` juntos por si aparece algo que ajustar (versión de alguna imagen base, alguna dependencia nativa, etc.).
+
+---
+
+## Documentación de la API (Swagger)
+
+Con el backend corriendo, abre **http://localhost:3000/api/docs**. Para probar una ruta protegida:
+
+1. Ejecuta `POST /auth/login` con un usuario de prueba y copia el `token` de la respuesta.
+2. Pulsa **Authorize**, pega el token y confirma.
+
+La especificación está en `backend/src/docs/openapi.js` (en JSON: `/api/docs.json`). Si agregas o quitas una ruta en `routes/*.js`, actualízala ahí y comprueba con:
+
+```bash
+cd backend && pnpm verificar-openapi
+```
+
+---
+
+## Copias de seguridad y restauración
+
+Los respaldos se guardan comprimidos en `respaldos/asteron_AAAAMMDD_HHMMSS.sql.gz` y solo se conservan los 7 más recientes. Las fotos de evidencia no están en la base sino en `backend/uploads/`, así que el mismo script las empaca aparte en `respaldos/fotos_AAAAMMDD_HHMMSS.tar.gz` (misma fecha, misma rotación). Las carpetas `respaldos/` y `backend/uploads/` están en `.gitignore` porque contienen datos reales.
+
+**Automático (Docker):** el servicio `respaldo` de `docker-compose.yml` hace un respaldo al arrancar y luego uno cada 24 h. Para ver que esté funcionando:
+
+```bash
+docker compose logs respaldo
+```
+
+**Manual (sin Docker o antes de un cambio delicado):** usa la conexión de `backend/.env`.
+
+```bash
+bash "Data Base/respaldar.sh"
+```
+
+Para respaldar todos los días sin Docker, prográmalo con `crontab -e` (ejemplo: todos los días a las 2:00 a. m.):
+
+```
+0 2 * * * cd "/ruta/al/Proyecto Asteron" && bash "Data Base/respaldar.sh" >> respaldos/respaldo.log 2>&1
+```
+
+**Restaurar:**
+
+```bash
+# 1. Probar el respaldo en una base aparte, sin tocar la real (recomendado primero)
+bash "Data Base/restaurar.sh" respaldos/asteron_20261113_020000.sql.gz asteron_prueba
+
+# 2. Reemplazar la base real: pide escribir RESTAURAR y antes guarda un respaldo
+#    del estado actual por si el archivo elegido no era el correcto
+bash "Data Base/restaurar.sh" respaldos/asteron_20261113_020000.sql.gz
+
+# 3. Restaurar las fotos del MISMO respaldo (misma fecha que el .sql.gz),
+#    para que coincidan con las filas de evidencias_fotograficas
+mkdir -p backend/uploads && tar -xzf respaldos/fotos_20261113_020000.tar.gz -C backend/uploads
+```
+
+Con Docker, la restauración se corre desde el contenedor de respaldo:
+
+```bash
+docker compose run --rm --entrypoint bash -v "$PWD/Data Base:/scripts:ro" respaldo \
+  /scripts/restaurar.sh /respaldos/asteron_20261113_020000.sql.gz
+```
+
+---
+
 ## Estructura del proyecto
 
 ```
@@ -401,10 +518,13 @@ asteron/
 │   │   ├── routes/             ← rutas por módulo
 │   │   ├── middlewares/        ← auth JWT, requireAdmin
 │   │   └── config/db.js        ← pool MySQL
-│   └── scripts/
-│       ├── seed.js                      ← datos de prueba Macromet
-│       ├── migrate_admin_role.js        ← migración de rol administrador
-│       └── migrate_acciones_modulo.js   ← migración de permisos por acción
+│   ├── scripts/
+│   │   ├── seed.js                      ← datos de prueba Macromet
+│   │   ├── migrate_admin_role.js        ← migración de rol administrador
+│   │   ├── migrate_acciones_modulo.js   ← migración de permisos por acción
+│   │   ├── migrate_tiempos_reportes.js  ← horas de actividad, valor hora y módulo de reportes
+│   │   └── migrate_evidencias.js        ← tabla de fotos de evidencia
+│   └── uploads/evidencias/     ← fotos subidas (no se versiona; ver respaldos)
 └── frontend/
     └── src/
         ├── api/                ← servicios axios por módulo
@@ -450,7 +570,7 @@ asteron/
 → Cambia `PORT` en `backend/.env` o el puerto en `frontend/vite.config.js`.
 
 **`Error: Cannot find module`**  
-→ Ejecuta `npm install` dentro de `backend/` y dentro de `frontend/` por separado.
+→ Ejecuta `pnpm install` dentro de `backend/` y dentro de `frontend/` por separado.
 
 **`git push` rechazado (rejected)**  
 → Primero haz `git pull origin main` para traer los últimos cambios y luego vuelve a intentar el push.
@@ -461,8 +581,8 @@ asteron/
 
 ```bash
 # Arrancar el sistema completo (dos terminales)
-cd backend && npm run dev        # Terminal 1 — backend en puerto 3000
-cd frontend && npm run dev       # Terminal 2 — frontend en puerto 5173
+cd backend && pnpm dev           # Terminal 1 — backend en puerto 3000
+cd frontend && pnpm dev          # Terminal 2 — frontend en puerto 5173
 
 # Flujo de trabajo Git diario
 git pull origin main             # sincronizar antes de trabajar
@@ -471,7 +591,7 @@ git commit -m "mensaje"
 git push origin nombre/develop   # subir cambios a tu rama
 
 # Resetear datos (solo si es necesario)
-cd backend && npm run seed
+cd backend && pnpm seed
 ```
 ------------------------------------------------------------------------
 ## 📌 Tipo de Cambio (Semana 2)

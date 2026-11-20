@@ -1,0 +1,4 @@
+# pnpm 11 exige decidir si cada dependencia puede ejecutar scripts al instalarse.
+# @scarf/scarf (lo trae swagger-ui-dist) solo envía estadísticas de descarga: se bloquea.
+allowBuilds:
+  '@scarf/scarf': false

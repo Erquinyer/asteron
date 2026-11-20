@@ -363,7 +363,10 @@ export default function Landing() {
             <span className="text-[13px] font-bold text-white tracking-tight">Asteron</span>
           </div>
           <p className="font-mono text-[11px] text-white/25 text-center">
-            © {new Date().getFullYear()} Asteron · Macromet S.A.S. · Bogotá, Colombia
+            © {new Date().getFullYear()} Asteron · Macromet S.A.S. · Bogotá, Colombia ·{' '}
+            <Link to="/politica-datos" className="hover:text-white/60 transition-colors">
+              Política de datos
+            </Link>
           </p>
           <Link to="/login"
             className="font-mono text-[11px] text-white/25 hover:text-white/60 transition-colors"
