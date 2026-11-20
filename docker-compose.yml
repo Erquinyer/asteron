@@ -57,6 +57,9 @@ services:
       DB_PASSWORD: asteron_docker
       DB_NAME: asteron
       FRONTEND_URL: http://localhost:5173
+      # El Dockerfile fija producción; en desarrollo se permiten el seed, el secreto
+      # JWT de ejemplo y el frontend local en CORS
+      NODE_ENV: development
     volumes:
       # Fotos de evidencia (RF-25): fuera del contenedor para que no se pierdan
       # al reconstruir la imagen. Misma carpeta que usa `pnpm dev` sin Docker.

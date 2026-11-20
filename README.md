@@ -179,18 +179,15 @@ pnpm install
 
 > El proyecto usa **pnpm** (no npm/yarn) — instálalo con `npm install -g pnpm` si no lo tienes. Cada `package.json` ya fija versiones exactas; `pnpm install` respeta eso tal cual, sin actualizar nada por su cuenta.
 
-### 3.3 — Ejecutar migraciones
+### 3.3 — Ejecutar migraciones (solo si tu base es de una versión anterior)
 
-Estos scripts crean tablas adicionales y configuran permisos. Ejecútalos **una sola vez**:
+Si acabas de crear la base con `asteron_v2.sql`, sáltate este paso: el esquema ya trae todos los cambios. Si tu base viene de una versión anterior del proyecto, ponla al día con un solo comando (corre todas las migraciones en orden y se puede repetir sin problema):
 
 ```bash
-node scripts/migrate_admin_role.js
-node scripts/migrate_acciones_modulo.js
-node scripts/migrate_tiempos_reportes.js
-node scripts/migrate_politica_datos.js
-node scripts/migrate_bitacora.js
-node scripts/migrate_evidencias.js
+pnpm migrar
 ```
+
+> En una base **vacía** `pnpm migrar` se detiene a propósito: primero hay que cargar los roles con `pnpm seed` (desarrollo) o `pnpm inicializar` (producción).
 
 ### 3.4 — Cargar datos de prueba (seed)
 
@@ -407,15 +404,12 @@ cp backend/.env.example backend/.env
 # 2. Construye e inicia los tres servicios
 docker compose up --build -d
 
-# 3. Solo la PRIMERA vez (o si borraste el volumen de datos): crea el rol
-#    admin, los permisos por módulo y carga los datos de prueba de Macromet
-docker compose exec backend node scripts/migrate_admin_role.js
-docker compose exec backend node scripts/migrate_acciones_modulo.js
-docker compose exec backend node scripts/migrate_tiempos_reportes.js
-docker compose exec backend node scripts/migrate_politica_datos.js
-docker compose exec backend node scripts/migrate_bitacora.js
-docker compose exec backend node scripts/migrate_evidencias.js
+# 3. Solo la PRIMERA vez (o si borraste el volumen de datos): carga los roles,
+#    permisos y datos de prueba de Macromet. El esquema ya trae todas las tablas.
 docker compose exec backend pnpm seed
+
+# Después de actualizar el código (git pull), pon la base al día:
+docker compose exec backend pnpm migrar
 ```
 
 Abre `http://localhost:5173`.
@@ -440,6 +434,67 @@ docker compose down        # detener (los datos de MySQL persisten en el volumen
 > **Nota de la base de datos:** el esquema de `Data Base/asteron_v2.sql` solo se importa la **primera vez** que se crea el volumen `db_data` (es el comportamiento estándar de la imagen oficial de MySQL — si el volumen ya tiene datos, lo ignora). Para empezar desde cero: `docker compose down -v` (borra el volumen) y vuelve a correr los 3 pasos de "Primera vez".
 >
 > **No probado en este equipo:** Docker no está instalado en esta máquina, así que estos archivos no se construyeron/ejecutaron realmente aquí — están escritos con cuidado pero conviene validar el primer `docker compose up --build` juntos por si aparece algo que ajustar (versión de alguna imagen base, alguna dependencia nativa, etc.).
+
+---
+
+## Despliegue en producción
+
+Para un servidor en la nube (VPS con Ubuntu, por ejemplo Hetzner, DigitalOcean o AWS Lightsail) se usa `docker-compose.prod.yml`: **Caddy** sirve todo por HTTPS con certificado automático de Let's Encrypt, y MySQL, el backend y el frontend quedan en la red interna de Docker, sin puertos abiertos a internet. La web y el API comparten dominio (`https://DOMINIO` y `https://DOMINIO/api`).
+
+### Antes de empezar
+
+- Un servidor con Docker instalado y un **dominio** cuyo registro DNS tipo A apunte a la IP del servidor (sirve uno gratuito, como los de DuckDNS).
+- Firewall abierto solo en los puertos **22** (SSH), **80** y **443**. Acceso SSH con llave, no con contraseña.
+
+### Primera vez
+
+```bash
+git clone https://github.com/Erquinyer/asteron.git && cd asteron
+cp .env.produccion.example .env.produccion
+nano .env.produccion          # DOMINIO, CORREO_ACME, contraseñas y JWT_SECRET (openssl rand -hex 32)
+
+# Atajo: todos los comandos de producción llevan el archivo y las variables
+# (agrégalo a ~/.bashrc para no repetirlo en cada sesión)
+alias dc='docker compose -f docker-compose.prod.yml --env-file .env.produccion'
+
+dc up -d --build
+
+# Base nueva: catálogos (roles, permisos, fases) y el primer administrador.
+# NUNCA `pnpm seed` en producción: borra todo (está bloqueado con NODE_ENV=production).
+dc exec -e ADMIN_NOMBRE="Nombre Apellido" -e ADMIN_CORREO=correo@macromet.com.co \
+  -e ADMIN_CONTRASENA='clave-larga-y-unica' backend pnpm inicializar
+dc exec backend pnpm migrar
+```
+
+Abre `https://DOMINIO` e inicia sesión con ese administrador. Desde **Administración** crea el resto de usuarios.
+
+### Actualizar a una versión nueva
+
+```bash
+git pull
+dc up -d --build
+dc exec backend pnpm migrar
+```
+
+### Qué protege esta configuración
+
+| Riesgo | Protección |
+|---|---|
+| Tráfico sin cifrar | HTTPS obligatorio con certificado renovado solo (Caddy) y HSTS |
+| Base de datos expuesta | MySQL sin puertos publicados; el backend usa un usuario propio, no `root` |
+| Adivinar contraseñas | 10 intentos fallidos de login cada 15 min por IP; 5 solicitudes de recuperación por hora |
+| Secreto JWT débil | El backend no arranca en producción con un `JWT_SECRET` corto o el de ejemplo |
+| Borrar los datos reales | `seed.js` se niega a correr con `NODE_ENV=production` |
+| Fechas corridas un día | Contenedores en la zona horaria `America/Bogota` |
+| Inyección de scripts (XSS) | Política de seguridad de contenido (CSP) que solo permite recursos del propio dominio |
+| Fotos perdidas al actualizar | Fotos en un volumen de Docker, incluidas en el respaldo diario |
+| Contenedor comprometido | El backend corre sin usuario `root` |
+
+### Operación
+
+- **Respaldos:** el servicio `respaldo` deja cada día la base y las fotos en `./respaldos`. **Cópialos fuera del servidor** (por ejemplo, con `rclone` a Google Drive): si se pierde el servidor, se pierden también.
+- **Disponibilidad (RNF-15):** registra `https://DOMINIO/api/health` en un monitor gratuito como UptimeRobot, cada 5 minutos. Responde 503 si la base de datos no está disponible.
+- **Ver logs:** `dc logs -f backend` · **Estado:** `dc ps` (el backend debe aparecer como *healthy*).
 
 ---
 
