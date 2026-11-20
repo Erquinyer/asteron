@@ -22,6 +22,28 @@ services:
       timeout: 5s
       retries: 10
 
+  # BD de pruebas desechable (semana 6 — integración con BD real).
+  # No se levanta con `docker compose up` normal: solo se usa para
+  # backend/tests/integration/, con `docker compose up -d mysql-test`.
+  # tmpfs en vez de un volumen con nombre: cada vez que el contenedor
+  # arranca, la BD nace vacía y el script de esquema la vuelve a crear
+  # desde cero — no hay datos que limpiar entre corridas de la suite.
+  mysql-test:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: asteron_test
+    tmpfs:
+      - /var/lib/mysql
+    volumes:
+      - ./Data Base/asteron_v2.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "3308:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pasteron_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   backend:
     build: ./backend
     restart: unless-stopped

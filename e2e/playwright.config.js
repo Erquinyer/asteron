@@ -22,5 +22,9 @@ export default defineConfig({
     cwd: '../frontend',
     url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
+    // El E2E siempre usa el backend local, sin importar la IP que tenga frontend/.env
+    // (esa IP cambia según la red cuando se prueba la app en el celular).
+    // Vite da prioridad a esta variable sobre el archivo .env.
+    env: { VITE_API_URL: process.env.E2E_API_URL ?? 'http://localhost:3000/api' },
   },
 });

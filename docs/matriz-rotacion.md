@@ -15,10 +15,9 @@ Reglas:
 
 | Integrante (usuario GitHub) | S1 | S2 | S3 | S4 | S5 | S6 | S7 | S8 | S9 |
 |---|---|---|---|---|---|---|---|---|---|
-| @DavidAlejo99 | E2E — login válido | | | | | | | | |
-| @nixonhalejo | E2E — login inválido | | | | | | | | |
-| @_usuario-gabriel_ | E2E | | | | | | | | |
-| @_usuario-integrante-4_ | E2E | | | | | | | | |
+| @DavidAlejo99 | E2E — login válido (PR #3, mergeado) | API — utilidades y controladores del backend (PR #4, mergeado) | Front: Login (PR #5, mergeado) | E2E — seguridad y errores del API (PR #6, mergeado) | API — dependencias: correo de recuperación y reloj (PR #7, mergeado) | | | | |
+| @nixonhalejo | E2E — login inválido (PR #1) | | | | | | | | |
+| @Erquinyer | E2E — crear cliente (PR #12, mergeado) | Front — permisos y sesión (PR #13, mergeado) | | API — reglas de Programación (`validarTurnoInterno`) (PR #15, mergeado) | | BD — integración de clientes contra MySQL real (PR #14, mergeado) | | | |
 
 ## Cobertura semanal
 
@@ -26,7 +25,17 @@ Anota la cobertura real al cerrar cada semana. El umbral de la semana siguiente 
 
 | Semana | Frontend (%) | Backend (%) | Umbral configurado para la semana siguiente |
 |---|---|---|---|
-| S1 (línea base) | | | |
+| S1 (línea base) | Pendiente (medir con `include: ['src/**']`) | 0 (sin pruebas; `src/config/` excluido) | Piso S2: 30% en ambos |
+| S2 | 88,88 (mide solo `validaciones.js`: falta `include: ['src/**']` para la cifra real) | 30,84 | Backend: 30 (líneas) · Frontend: 30 |
+| S4 | 2,89 real con `include: ['src/**']` (96,87 sin `include`) | 50,74 | Backend: 50 (líneas) · Frontend: pendiente del grupo |
+| S5 | Pendiente del grupo (MSW y componentes) | 61,28 | Backend: 61 (líneas) · Frontend: pendiente del grupo |
+| Hoy (post-merge) | **3,13 real** con `include: ['src/**']` activado (97,64 sin `include` — así estaba quedando inflada) | 66,49 (se suma Programación, PR #11) | Backend: 66 (líneas) · **Frontend: 3 (líneas) — muy por debajo del piso del plan; hace falta sumar tests de componentes (Sidebar, TopBar, páginas, hooks, router guards) para cerrar esto** |
+
+## Regla de rama
+
+- El workflow `.github/workflows/tests.yml` corre en cada PR hacia `main` y `develop` los jobs `test-frontend` y `test-backend`, que fallan si la cobertura baja del umbral.
+- Regla del grupo: **nadie fusiona un PR con el CI en rojo ni sin la revisión de otro integrante**.
+- Regla en GitHub (Settings → Rules → Rulesets): _pendiente de activar por el administrador del repositorio (@Erquinyer)_.
 
 ## Registro de vocero aleatorio
 

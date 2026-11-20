@@ -151,8 +151,8 @@ function ClienteModal({ cliente, onClose, onSaved }) {
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
           {tab === 'general' && fields.map(f => (
             <div key={f.name}>
-              <label className={labelCls}>{f.label}</label>
-              <input name={f.name} value={form[f.name]}
+              <label htmlFor={f.name} className={labelCls}>{f.label}</label>
+              <input id={f.name} name={f.name} value={form[f.name]}
                 onChange={handleChange} placeholder={f.placeholder}
                 className={inputCls}
               />
