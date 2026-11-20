@@ -25,8 +25,11 @@ export default defineConfig({
       // (líneas), fijado en la cobertura real alcanzada, redondeada hacia
       // abajo. Sube tras sumar los tests de Programación (API, PR #11):
       // lines 66,49% · branches 66,29% · functions 67,36% · statements 65,78%.
+      // Sube al integrar gabriel/develop con pruebas de evidencias, bitácora,
+      // reportes y manejo de errores: lines 72,68% · branches 67,61% ·
+      // functions 73,74% · statements 71,67%.
       // El umbral solo puede subir.
-      thresholds: { lines: 66, branches: 66, functions: 67, statements: 65 },
+      thresholds: { lines: 72, branches: 67, functions: 73, statements: 71 },
     },
   },
 })
