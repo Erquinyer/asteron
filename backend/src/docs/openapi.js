@@ -23,7 +23,9 @@ const ERRORES = {
   403: 'El rol no tiene permiso sobre este módulo o acción',
   404: 'Registro no encontrado',
   409: 'Conflicto con datos existentes (duplicado, registro en uso o recurso ocupado)',
+  429: 'Demasiados intentos: espera y vuelve a intentarlo (límite por IP)',
   500: 'Error interno del servidor',
+  503: 'Servicio no disponible (la base de datos no responde)',
 }
 
 /**
@@ -358,20 +360,21 @@ const paths = {
   // Autenticación (públicas)
   '/auth/login': {
     post: op('Autenticación', 'Iniciar sesión y obtener el token JWT', {
-      publico: true, body: ref('LoginEntrada'), respuesta: ref('Sesion'), errores: [400, 401, 403],
-      description: 'Responde 403 si el usuario está inactivo. El token vence según JWT_EXPIRES_IN (8 h por defecto).',
+      publico: true, body: ref('LoginEntrada'), respuesta: ref('Sesion'), errores: [400, 401, 403, 429],
+      description: 'Responde 403 si el usuario está inactivo. El token vence según JWT_EXPIRES_IN (8 h por defecto). '
+        + 'Máximo 10 intentos fallidos cada 15 minutos por IP (429).',
     }),
   },
   '/auth/forgot-password': {
     post: op('Autenticación', 'Enviar el enlace de recuperación de contraseña al correo', {
-      publico: true, errores: [400],
+      publico: true, errores: [400, 429],
       body: { type: 'object', required: ['correo'], properties: { correo: { type: 'string', format: 'email' } } },
       description: 'Responde lo mismo exista o no el correo, para no revelar qué cuentas existen.',
     }),
   },
   '/auth/reset-password': {
     post: op('Autenticación', 'Definir una contraseña nueva con el token del correo', {
-      publico: true, errores: [400],
+      publico: true, errores: [400, 429],
       body: {
         type: 'object',
         required: ['token', 'nuevaContrasena'],
@@ -802,8 +805,9 @@ const paths = {
 
   // Salud
   '/health': {
-    get: op('Sistema', 'Comprobar que la API está en línea', {
-      publico: true,
+    get: op('Sistema', 'Comprobar que la API y la base de datos están en línea', {
+      publico: true, errores: [503],
+      description: 'Lo usan el monitor de disponibilidad y el healthcheck de Docker.',
       respuesta: { type: 'object', properties: { status: { type: 'string', example: 'ok' }, sistema: { type: 'string', example: 'Asteron' } } },
     }),
   },
