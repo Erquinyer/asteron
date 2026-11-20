@@ -1,5 +1,6 @@
 import pool from '../config/db.js'
 import { fotoUsuario, registrarBitacora } from '../utils/bitacora.js'
+import { responderError } from '../utils/errores.js'
 
 // Rol protegido: no se puede editar, eliminar ni reasignar desde ningún endpoint de admin
 export const ROL_INMUTABLE = 'Administrador Sistema'
@@ -38,7 +39,7 @@ export const getUsuariosAdmin = async (_req, res) => {
       ORDER BY u.codigo_empleado`)
     res.json(rows)
   } catch (err) {
-    res.status(500).json({ message: 'Error al obtener usuarios' })
+    responderError(res, err, 'admin.getUsuarios', 'Error al obtener usuarios')
   }
 }
 
@@ -74,8 +75,7 @@ export const getAcciones = async (_req, res) => {
       })),
     })
   } catch (err) {
-    console.error('[admin.getAcciones]', err)
-    res.status(500).json({ message: 'Error al obtener acciones' })
+    responderError(res, err, 'admin.getAcciones', 'Error al obtener acciones')
   }
 }
 
@@ -153,8 +153,7 @@ export const guardarPermisosLote = async (req, res) => {
     res.json({ message: 'Permisos actualizados', cambios: cambios.length })
   } catch (err) {
     await conn.rollback()
-    console.error('[admin.guardarPermisosLote]', err)
-    res.status(500).json({ message: 'Error al guardar permisos' })
+    responderError(res, err, 'admin.guardarPermisosLote', 'Error al guardar permisos')
   } finally {
     conn.release()
   }
@@ -172,7 +171,7 @@ export const getRoles = async (_req, res) => {
       ORDER BY r.id_rol`)
     res.json(rows)
   } catch (err) {
-    res.status(500).json({ message: 'Error al obtener roles' })
+    responderError(res, err, 'admin.getRoles', 'Error al obtener roles')
   }
 }
 
@@ -200,7 +199,7 @@ export const createRol = async (req, res) => {
     res.status(201).json({ ...rol, total_usuarios: 0 })
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'Ya existe un rol con ese nombre' })
-    res.status(500).json({ message: 'Error al crear rol' })
+    responderError(res, err, 'admin.createRol', 'Error al crear rol')
   }
 }
 
@@ -225,7 +224,7 @@ export const updateRol = async (req, res) => {
     res.json(updated)
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'Ya existe un rol con ese nombre' })
-    res.status(500).json({ message: 'Error al actualizar rol' })
+    responderError(res, err, 'admin.updateRol', 'Error al actualizar rol')
   }
 }
 
@@ -244,7 +243,7 @@ export const deleteRol = async (req, res) => {
     await pool.query('DELETE FROM roles WHERE id_rol = ?', [id])
     res.json({ message: 'Rol eliminado' })
   } catch (err) {
-    res.status(500).json({ message: 'Error al eliminar rol' })
+    responderError(res, err, 'admin.deleteRol', 'Error al eliminar rol')
   }
 }
 
@@ -275,7 +274,7 @@ export const updateUsuarioRol = async (req, res) => {
       WHERE u.id_usuario = ?`, [id])
     res.json(updated)
   } catch (err) {
-    res.status(500).json({ message: 'Error al actualizar rol' })
+    responderError(res, err, 'admin.updateUsuarioRol', 'Error al actualizar rol')
   }
 }
 
@@ -307,7 +306,6 @@ export const getBitacora = async (req, res) => {
        LIMIT 300`, valores)
     res.json(rows)
   } catch (err) {
-    console.error('[admin.getBitacora]', err)
-    res.status(500).json({ message: 'Error al obtener la bitácora' })
+    responderError(res, err, 'admin.getBitacora', 'Error al obtener la bitácora')
   }
 }

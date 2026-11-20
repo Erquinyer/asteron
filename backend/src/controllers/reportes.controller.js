@@ -1,6 +1,7 @@
 import pool from '../config/db.js'
 import { hoyISO } from '../utils/dates.js'
 import { enviarExcel, enviarPdf } from '../utils/exportarReporte.js'
+import { ErrorApp, responderError } from '../utils/errores.js'
 
 // El costo de mano de obra revela lo que gana cada cargo: solo gerencia lo ve,
 // aunque otros roles tengan acceso al módulo de reportes.
@@ -18,18 +19,10 @@ const leerRango = (query) => {
   const desde = query.desde || `${hoy.slice(0, 7)}-01`
   const hasta = query.hasta || hoy
   if (!FECHA_ISO.test(desde) || !FECHA_ISO.test(hasta)) {
-    throw new ErrorFiltro('Las fechas deben tener el formato AAAA-MM-DD')
+    throw new ErrorApp(400, 'Las fechas deben tener el formato AAAA-MM-DD')
   }
-  if (desde > hasta) throw new ErrorFiltro('La fecha inicial no puede ser posterior a la final')
+  if (desde > hasta) throw new ErrorApp(400, 'La fecha inicial no puede ser posterior a la final')
   return { desde, hasta }
-}
-
-class ErrorFiltro extends Error {}
-
-const responderError = (res, err, etiqueta, mensaje) => {
-  if (err instanceof ErrorFiltro) return res.status(400).json({ message: err.message })
-  console.error(`[reportes.${etiqueta}]`, err)
-  res.status(500).json({ message: mensaje })
 }
 
 const redondear = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d
@@ -194,17 +187,17 @@ const datosMantenimientos = async (query) => {
 
 export const getHoras = async (req, res) => {
   try { res.json(await datosHoras(req.query, puedeVerCostos(req))) }
-  catch (err) { responderError(res, err, 'getHoras', 'Error al generar el reporte de horas') }
+  catch (err) { responderError(res, err, 'reportes.getHoras', 'Error al generar el reporte de horas') }
 }
 
 export const getAvance = async (req, res) => {
   try { res.json(await datosAvance(req.query)) }
-  catch (err) { responderError(res, err, 'getAvance', 'Error al generar el reporte de avance') }
+  catch (err) { responderError(res, err, 'reportes.getAvance', 'Error al generar el reporte de avance') }
 }
 
 export const getMantenimientos = async (req, res) => {
   try { res.json(await datosMantenimientos(req.query)) }
-  catch (err) { responderError(res, err, 'getMantenimientos', 'Error al generar el reporte de mantenimientos') }
+  catch (err) { responderError(res, err, 'reportes.getMantenimientos', 'Error al generar el reporte de mantenimientos') }
 }
 
 // ── Exportación ──────────────────────────────────────────────────────────
@@ -285,7 +278,8 @@ export const exportar = async (req, res) => {
     }
     await (formato === 'xlsx' ? enviarExcel : enviarPdf)(res, contenido)
   } catch (err) {
+    // Si el archivo ya se empezó a enviar no se puede cambiar el código: se corta la descarga
     if (res.headersSent) { console.error('[reportes.exportar]', err); return res.end() }
-    responderError(res, err, 'exportar', 'Error al exportar el reporte')
+    responderError(res, err, 'reportes.exportar', 'Error al exportar el reporte')
   }
 }

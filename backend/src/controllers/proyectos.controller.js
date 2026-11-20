@@ -3,6 +3,7 @@ import { resolveUsuarioPorRol } from '../utils/resolveUsuarioPorRol.js'
 import { esFechaPasada, fechaColumnaISO } from '../utils/dates.js'
 import { tieneAccion } from '../middlewares/requireModulo.js'
 import { borrarArchivos } from '../utils/evidencias.js'
+import { responderError } from '../utils/errores.js'
 
 const validarFechas = (fecha_inicio, fecha_fin_estimada) => {
   if (esFechaPasada(fecha_inicio)) {
@@ -36,8 +37,7 @@ export const getAll = async (_req, res) => {
     const [rows] = await pool.query(`${BASE_QUERY} ORDER BY p.created_at DESC`)
     res.json(rows)
   } catch (err) {
-    console.error('[proyectos.getAll]', err)
-    res.status(500).json({ message: 'Error al obtener proyectos' })
+    responderError(res, err, 'proyectos.getAll', 'Error al obtener proyectos')
   }
 }
 
@@ -61,8 +61,7 @@ export const getOne = async (req, res) => {
 
     res.json({ ...rows[0], fases })
   } catch (err) {
-    console.error('[proyectos.getOne]', err)
-    res.status(500).json({ message: 'Error al obtener proyecto' })
+    responderError(res, err, 'proyectos.getOne', 'Error al obtener proyecto')
   }
 }
 
@@ -148,8 +147,7 @@ export const create = async (req, res) => {
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ message: 'Ese pedido ya está asociado a otro proyecto' })
     }
-    console.error('[proyectos.create]', err)
-    res.status(500).json({ message: 'Error al crear proyecto' })
+    responderError(res, err, 'proyectos.create', 'Error al crear proyecto')
   }
 }
 
@@ -195,8 +193,7 @@ export const update = async (req, res) => {
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ message: 'Ese pedido ya está asociado a otro proyecto' })
     }
-    console.error('[proyectos.update]', err)
-    res.status(500).json({ message: 'Error al actualizar proyecto' })
+    responderError(res, err, 'proyectos.update', 'Error al actualizar proyecto')
   }
 }
 
@@ -232,8 +229,7 @@ export const updateFase = async (req, res) => {
       [estado, porcentaje_avance ?? 0, req.params.faseId, req.params.id])
     res.json({ message: 'Fase actualizada' })
   } catch (err) {
-    console.error('[proyectos.updateFase]', err)
-    res.status(500).json({ message: 'Error al actualizar fase' })
+    responderError(res, err, 'proyectos.updateFase', 'Error al actualizar fase')
   }
 }
 
@@ -261,7 +257,6 @@ export const remove = async (req, res) => {
     await borrarArchivos(fotos.map(f => f.archivo))
     res.json({ message: 'Proyecto eliminado' })
   } catch (err) {
-    console.error('[proyectos.remove]', err)
-    res.status(500).json({ message: 'Error al eliminar proyecto' })
+    responderError(res, err, 'proyectos.remove', 'Error al eliminar proyecto')
   }
 }

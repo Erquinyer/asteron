@@ -1,5 +1,6 @@
 import pool from '../config/db.js'
 import { fotoMaquina, registrarBitacora } from '../utils/bitacora.js'
+import { responderError } from '../utils/errores.js'
 
 const BASE = `
   SELECT m.*,
@@ -17,8 +18,7 @@ export const getAll = async (_req, res) => {
     const [rows] = await pool.query(`${BASE} GROUP BY m.id_maquina ORDER BY m.categoria, m.nombre`)
     res.json(rows)
   } catch (err) {
-    console.error('[maquinaria.getAll]', err)
-    res.status(500).json({ message: 'Error al obtener maquinaria' })
+    responderError(res, err, 'maquinaria.getAll', 'Error al obtener maquinaria')
   }
 }
 
@@ -35,8 +35,7 @@ export const getOne = async (req, res) => {
 
     res.json({ ...rows[0], mantenimientos })
   } catch (err) {
-    console.error('[maquinaria.getOne]', err)
-    res.status(500).json({ message: 'Error al obtener equipo' })
+    responderError(res, err, 'maquinaria.getOne', 'Error al obtener equipo')
   }
 }
 
@@ -57,8 +56,7 @@ export const create = async (req, res) => {
     })
     res.status(201).json(rows[0])
   } catch (err) {
-    console.error('[maquinaria.create]', err)
-    res.status(500).json({ message: 'Error al crear equipo' })
+    responderError(res, err, 'maquinaria.create', 'Error al crear equipo')
   }
 }
 
@@ -80,8 +78,7 @@ export const update = async (req, res) => {
     })
     res.json(rows[0])
   } catch (err) {
-    console.error('[maquinaria.update]', err)
-    res.status(500).json({ message: 'Error al actualizar equipo' })
+    responderError(res, err, 'maquinaria.update', 'Error al actualizar equipo')
   }
 }
 
@@ -102,8 +99,7 @@ export const remove = async (req, res) => {
         message: 'No se puede eliminar: el equipo tiene mantenimientos registrados. Márcalo como dado de baja.',
       })
     }
-    console.error('[maquinaria.remove]', err)
-    res.status(500).json({ message: 'Error al eliminar equipo' })
+    responderError(res, err, 'maquinaria.remove', 'Error al eliminar equipo')
   }
 }
 

@@ -2,6 +2,7 @@ import pool   from '../config/db.js'
 import bcrypt  from 'bcryptjs'
 import { POLITICA_DATOS_VERSION } from '../utils/politicaDatos.js'
 import { fotoUsuario, registrarBitacora } from '../utils/bitacora.js'
+import { responderError } from '../utils/errores.js'
 
 export const getPerfil = async (req, res) => {
   try {
@@ -15,8 +16,7 @@ export const getPerfil = async (req, res) => {
     if (!user) return res.status(404).json({ message: 'Usuario no encontrado' })
     res.json(user)
   } catch (err) {
-    console.error('[perfil.get]', err)
-    res.status(500).json({ message: 'Error al obtener perfil' })
+    responderError(res, err, 'perfil.get', 'Error al obtener perfil')
   }
 }
 
@@ -37,8 +37,7 @@ export const updatePerfil = async (req, res) => {
        WHERE u.id_usuario = ?`, [req.user.id])
     res.json(user)
   } catch (err) {
-    console.error('[perfil.update]', err)
-    res.status(500).json({ message: 'Error al actualizar perfil' })
+    responderError(res, err, 'perfil.update', 'Error al actualizar perfil')
   }
 }
 
@@ -63,8 +62,7 @@ export const changePassword = async (req, res) => {
     })
     res.json({ message: 'Contraseña actualizada correctamente' })
   } catch (err) {
-    console.error('[perfil.changePassword]', err)
-    res.status(500).json({ message: 'Error al cambiar contraseña' })
+    responderError(res, err, 'perfil.changePassword', 'Error al cambiar contraseña')
   }
 }
 
@@ -78,7 +76,6 @@ export const aceptarPoliticaDatos = async (req, res) => {
       [POLITICA_DATOS_VERSION, aceptadaEn, req.user.id])
     res.json({ version: POLITICA_DATOS_VERSION, aceptada_en: aceptadaEn })
   } catch (err) {
-    console.error('[perfil.aceptarPoliticaDatos]', err)
-    res.status(500).json({ message: 'Error al registrar la autorización' })
+    responderError(res, err, 'perfil.aceptarPoliticaDatos', 'Error al registrar la autorización')
   }
 }

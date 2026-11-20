@@ -4,6 +4,7 @@ import path from 'node:path'
 import pool from '../config/db.js'
 import { tieneAccion } from '../middlewares/requireModulo.js'
 import { DIR_EVIDENCIAS, tipoImagen, borrarArchivos } from '../utils/evidencias.js'
+import { responderError } from '../utils/errores.js'
 
 const BASE_QUERY = `
   SELECT e.id_evidencia, e.id_proyecto, e.id_fase_proyecto, e.id_programacion,
@@ -45,8 +46,7 @@ export const getAll = async (req, res) => {
       `${BASE_QUERY} WHERE ${where.join(' AND ')} ORDER BY e.fecha DESC, e.id_evidencia DESC`, params)
     res.json(rows)
   } catch (err) {
-    console.error('[evidencias.getAll]', err)
-    res.status(500).json({ message: 'Error al obtener las fotos' })
+    responderError(res, err, 'evidencias.getAll', 'Error al obtener las fotos')
   }
 }
 
@@ -126,8 +126,7 @@ export const create = async (req, res) => {
     const [[evidencia]] = await pool.query(`${BASE_QUERY} WHERE e.id_evidencia = ?`, [insertId])
     res.status(201).json(evidencia)
   } catch (err) {
-    console.error('[evidencias.create]', err)
-    res.status(500).json({ message: 'Error al guardar la foto' })
+    responderError(res, err, 'evidencias.create', 'Error al guardar la foto')
   }
 }
 
@@ -144,8 +143,7 @@ export const getArchivo = async (req, res) => {
       if (err && !res.headersSent) res.status(404).json({ message: 'El archivo de la foto no existe en el servidor' })
     })
   } catch (err) {
-    console.error('[evidencias.getArchivo]', err)
-    res.status(500).json({ message: 'Error al obtener la foto' })
+    responderError(res, err, 'evidencias.getArchivo', 'Error al obtener la foto')
   }
 }
 
@@ -164,7 +162,6 @@ export const remove = async (req, res) => {
     await borrarArchivos([evidencia.archivo])
     res.json({ message: 'Foto eliminada' })
   } catch (err) {
-    console.error('[evidencias.remove]', err)
-    res.status(500).json({ message: 'Error al eliminar la foto' })
+    responderError(res, err, 'evidencias.remove', 'Error al eliminar la foto')
   }
 }

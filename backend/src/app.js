@@ -19,6 +19,7 @@ import adminRoutes             from './routes/admin.routes.js'
 import reportesRoutes          from './routes/reportes.routes.js'
 import evidenciasRoutes        from './routes/evidencias.routes.js'
 import { openapi }             from './docs/openapi.js'
+import { responderError }      from './utils/errores.js'
 
 dotenv.config()
 
@@ -85,32 +86,9 @@ app.use((err, _req, res, _next) => {
   if (err.code === 'LIMIT_FILE_SIZE') {
     return res.status(413).json({ message: 'El archivo supera el tamaño máximo permitido (2 MB)' })
   }
-  console.error('[app]', err)
-  res.status(500).json({ message: 'Error interno del servidor' })
-})
-
-// ── Rutas del API que no existen: 404 en JSON (antes respondía una página HTML) ──
-app.use('/api', (_req, res) => {
-  res.status(404).json({ message: 'Recurso no encontrado' })
-})
-
-// ── Manejador de errores: siempre JSON y sin información interna ──
-// Sin este manejador, Express respondía una página HTML con el stack trace del servidor.
-// eslint-disable-next-line no-unused-vars
-app.use((err, _req, res, _next) => {
-  // express.json() marca así un cuerpo que no es JSON válido
-  if (err.type === 'entity.parse.failed') {
-    return res.status(400).json({ message: 'El cuerpo de la petición no es un JSON válido' })
-  }
-  if (err.type === 'entity.too.large') {
-    return res.status(413).json({ message: 'El cuerpo de la petición es demasiado grande' })
-  }
-  // multer: archivo de importación por encima del límite
-  if (err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(413).json({ message: 'El archivo supera el tamaño máximo permitido (2 MB)' })
-  }
-  console.error('[app]', err)
-  res.status(500).json({ message: 'Error interno del servidor' })
+  // El resto (incluidos los errores que un controlador deja escapar: Express 5 los
+  // trae aquí) pasa por el mismo manejo central que usan los controladores (RNF-06).
+  responderError(res, err, 'app')
 })
 
 export default app

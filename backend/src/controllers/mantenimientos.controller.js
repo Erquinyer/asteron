@@ -1,6 +1,7 @@
 import pool from '../config/db.js'
 import { esFechaPasada, hoyISO } from '../utils/dates.js'
 import { fotoMaquina, registrarBitacora } from '../utils/bitacora.js'
+import { responderError } from '../utils/errores.js'
 
 export const getByMaquina = async (req, res) => {
   try {
@@ -13,8 +14,7 @@ export const getByMaquina = async (req, res) => {
       ORDER BY mt.fecha DESC`, [req.params.id])
     res.json(rows)
   } catch (err) {
-    console.error('[mantenimientos.getByMaquina]', err)
-    res.status(500).json({ message: 'Error al obtener mantenimientos' })
+    responderError(res, err, 'mantenimientos.getByMaquina', 'Error al obtener mantenimientos')
   }
 }
 
@@ -29,8 +29,7 @@ export const getAll = async (_req, res) => {
       LIMIT 100`)
     res.json(rows)
   } catch (err) {
-    console.error('[mantenimientos.getAll]', err)
-    res.status(500).json({ message: 'Error al obtener mantenimientos' })
+    responderError(res, err, 'mantenimientos.getAll', 'Error al obtener mantenimientos')
   }
 }
 
@@ -78,8 +77,7 @@ export const create = async (req, res) => {
 
     res.status(201).json(row)
   } catch (err) {
-    console.error('[mantenimientos.create]', err)
-    res.status(500).json({ message: 'Error al registrar mantenimiento' })
+    responderError(res, err, 'mantenimientos.create', 'Error al registrar mantenimiento')
   }
 }
 
@@ -103,8 +101,7 @@ export const realizar = async (req, res) => {
     }
     res.json({ message: 'Mantenimiento realizado' })
   } catch (err) {
-    console.error('[mantenimientos.realizar]', err)
-    res.status(500).json({ message: 'Error al actualizar el mantenimiento' })
+    responderError(res, err, 'mantenimientos.realizar', 'Error al actualizar el mantenimiento')
   }
 }
 
@@ -115,7 +112,6 @@ export const remove = async (req, res) => {
     if (result.affectedRows === 0) return res.status(404).json({ message: 'Registro no encontrado' })
     res.json({ message: 'Mantenimiento eliminado' })
   } catch (err) {
-    console.error('[mantenimientos.remove]', err)
-    res.status(500).json({ message: 'Error al eliminar' })
+    responderError(res, err, 'mantenimientos.remove', 'Error al eliminar')
   }
 }

@@ -196,6 +196,66 @@ describe('Contrato de errores: siempre JSON y sin información interna', () => {
     expect(res.text).not.toMatch(/SELECT|ER_BAD_FIELD_ERROR/)
   })
 
+  it('debe incluir un código de referencia (X-Error-Ref) en los 500 para rastrearlos en el log', async () => {
+    pool.query
+      .mockResolvedValueOnce([[{ permitido: 1 }]])
+      .mockRejectedValueOnce(new Error('ECONNRESET'))
+
+    const res = await conToken(request(app).get('/api/clientes'), 'Ejecutivo Comercial')
+
+    expect(res.status).toBe(500)
+    expect(res.headers['x-error-ref']).toMatch(/^[0-9a-f]{8}$/)
+    expect(console.error).toHaveBeenCalledWith(`[clientes.getAll] ref=${res.headers['x-error-ref']}`, expect.any(Error))
+  })
+
+  it('debe responder 409 y no 500 cuando se elimina un registro que está en uso (error de MySQL)', async () => {
+    const enUso = Object.assign(new Error('ER_ROW_IS_REFERENCED_2: Cannot delete or update a parent row'), { code: 'ER_ROW_IS_REFERENCED_2' })
+    pool.query
+      .mockResolvedValueOnce([[{ permitido: 1 }]]) // acción "eliminar" en clientes
+      .mockRejectedValueOnce(enUso)
+
+    const res = await conToken(request(app).delete('/api/clientes/4'), 'Gerente General')
+
+    expect(res.status).toBe(409)
+    expect(res.body).toEqual({ message: 'No se puede eliminar: el registro está en uso' })
+    expect(res.text).not.toMatch(/parent row/)
+  })
+
+  it('debe responder 400 con el mensaje del filtro cuando el rango de fechas de un reporte es inválido', async () => {
+    pool.query.mockResolvedValueOnce([[{ permitido: 1 }]]) // lectura del módulo reportes
+
+    const res = await conToken(request(app).get('/api/reportes/horas?desde=2026-12-01&hasta=2026-01-01'), 'Coordinador de Planta')
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ message: 'La fecha inicial no puede ser posterior a la final' })
+  })
+
+  it('no debe mostrar el SQL al cliente cuando la base falla durante una importación', async () => {
+    // Antes, la importación respondía err.message de cualquier error, incluido el de MySQL
+    pool.query
+      .mockResolvedValueOnce([[{ permitido: 1 }]])
+      .mockRejectedValue(Object.assign(new Error("ER_NO_SUCH_TABLE: Table 'asteron.usuarios' doesn't exist"), { sqlMessage: 'x' }))
+    const csv = 'Fecha,Operario,Maquina,Proyecto,Item,Fase,TiempoEstimado,Observaciones\n2999-01-01,Soldador 1,,,,,60,\n'
+
+    const res = await conToken(
+      request(app).post('/api/programacion/importar/preview').attach('archivo', Buffer.from(csv), 'turnos.csv'),
+      'Coordinador de Planta')
+
+    expect(res.status).toBe(500)
+    expect(res.text).not.toMatch(/ER_NO_SUCH_TABLE|asteron\.usuarios/)
+  })
+
+  it('debe responder 400 con un mensaje claro cuando el archivo de importación no se puede leer', async () => {
+    pool.query.mockResolvedValueOnce([[{ permitido: 1 }]])
+
+    const res = await conToken(
+      request(app).post('/api/programacion/importar/preview').attach('archivo', Buffer.from('no es excel'), 'turnos.xlsx'),
+      'Coordinador de Planta')
+
+    expect(res.status).toBe(400)
+    expect(res.body.message).toMatch(/No se pudo leer el archivo|columnas requeridas/)
+  })
+
   it('debe responder 500 genérico cuando falla la consulta de permisos', async () => {
     pool.query.mockRejectedValueOnce(new Error('ECONNREFUSED 127.0.0.1:3306'))
 

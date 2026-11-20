@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs'
 import pool from '../config/db.js'
 import { esFechaPasada, hoyISO, fechaColumnaISO } from '../utils/dates.js'
+import { ErrorApp, responderError } from '../utils/errores.js'
 import {
   leerFilas, cargarContexto, resolverFila, valoresParaMostrar, COLUMNAS_PLANTILLA,
   crearRegistroSimulado, estaOcupadoSimulado, marcarOcupadoSimulado,
@@ -60,8 +61,7 @@ export const getOcupados = async (req, res) => {
       maquinas:  [...new Set(rows.map(r => r.id_maquina).filter(Boolean))],
     })
   } catch (err) {
-    console.error('[programacion.getOcupados]', err)
-    res.status(500).json({ message: 'Error al obtener disponibilidad' })
+    responderError(res, err, 'programacion.getOcupados', 'Error al obtener disponibilidad')
   }
 }
 
@@ -95,8 +95,7 @@ export const getAll = async (req, res) => {
       [desde, hasta])
     res.json(rows)
   } catch (err) {
-    console.error('[programacion.getAll]', err)
-    res.status(500).json({ message: 'Error al obtener programación' })
+    responderError(res, err, 'programacion.getAll', 'Error al obtener programación')
   }
 }
 
@@ -118,8 +117,7 @@ export const getByFase = async (req, res) => {
       [req.params.idFase])
     res.json(rows)
   } catch (err) {
-    console.error('[programacion.getByFase]', err)
-    res.status(500).json({ message: 'Error al obtener actividades de la fase' })
+    responderError(res, err, 'programacion.getByFase', 'Error al obtener actividades de la fase')
   }
 }
 
@@ -222,8 +220,7 @@ export const create = async (req, res) => {
     if (!resultado.ok) return res.status(resultado.status).json({ message: resultado.message })
     res.status(201).json(resultado.turno)
   } catch (err) {
-    console.error('[programacion.create]', err)
-    res.status(500).json({ message: 'Error al crear programación' })
+    responderError(res, err, 'programacion.create', 'Error al crear programación')
   }
 }
 
@@ -273,8 +270,7 @@ export const getPlantilla = async (_req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="plantilla_programacion.xlsx"')
     res.send(Buffer.from(buffer))
   } catch (err) {
-    console.error('[programacion.getPlantilla]', err)
-    res.status(500).json({ message: 'Error al generar la plantilla' })
+    responderError(res, err, 'programacion.getPlantilla', 'Error al generar la plantilla')
   }
 }
 
@@ -307,9 +303,17 @@ export const importar = async (req, res) => {
 
     res.json({ total: filas.length, creados, errores })
   } catch (err) {
-    console.error('[programacion.importar]', err)
-    res.status(400).json({ message: err.message || 'No se pudo leer el archivo. Verifica que sea un .xlsx o .csv válido.' })
+    errorImportacion(res, err, 'programacion.importar')
   }
+}
+
+// Errores de la importación: los de formato del archivo (ErrorApp) se muestran tal
+// cual; los de la base van al manejo central (500 sin detalles); cualquier otro es
+// el lector de Excel/CSV que no pudo abrir el archivo.
+const errorImportacion = (res, err, contexto) => {
+  if (err instanceof ErrorApp || err?.sqlMessage) return responderError(res, err, contexto, 'Error al importar la programación')
+  console.error(`[${contexto}]`, err)
+  res.status(400).json({ message: 'No se pudo leer el archivo. Verifica que sea un .xlsx o .csv válido.' })
 }
 
 // POST /importar/preview — dry-run: parsea y valida el archivo (misma lógica
@@ -362,8 +366,7 @@ export const previsualizarImportar = async (req, res) => {
       validas: resultado.filter(r => r.estado === 'ok').length,
     })
   } catch (err) {
-    console.error('[programacion.previsualizarImportar]', err)
-    res.status(400).json({ message: err.message || 'No se pudo leer el archivo. Verifica que sea un .xlsx o .csv válido.' })
+    errorImportacion(res, err, 'programacion.previsualizarImportar')
   }
 }
 
@@ -461,8 +464,7 @@ export const update = async (req, res) => {
 
     res.json(row)
   } catch (err) {
-    console.error('[programacion.update]', err)
-    res.status(500).json({ message: 'Error al actualizar programación' })
+    responderError(res, err, 'programacion.update', 'Error al actualizar programación')
   }
 }
 
@@ -528,8 +530,7 @@ export const updateEstado = async (req, res) => {
 
     res.json({ message: 'Estado actualizado' })
   } catch (err) {
-    console.error('[programacion.updateEstado]', err)
-    res.status(500).json({ message: 'Error al actualizar estado' })
+    responderError(res, err, 'programacion.updateEstado', 'Error al actualizar estado')
   }
 }
 
@@ -583,8 +584,7 @@ export const corregirTiempos = async (req, res) => {
     res.json({ message: 'Tiempos corregidos', tiempo_real })
   } catch (err) {
     await conn.rollback()
-    console.error('[programacion.corregirTiempos]', err)
-    res.status(500).json({ message: 'Error al corregir los tiempos' })
+    responderError(res, err, 'programacion.corregirTiempos', 'Error al corregir los tiempos')
   } finally {
     conn.release()
   }
@@ -600,8 +600,7 @@ export const getCorrecciones = async (req, res) => {
        ORDER BY c.corregido_en DESC`, [req.params.id])
     res.json(rows)
   } catch (err) {
-    console.error('[programacion.getCorrecciones]', err)
-    res.status(500).json({ message: 'Error al obtener las correcciones' })
+    responderError(res, err, 'programacion.getCorrecciones', 'Error al obtener las correcciones')
   }
 }
 
@@ -626,8 +625,7 @@ export const updateAvance = async (req, res) => {
 
     res.json({ message: 'Avance actualizado', porcentaje_avance })
   } catch (err) {
-    console.error('[programacion.updateAvance]', err)
-    res.status(500).json({ message: 'Error al actualizar avance' })
+    responderError(res, err, 'programacion.updateAvance', 'Error al actualizar avance')
   }
 }
 
@@ -644,7 +642,6 @@ export const remove = async (req, res) => {
 
     res.json({ message: 'Registro eliminado' })
   } catch (err) {
-    console.error('[programacion.remove]', err)
-    res.status(500).json({ message: 'Error al eliminar' })
+    responderError(res, err, 'programacion.remove', 'Error al eliminar')
   }
 }

@@ -6,6 +6,8 @@ export const crearRes = () => {
   const res = {}
   res.status = vi.fn(() => res)
   res.json = vi.fn(() => res)
+  res.set = vi.fn(() => res) // encabezados, ej. X-Error-Ref del manejo central de errores
+  res.headersSent = false
   return res
 }
 
