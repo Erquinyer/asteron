@@ -16,9 +16,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Sin "version": la toma de "packageManager" en package.json (pnpm 11).
-      # Indicar otra versión aquí hace fallar la acción.
+      # Sin "version": la toma de "packageManager" (pnpm 11). La acción no usa
+      # working-directory, así que hay que indicarle cuál package.json leer.
       - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
 
       # Node 22: jsdom 30 (entorno de los tests de componentes) no corre en Node 20
       - uses: actions/setup-node@v4
@@ -44,6 +46,8 @@ jobs:
 
       # El backend usa pnpm (backend/pnpm-lock.yaml), igual que el frontend
       - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: backend/package.json
 
       - uses: actions/setup-node@v4
         with:
