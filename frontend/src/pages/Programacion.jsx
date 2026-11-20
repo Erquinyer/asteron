@@ -9,8 +9,9 @@ import { getProgramacion, updateEstadoTurno, updateAvanceTurno, deleteProgramaci
 import { getUsuarios }       from '../api/usuarios.service'
 import { getMaquinaria }     from '../api/maquinaria.service'
 import { getProyectos }      from '../api/proyectos.service'
-import { canDo, canManagePlanta } from '../utils/auth'
+import { canDo, canManagePlanta, getUser } from '../utils/auth'
 import Spinner     from '../components/ui/Spinner'
+import GaleriaEvidencias from '../components/evidencias/GaleriaEvidencias'
 import EmptyState  from '../components/ui/EmptyState'
 import FieldFilter from '../components/ui/FieldFilter'
 import TurnoModal    from '../components/programacion/TurnoModal'
@@ -682,6 +683,17 @@ function TaskDetailModal({ item, onClose, onIniciar, onCompletar, onEditar, onCa
                   </button>
                 )}
               </div>
+            )}
+
+            {/* Fotos de la actividad: el operario del turno también puede adjuntarlas */}
+            {item.id_proyecto && (
+              <GaleriaEvidencias compacto
+                idProyecto={item.id_proyecto}
+                idProgramacion={item.id_programacion}
+                puedeSubir={item.estado !== 'cancelado' && (
+                  item.id_operario === getUser()?.id_usuario
+                  || canDo('proyectos', 'editar') || canDo('programacion', 'editar'))}
+              />
             )}
 
             {item.observaciones && (

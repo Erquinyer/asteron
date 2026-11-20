@@ -13,6 +13,7 @@ import { canAccess } from '../config/permissions'
 import { getUser }     from '../utils/auth'
 import Spinner    from '../components/ui/Spinner'
 import EmptyState from '../components/ui/EmptyState'
+import GaleriaEvidencias from '../components/evidencias/GaleriaEvidencias'
 import toast      from 'react-hot-toast'
 
 // ── Configuración de prioridades ──────────────────────────────────────────────
@@ -356,6 +357,13 @@ export default function ProyectoDetalle() {
     grupo.fases.push(f)
   }
   const mostrarPorItem = gruposItem.length > 1
+
+  // Fotos: quien edita proyectos o programación puede adjuntar a cualquier fase;
+  // la persona asignada a Diseño/Compra, solo a su fase (mismas reglas que el backend).
+  const puedeEditarFotos = canDo('proyectos', 'editar') || canDo('programacion', 'editar')
+  const fasesFoto = puedeEditarFotos
+    ? fases
+    : fases.filter(f => f.id_usuario_asignado === user?.id_usuario)
 
   // Resumen cruzado por fase: cuántos productos hay en cada estado para una
   // misma fase (ej. "Corte: 2 completados, 1 en curso, 2 pendientes") — el
@@ -950,6 +958,13 @@ export default function ProyectoDetalle() {
           </div>
         )}
       </div>
+
+      {/* ── Evidencia fotográfica (RF-25/RF-26) ── */}
+      <GaleriaEvidencias
+        idProyecto={Number(id)}
+        fases={fasesFoto}
+        puedeSubir={puedeEditarFotos || fasesFoto.length > 0}
+      />
     </div>
   )
 }

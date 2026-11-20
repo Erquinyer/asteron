@@ -67,6 +67,25 @@ const ARCHIVO_IMPORTACION = {
   },
 }
 
+// Foto de evidencia (JPG, PNG o WEBP, máx. 5 MB)
+const FOTO_EVIDENCIA = {
+  content: {
+    'multipart/form-data': {
+      schema: {
+        type: 'object',
+        required: ['foto', 'id_proyecto'],
+        properties: {
+          foto: { type: 'string', format: 'binary', description: 'Imagen JPG, PNG o WEBP de máximo 5 MB' },
+          id_proyecto: { type: 'integer', example: 1 },
+          id_fase_proyecto: { type: 'integer', description: 'Opcional; si se envía la actividad y no la fase, se toma la de la actividad' },
+          id_programacion: { type: 'integer', description: 'Opcional: actividad (turno) del proyecto' },
+          descripcion: { type: 'string', maxLength: 255, example: 'Soldadura terminada del exhibidor' },
+        },
+      },
+    },
+  },
+}
+
 const ESTADO_FASE = { type: 'string', enum: ['pendiente', 'en_curso', 'completada', 'bloqueada'] }
 const ESTADO_TURNO = { type: 'string', enum: ['programado', 'en_proceso', 'completado', 'cancelado'] }
 const CATEGORIA_EQUIPO = { type: 'string', enum: ['maquinaria_pesada', 'equipo_mig', 'herramienta_electrica'] }
@@ -86,6 +105,23 @@ const schemas = {
     type: 'object',
     description: 'Registro de la tabla correspondiente con sus columnas y campos calculados',
     additionalProperties: true,
+  },
+  Evidencia: {
+    type: 'object',
+    properties: {
+      id_evidencia: { type: 'integer', example: 1 },
+      id_proyecto: { type: 'integer', example: 1 },
+      id_fase_proyecto: { type: 'integer', nullable: true },
+      id_programacion: { type: 'integer', nullable: true },
+      nombre_original: { type: 'string', nullable: true, example: 'IMG_2041.jpg' },
+      descripcion: { type: 'string', nullable: true },
+      fecha: { type: 'string', format: 'date-time' },
+      id_autor: { type: 'integer', nullable: true },
+      autor: { type: 'string', nullable: true, example: 'Carlos Soldador' },
+      fase_nombre: { type: 'string', nullable: true, example: 'Soldadura MIG' },
+      item_producto: { type: 'string', nullable: true, description: 'Producto del pedido, si la fase es por ítem' },
+      turno_fecha: { type: 'string', format: 'date', nullable: true },
+    },
   },
 
   // Autenticación
@@ -656,6 +692,39 @@ const paths = {
     }),
   },
 
+  // Evidencia fotográfica
+  '/evidencias': {
+    get: op('Evidencias', 'Galería de fotos de un proyecto, de la más reciente a la más antigua', {
+      params: [
+        { name: 'proyecto', in: 'query', required: true, description: 'Identificador del proyecto', schema: { type: 'integer' } },
+        query('fase', 'Solo las fotos de esta fase del proyecto', { type: 'integer' }),
+        query('programacion', 'Solo las fotos de esta actividad', { type: 'integer' }),
+      ],
+      respuesta: lista('Evidencia'), errores: [400],
+    }),
+    post: op('Evidencias', 'Adjuntar una foto a un proyecto, fase o actividad', {
+      body: FOTO_EVIDENCIA, multipart: true, ok: 201, respuesta: ref('Evidencia'), errores: [400, 404, 413],
+      description: 'JPG, PNG o WEBP de máximo 5 MB (se valida el contenido, no la extensión). Pueden adjuntar: '
+        + 'quien tiene "editar" en Proyectos o Programación, el operario de la actividad y la persona asignada a la fase.',
+    }),
+  },
+  '/evidencias/{id}/archivo': {
+    get: op('Evidencias', 'Descargar la imagen de una foto', {
+      params: [pathId()], errores: [404],
+      archivo: {
+        'image/jpeg': { schema: { type: 'string', format: 'binary' } },
+        'image/png': { schema: { type: 'string', format: 'binary' } },
+        'image/webp': { schema: { type: 'string', format: 'binary' } },
+      },
+    }),
+  },
+  '/evidencias/{id}': {
+    delete: op('Evidencias', 'Eliminar una foto', {
+      params: [pathId()], errores: [404],
+      description: 'Solo el autor de la foto o quien tiene "eliminar" en Proyectos.',
+    }),
+  },
+
   // Administración (solo Administrador Sistema)
   '/admin/acciones': {
     get: op('Administración', 'Catálogo de acciones por módulo y lo asignado a cada rol', { respuesta: ref('Registro') }),
@@ -753,7 +822,7 @@ export const openapi = {
   servers: [{ url: '/api', description: 'Este servidor' }],
   tags: [
     'Autenticación', 'Dashboard', 'Proyectos', 'Pedidos', 'Clientes', 'Maquinaria', 'Mantenimientos',
-    'Programación', 'Usuarios', 'Perfil', 'Alertas', 'Reportes', 'Administración', 'Sistema',
+    'Programación', 'Evidencias', 'Usuarios', 'Perfil', 'Alertas', 'Reportes', 'Administración', 'Sistema',
   ].map(name => ({ name })),
   components: {
     securitySchemes: {

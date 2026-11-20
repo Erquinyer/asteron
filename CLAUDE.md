@@ -64,6 +64,7 @@ frontend/
       dashboard/     ← StatCard, RecentProjects, PlantToday
       layout/        ← Sidebar, TopBar, AppLayout
       programacion/  ← TurnoModal (create/edit a turno), ImportarModal (bulk Excel/CSV upload)
+      evidencias/    ← GaleriaEvidencias (used in ProyectoDetalle and the turno detail modal), SubirFotoModal, VisorFoto, FotoEvidencia
       ui/            ← Spinner, EmptyState
     router/        ← ProtectedRoute (auth), PublicRoute (guest-only), RoleRoute (per-module RBAC)
     utils/auth.js  ← localStorage session helpers
@@ -98,7 +99,7 @@ All pages use `useFetch(serviceFn, deps)` hook — returns `{ data, loading, err
 |---|---|---|
 | `/dashboard` | Stats + charts (recharts) | — |
 | `/proyectos` | Project list | Full CRUD |
-| `/proyectos/:id` | Phase-by-phase detail (list or Kanban view), edit avance inline | — |
+| `/proyectos/:id` | Phase-by-phase detail (list or Kanban view), edit avance inline, photo gallery (evidencia fotográfica) | — |
 | `/pedidos` | Orders with items | Full CRUD |
 | `/clientes` | Client cards, multiple direcciones per client | Full CRUD |
 | `/maquinaria` | Equipment inventory with category filter, responsable, en-uso-hoy badge | Full CRUD |
@@ -163,6 +164,7 @@ programacion_planta (operario + maquina + proyecto + fase_proyecto + fecha)
 - **Respaldos**: `Data Base/respaldar.sh` / `restaurar.sh` (read `DB_*` from env or `backend/.env`); the `respaldo` Compose service runs a daily backup into `./respaldos/` (gitignored). Load test for RNF-08/09: `pnpm prueba-carga` in `backend/` (`scripts/pruebaCarga.js`, results in `docs/prueba-rendimiento.md`).
 
 - **API docs**: hand-written OpenAPI spec in `backend/src/docs/openapi.js` (built with the `op()` helper), served by `swagger-ui-express` at `/api/docs` (public, before `verifyToken`). Adding/removing a route in `routes/*.js` requires updating the spec — `pnpm verificar-openapi` (`scripts/verificarOpenapi.js`) diffs it against the real Express routers and fails otherwise. `swagger-ui-dist` is pinned as a direct dependency (swagger-ui-express only asks for `>=5`); `pnpm-workspace.yaml` denies `@scarf/scarf`'s telemetry build script, and pnpm 11 fails `install` without that decision — the backend Dockerfile copies that file for the same reason.
+- **Evidencia fotográfica** (`evidencias_fotograficas`, `utils/evidencias.js`, `routes/evidencias.routes.js`): images live on disk in `backend/uploads/evidencias/` (Docker mounts `./backend/uploads`; gitignored) and the table only stores the server-generated `randomUUID()` filename — every photo belongs to a project, optionally to a fase and/or turno (`SET NULL` if those go away, `CASCADE` with the project). The upload is validated by magic bytes (`tipoImagen`: JPG/PNG/WEBP, 5 MB), never by the client's mimetype. `GET /evidencias/:id/archivo` requires the JWT, so the frontend can't use a plain `<img src>`: `components/evidencias/FotoEvidencia.jsx` downloads a blob through axios and shows it via `URL.createObjectURL`. Upload permission (checked in the controller): `editar` on proyectos or programación, the turno's operario, or the fase's `id_usuario_asignado`; delete: author or `proyectos/eliminar`. DB cascades don't touch files — any code path that deletes evidencias rows (`evidencias.remove`, `proyectos.remove`) must call `borrarArchivos`. `respaldar.sh` packs the folder into `respaldos/fotos_*.tar.gz` alongside each DB dump. Older DBs need `node backend/scripts/migrate_evidencias.js` once.
 - **Bitácora de auditoría** (`bitacora_auditoria`, `utils/bitacora.js`): any write to `usuarios` or `maquinaria` takes `fotoUsuario`/`fotoMaquina` before and after and calls `registrarBitacora` (stores only changed fields; passwords never, just a `contrasena` entry). Already wired in usuarios/admin/perfil/recovery/maquinaria/mantenimientos controllers — a new code path that writes those tables must do the same. Read via `GET /api/admin/bitacora` (Administración → Bitácora). Older DBs need `node backend/scripts/migrate_bitacora.js` once.
 
 ## Notifications system

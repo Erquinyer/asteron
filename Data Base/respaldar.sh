@@ -9,7 +9,9 @@
 #                                              (así lo corre el servicio "respaldo" de Docker)
 #
 # Cada respaldo queda en respaldos/asteron_AAAAMMDD_HHMMSS.sql.gz y solo se
-# conservan los RETENER más recientes (7 por defecto).
+# conservan los RETENER más recientes (7 por defecto). Las fotos de evidencia
+# (RF-25) viven en disco y no en la base: se empacan aparte en
+# respaldos/fotos_AAAAMMDD_HHMMSS.tar.gz, con la misma fecha y rotación.
 #
 # Conexión: toma DB_HOST, DB_PORT, DB_USER, DB_PASSWORD y DB_NAME del entorno;
 # si no están, los lee de backend/.env.
@@ -37,6 +39,7 @@ DB_USER="${DB_USER:-root}"
 DB_NAME="${DB_NAME:-asteron}"
 RESPALDOS_DIR="${RESPALDOS_DIR:-$ROOT_DIR/respaldos}"
 RETENER="${RETENER:-7}"
+FOTOS_DIR="${FOTOS_DIR:-$ROOT_DIR/backend/uploads}"
 
 # La contraseña va por variable de entorno y no en la línea de comandos,
 # así no aparece en la lista de procesos del servidor
@@ -70,6 +73,22 @@ respaldar() {
     rm -f "$viejo"
     echo "  Eliminado por rotación: $(basename "$viejo")"
   done
+
+  # Fotos de evidencia: solo si ya existe la carpeta (antes de la primera foto no hay nada que copiar)
+  if [ -d "$FOTOS_DIR" ]; then
+    local fotos="$RESPALDOS_DIR/fotos_${fecha}.tar.gz"
+    if ! tar -czf "$fotos.parcial" -C "$FOTOS_DIR" .; then
+      rm -f "$fotos.parcial"
+      return 1
+    fi
+    mv "$fotos.parcial" "$fotos"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Fotos respaldadas: $fotos ($(du -h "$fotos" | awk '{print $1}'))"
+
+    ls -1t "$RESPALDOS_DIR"/fotos_*.tar.gz | tail -n +"$((RETENER + 1))" | while read -r viejo; do
+      rm -f "$viejo"
+      echo "  Eliminado por rotación: $(basename "$viejo")"
+    done
+  fi
 }
 
 if [ -n "${INTERVALO_HORAS:-}" ]; then

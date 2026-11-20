@@ -2,6 +2,7 @@ import pool from '../config/db.js'
 import { resolveUsuarioPorRol } from '../utils/resolveUsuarioPorRol.js'
 import { esFechaPasada, fechaColumnaISO } from '../utils/dates.js'
 import { tieneAccion } from '../middlewares/requireModulo.js'
+import { borrarArchivos } from '../utils/evidencias.js'
 
 const validarFechas = (fecha_inicio, fecha_fin_estimada) => {
   if (esFechaPasada(fecha_inicio)) {
@@ -251,8 +252,13 @@ export const remove = async (req, res) => {
       })
     }
 
+    // Las filas de evidencias_fotograficas se borran en cascada; los archivos en disco no
+    const [fotos] = await pool.query(
+      'SELECT archivo FROM evidencias_fotograficas WHERE id_proyecto = ?', [req.params.id])
+
     const [result] = await pool.query('DELETE FROM proyectos WHERE id_proyecto=?', [req.params.id])
     if (result.affectedRows === 0) return res.status(404).json({ message: 'Proyecto no encontrado' })
+    await borrarArchivos(fotos.map(f => f.archivo))
     res.json({ message: 'Proyecto eliminado' })
   } catch (err) {
     console.error('[proyectos.remove]', err)

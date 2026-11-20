@@ -189,6 +189,7 @@ node scripts/migrate_acciones_modulo.js
 node scripts/migrate_tiempos_reportes.js
 node scripts/migrate_politica_datos.js
 node scripts/migrate_bitacora.js
+node scripts/migrate_evidencias.js
 ```
 
 ### 3.4 — Cargar datos de prueba (seed)
@@ -413,6 +414,7 @@ docker compose exec backend node scripts/migrate_acciones_modulo.js
 docker compose exec backend node scripts/migrate_tiempos_reportes.js
 docker compose exec backend node scripts/migrate_politica_datos.js
 docker compose exec backend node scripts/migrate_bitacora.js
+docker compose exec backend node scripts/migrate_evidencias.js
 docker compose exec backend pnpm seed
 ```
 
@@ -458,7 +460,7 @@ cd backend && pnpm verificar-openapi
 
 ## Copias de seguridad y restauración
 
-Los respaldos se guardan comprimidos en `respaldos/asteron_AAAAMMDD_HHMMSS.sql.gz` y solo se conservan los 7 más recientes. La carpeta `respaldos/` está en `.gitignore` porque contiene datos reales.
+Los respaldos se guardan comprimidos en `respaldos/asteron_AAAAMMDD_HHMMSS.sql.gz` y solo se conservan los 7 más recientes. Las fotos de evidencia no están en la base sino en `backend/uploads/`, así que el mismo script las empaca aparte en `respaldos/fotos_AAAAMMDD_HHMMSS.tar.gz` (misma fecha, misma rotación). Las carpetas `respaldos/` y `backend/uploads/` están en `.gitignore` porque contienen datos reales.
 
 **Automático (Docker):** el servicio `respaldo` de `docker-compose.yml` hace un respaldo al arrancar y luego uno cada 24 h. Para ver que esté funcionando:
 
@@ -487,6 +489,10 @@ bash "Data Base/restaurar.sh" respaldos/asteron_20261113_020000.sql.gz asteron_p
 # 2. Reemplazar la base real: pide escribir RESTAURAR y antes guarda un respaldo
 #    del estado actual por si el archivo elegido no era el correcto
 bash "Data Base/restaurar.sh" respaldos/asteron_20261113_020000.sql.gz
+
+# 3. Restaurar las fotos del MISMO respaldo (misma fecha que el .sql.gz),
+#    para que coincidan con las filas de evidencias_fotograficas
+mkdir -p backend/uploads && tar -xzf respaldos/fotos_20261113_020000.tar.gz -C backend/uploads
 ```
 
 Con Docker, la restauración se corre desde el contenedor de respaldo:
@@ -512,11 +518,13 @@ asteron/
 │   │   ├── routes/             ← rutas por módulo
 │   │   ├── middlewares/        ← auth JWT, requireAdmin
 │   │   └── config/db.js        ← pool MySQL
-│   └── scripts/
-│       ├── seed.js                      ← datos de prueba Macromet
-│       ├── migrate_admin_role.js        ← migración de rol administrador
-│       ├── migrate_acciones_modulo.js   ← migración de permisos por acción
-│       └── migrate_tiempos_reportes.js  ← horas de actividad, valor hora y módulo de reportes
+│   ├── scripts/
+│   │   ├── seed.js                      ← datos de prueba Macromet
+│   │   ├── migrate_admin_role.js        ← migración de rol administrador
+│   │   ├── migrate_acciones_modulo.js   ← migración de permisos por acción
+│   │   ├── migrate_tiempos_reportes.js  ← horas de actividad, valor hora y módulo de reportes
+│   │   └── migrate_evidencias.js        ← tabla de fotos de evidencia
+│   └── uploads/evidencias/     ← fotos subidas (no se versiona; ver respaldos)
 └── frontend/
     └── src/
         ├── api/                ← servicios axios por módulo

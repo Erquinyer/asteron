@@ -354,6 +354,27 @@ CREATE TABLE bitacora_auditoria (
   CONSTRAINT fk_bitacora_autor FOREIGN KEY (id_autor) REFERENCES usuarios(id_usuario) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- Evidencia fotográfica (RF-25/RF-26): la imagen se guarda en disco
+-- (backend/uploads/evidencias/) y aquí solo el nombre del archivo
+CREATE TABLE evidencias_fotograficas (
+  id_evidencia      INT          NOT NULL AUTO_INCREMENT,
+  id_proyecto       INT          NOT NULL,
+  id_fase_proyecto  INT          DEFAULT NULL COMMENT 'Fase a la que corresponde la foto (opcional)',
+  id_programacion   INT          DEFAULT NULL COMMENT 'Actividad/turno a la que corresponde la foto (opcional)',
+  archivo           VARCHAR(255) NOT NULL     COMMENT 'Nombre generado en el servidor, no el original del usuario',
+  nombre_original   VARCHAR(255) DEFAULT NULL,
+  descripcion       VARCHAR(255) DEFAULT NULL,
+  id_autor          INT          DEFAULT NULL,
+  fecha             DATETIME     NOT NULL,
+  PRIMARY KEY (id_evidencia),
+  UNIQUE KEY uq_evidencia_archivo (archivo),
+  KEY idx_evidencia_proyecto_fecha (id_proyecto, fecha),
+  CONSTRAINT fk_evidencia_proyecto FOREIGN KEY (id_proyecto)      REFERENCES proyectos(id_proyecto)               ON DELETE CASCADE  ON UPDATE CASCADE,
+  CONSTRAINT fk_evidencia_fase     FOREIGN KEY (id_fase_proyecto) REFERENCES fases_proyecto(id_fase_proyecto)     ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT fk_evidencia_prog     FOREIGN KEY (id_programacion)  REFERENCES programacion_planta(id_programacion) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT fk_evidencia_autor    FOREIGN KEY (id_autor)         REFERENCES usuarios(id_usuario)                 ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- ============================================================
 -- BLOQUE 10: VISTA DE MAQUINARIA (para reportes y listados)
 -- ============================================================
