@@ -2,8 +2,15 @@ import dotenv from 'dotenv'
 dotenv.config()
 import bcrypt from 'bcryptjs'
 import pool from '../src/config/db.js'
-import { cargarAccionesPorDefecto } from './accionesPorDefecto.js'
+import { cargarRoles, cargarPermisos, cargarFasesEstandar } from './catalogos.js'
 import { hoyISO } from '../src/utils/dates.js'
+
+// El seed BORRA roles, usuarios, clientes, pedidos, proyectos y programación antes de
+// cargar los datos de prueba. En producción eso destruiría la información real.
+if (process.env.NODE_ENV === 'production') {
+  console.error('⛔ seed.js no se ejecuta con NODE_ENV=production: borraría los datos reales.')
+  process.exit(1)
+}
 
 const seed = async () => {
   console.log('🌱 Sembrando datos reales de Macromet...\n')
@@ -11,54 +18,16 @@ const seed = async () => {
   // ── ROLES reales de Macromet ─────────────────────
   await pool.query(`DELETE FROM roles`)
   await pool.query(`ALTER TABLE roles AUTO_INCREMENT = 1`)
-  await pool.query(`INSERT INTO roles (nombre, descripcion) VALUES
-    ('Gerente General',            'Dirección estratégica de la empresa'),
-    ('Consultor Estrategia',       'Consultoría en estrategia y negocios'),
-    ('Coordinador de Producción',  'Planificación y coordinación del proceso productivo'),
-    ('Coordinador de Planta',      'Supervisión directa de planta y equipos'),
-    ('Ejecutivo Comercial',        'Gestión de clientes, cotizaciones y pedidos'),
-    ('Jefe de Almacén',            'Control de inventarios y materiales'),
-    ('Administrativo',             'Gestión contable y administrativa'),
-    ('Operario',                   'Ejecución de tareas en planta'),
-    ('Administrador Sistema',      'Administrador del sistema con acceso total y gestión de permisos')`)
+  await cargarRoles(pool)
   console.log('✅ Roles (9 roles: 8 Macromet + Administrador Sistema)')
 
   // ── PERMISOS Y RBAC ───────────────────────────────
   await pool.query(`DELETE FROM roles_permisos`)
   await pool.query(`DELETE FROM permisos`)
   await pool.query(`ALTER TABLE permisos AUTO_INCREMENT = 1`)
-  await pool.query(`INSERT INTO permisos (nombre, descripcion) VALUES
-    ('dashboard',      'Acceso al panel principal con estadísticas'),
-    ('proyectos',      'Gestión de proyectos y sus fases'),
-    ('pedidos',        'Gestión de pedidos y detalle de pedido'),
-    ('clientes',       'Gestión de clientes'),
-    ('maquinaria',     'Gestión de inventario de maquinaria'),
-    ('mantenimientos', 'Registro y consulta de mantenimientos'),
-    ('programacion',   'Programación diaria de planta'),
-    ('usuarios',       'Administración de usuarios del sistema'),
-    ('reportes',       'Reportes de horas, costos, avance y mantenimientos')`)
-
-  // Gerente General (1) — acceso total
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 1, id_permiso FROM permisos`)
-  // Consultor Estrategia (2)
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 2, id_permiso FROM permisos WHERE nombre IN ('dashboard','proyectos','pedidos','clientes')`)
-  // Coordinador de Producción (3)
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 3, id_permiso FROM permisos WHERE nombre IN ('dashboard','proyectos','pedidos','programacion','reportes')`)
-  // Coordinador de Planta (4)
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 4, id_permiso FROM permisos WHERE nombre IN ('dashboard','proyectos','maquinaria','mantenimientos','programacion','reportes')`)
-  // Ejecutivo Comercial (5) — proyectos en solo lectura (no tiene acciones sobre ese módulo)
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 5, id_permiso FROM permisos WHERE nombre IN ('dashboard','proyectos','pedidos','clientes')`)
-  // Jefe de Almacén (6)
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 6, id_permiso FROM permisos WHERE nombre IN ('dashboard','maquinaria','mantenimientos')`)
-  // Administrativo (7)
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 7, id_permiso FROM permisos WHERE nombre IN ('dashboard','pedidos','clientes','usuarios')`)
-  // Operario (8)
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 8, id_permiso FROM permisos WHERE nombre IN ('dashboard','programacion')`)
-  // Administrador Sistema (9) — acceso total (igual que Gerente General pero rol distinto)
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 9, id_permiso FROM permisos`)
-  // DELETE FROM roles (arriba) borró en cascada acciones_modulo: sin esto, ningún
-  // rol salvo Administrador Sistema podría crear, editar ni eliminar nada.
-  await cargarAccionesPorDefecto(pool)
+  // Módulos por rol y acciones por defecto (ver catalogos.js). DELETE FROM roles (arriba)
+  // borró en cascada acciones_modulo: sin recargarlas, solo el Administrador podría escribir.
+  await cargarPermisos(pool)
   console.log('✅ Permisos RBAC (9 módulos × 9 roles)')
 
   // ── USUARIOS reales de Macromet ───────────────────
@@ -171,26 +140,8 @@ const seed = async () => {
   // ── FASES ESTÁNDAR adaptadas a Macromet ───────────
   await pool.query(`DELETE FROM fases_estandar`)
   await pool.query(`ALTER TABLE fases_estandar AUTO_INCREMENT = 1`)
-  // Fase 1 (Diseño, render e ingeniería) y fase 2 (Compra de materiales) son "fases
-  // únicas": una sola por proyecto, asignadas automáticamente a una persona por rol
-  // (ver resolveUsuarioPorRol en proyectos.controller.js), sin turno de planta ni
-  // máquina. De la fase 3 en adelante, cada fase se repite una vez por ítem del
-  // pedido (ver proyectos.controller.js create).
-  // requiere_turno=0: fase de control manual, nunca recibe turnos de Programación
-  // (Diseño/Compra ya lo eran; Pintura y acabados se agrega porque la hace un
-  // tercero, no personal ni equipo propio). categoria_equipo: qué categoría de
-  // maquinaria.categoria aplica a cada fase — NULL cuando no hay equipo obligatorio.
-  await pool.query(`INSERT INTO fases_estandar (nombre, descripcion, orden, requiere_turno, categoria_equipo) VALUES
-    ('Diseño, render e ingeniería', 'Diseño 3D, renderizado, aprobación por el cliente, planos técnicos y despiece', 1, 0, NULL),
-    ('Compra de materiales',     'Adquisición de lámina, tubería, platina y demás insumos',       2, 0, NULL),
-    ('Corte',                    'Tronzado, cizallado y corte de piezas según planos',             3, 1, 'maquinaria_pesada'),
-    ('Doblez y conformado',      'Doblado de lámina y tubo según geometría del diseño',           4, 1, 'maquinaria_pesada'),
-    ('Soldadura MIG',            'Unión de componentes metálicos en puestos de soldadura',        5, 1, 'equipo_mig'),
-    ('Lijado y preparación',     'Esmerilado, lijado y preparación de superficies',               6, 1, 'herramienta_electrica'),
-    ('Pintura y acabados',       'Pintura electrostática, anodizado o acabado final — la realiza un tercero', 7, 0, NULL),
-    ('Ensamble final',           'Ensamble y ajuste de todos los componentes del exhibidor',      8, 1, 'herramienta_electrica'),
-    ('Control de calidad',       'Revisión dimensional, visual y funcional del producto',         9, 1, NULL),
-    ('Despacho e instalación',   'Empaque, transporte e instalación en el punto de venta',       10, 1, NULL)`)
+  // Fases únicas (Diseño, Compra), por ítem, requiere_turno y categoria_equipo: ver catalogos.js
+  await cargarFasesEstandar(pool)
   console.log('✅ Fases estándar (adaptadas al proceso real de Macromet)')
 
   // ── MAQUINARIA REAL del inventario ────────────────

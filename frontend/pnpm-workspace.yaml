@@ -1,0 +1,6 @@
+# Versiones forzadas de dependencias indirectas con vulnerabilidades corregidas
+# (pnpm audit). Quitar cuando el paquete que las trae publique una versión que
+# ya las use. El Dockerfile copia este archivo para que el lockfile coincida.
+overrides:
+  # axios 1.21.0 pide follow-redirects ^1.16.0: encabezados sensibles en redirecciones
+  follow-redirects: 1.16.2

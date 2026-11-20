@@ -11,7 +11,7 @@ RUN npm install -g pnpm@11.18.0
 ARG VITE_API_URL=http://localhost:3000/api
 ENV VITE_API_URL=$VITE_API_URL
 
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 COPY . .
