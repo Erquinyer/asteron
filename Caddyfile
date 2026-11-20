@@ -1,0 +1,32 @@
+# Proxy de producción (docker-compose.prod.yml). Caddy obtiene y renueva solo el
+# certificado HTTPS de Let's Encrypt para DOMINIO y redirige http → https (RNF-03).
+{
+	email {$CORREO_ACME}
+}
+
+{$DOMINIO} {
+	encode zstd gzip
+
+	# Cabeceras de seguridad para todo el sitio
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		-Server
+	}
+
+	# API: el backend agrega sus propias cabeceras (helmet)
+	handle /api/* {
+		reverse_proxy backend:3000
+	}
+
+	# Web: la política de contenido solo permite recursos del propio dominio. Las
+	# fuentes son locales (/fonts), las fotos se muestran como blob: y react-hot-toast
+	# inyecta estilos en línea (por eso 'unsafe-inline' solo en style-src).
+	handle {
+		header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		reverse_proxy frontend:80
+	}
+}

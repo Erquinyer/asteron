@@ -2,3 +2,13 @@
 # @scarf/scarf (lo trae swagger-ui-dist) solo envía estadísticas de descarga: se bloquea.
 allowBuilds:
   '@scarf/scarf': false
+
+# Versiones forzadas de dependencias indirectas con vulnerabilidades corregidas
+# (pnpm audit). Quitar cuando el paquete que las trae publique una versión que
+# ya las use.
+overrides:
+  # exceljs 4.4.0 (última) pide uuid ^8.3.0: falta de chequeo de límites en v3/v5/v6
+  uuid: 11.1.1
+  # express 5.3.0 acepta body-parser ^2.3.0 y pnpm conservaba la 2.3.0 (DoS con
+  # bytes sobrantes tras un cuerpo comprimido)
+  body-parser: 2.4.0

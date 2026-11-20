@@ -1,6 +1,7 @@
 import express from 'express'
 import cors    from 'cors'
 import dotenv  from 'dotenv'
+import helmet  from 'helmet'
 import swaggerUi from 'swagger-ui-express'
 
 import { verifyToken }        from './middlewares/auth.middleware.js'
@@ -20,36 +21,66 @@ import reportesRoutes          from './routes/reportes.routes.js'
 import evidenciasRoutes        from './routes/evidencias.routes.js'
 import { openapi }             from './docs/openapi.js'
 import { responderError }      from './utils/errores.js'
+import pool                    from './config/db.js'
 
 dotenv.config()
 
 const app = express()
+const PRODUCCION = process.env.NODE_ENV === 'production'
 
-app.use(cors({
-  origin: [
-    process.env.FRONTEND_URL || 'http://localhost:5173',
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://127.0.0.1:5173',
-    'capacitor://localhost',
-    'http://localhost',
-    'https://localhost',
-  ],
-  credentials: true,
+// Detrás de un proxy (Caddy en producción) la IP del cliente llega en X-Forwarded-For.
+// TRUST_PROXY=1 confía solo en el proxy inmediato: sin esto, los límites de intentos
+// contarían a todos los usuarios como una sola IP (la del proxy).
+if (process.env.TRUST_PROXY) {
+  const valor = process.env.TRUST_PROXY
+  app.set('trust proxy', /^\d+$/.test(valor) ? Number(valor) : valor)
+}
+
+// Cabeceras de seguridad (nosniff, HSTS, sin X-Powered-By, CSP para las respuestas del API…).
+// upgrade-insecure-requests solo en producción (HTTPS): en desarrollo, abriendo el backend
+// por la IP de la red local con http, rompería Swagger al forzar https.
+app.use(helmet({
+  contentSecurityPolicy: { directives: { upgradeInsecureRequests: PRODUCCION ? [] : null } },
 }))
+
+// CORS: en producción solo los orígenes de CORS_ORIGINS (separados por coma). La web
+// se sirve por el mismo dominio que el API, así que en la práctica lo necesita la app
+// móvil (Capacitor usa capacitor://localhost en iOS y http://localhost en Android).
+const ORIGENES_DESARROLLO = [
+  'http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173',
+  'capacitor://localhost', 'http://localhost', 'https://localhost',
+]
+const origenesPermitidos = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+  : PRODUCCION ? [process.env.FRONTEND_URL].filter(Boolean)
+  : [process.env.FRONTEND_URL || 'http://localhost:5173', ...ORIGENES_DESARROLLO]
+app.use(cors({ origin: origenesPermitidos, credentials: true }))
 app.use(express.json())
 
 // ── Rutas públicas ────────────────────────────────────
 app.use('/api/auth',   authRoutes)
-app.get('/api/health', (_req, res) => res.json({ status: 'ok', sistema: 'Asteron' }))
+// Comprueba también la base de datos: el monitor de disponibilidad (RNF-15) y el
+// healthcheck de Docker deben ver caído el sistema si MySQL no responde.
+app.get('/api/health', async (_req, res) => {
+  try {
+    await pool.query('SELECT 1')
+    res.json({ status: 'ok', sistema: 'Asteron' })
+  } catch (err) {
+    console.error('[health] La base de datos no responde', err.message)
+    res.status(503).json({ status: 'error', sistema: 'Asteron', message: 'La base de datos no responde' })
+  }
+})
 
 // ── Documentación de la API (OpenAPI / Swagger) ───────
 // Pública: solo describe las rutas; para probarlas igual hay que iniciar sesión.
-app.get('/api/docs.json', (_req, res) => res.json(openapi))
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapi, {
-  customSiteTitle: 'Asteron API',
-  swaggerOptions: { persistAuthorization: true },
-}))
+// En producción se puede apagar con DOCS_HABILITADOS=false.
+if (process.env.DOCS_HABILITADOS !== 'false') {
+  app.get('/api/docs.json', (_req, res) => res.json(openapi))
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapi, {
+    customSiteTitle: 'Asteron API',
+    swaggerOptions: { persistAuthorization: true },
+  }))
+}
 
 // ── Rutas protegidas (requieren JWT) ──────────────────
 app.use('/api/dashboard',       verifyToken, dashboardRoutes)

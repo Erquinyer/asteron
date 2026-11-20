@@ -1,0 +1,127 @@
+# Despliegue en producción (servidor en la nube). Uso:
+#   cp .env.produccion.example .env.produccion   # y completar los valores
+#   docker compose -f docker-compose.prod.yml --env-file .env.produccion up -d --build
+# Pasos completos (primera vez, actualizaciones, respaldos): README, "Despliegue en producción".
+#
+# Diferencias con docker-compose.yml (desarrollo):
+# - Solo Caddy publica puertos (80/443) y sirve todo por HTTPS con certificado
+#   automático de Let's Encrypt. MySQL, el backend y el frontend quedan en la red
+#   interna de Docker: no se pueden alcanzar desde internet.
+# - Web y API comparten dominio (https://DOMINIO y https://DOMINIO/api).
+# - El backend se conecta con un usuario propio de MySQL, no con root.
+# - Secretos desde .env.produccion (no versionado), ninguno escrito aquí.
+# - Sin la base de pruebas mysql-test.
+
+name: asteron
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Falta MYSQL_ROOT_PASSWORD en .env.produccion}
+      # La imagen crea este usuario con permisos solo sobre la base asteron
+      MYSQL_DATABASE: asteron
+      MYSQL_USER: ${MYSQL_USER:-asteron_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Falta MYSQL_PASSWORD en .env.produccion}
+      TZ: America/Bogota
+    volumes:
+      - db_data:/var/lib/mysql
+      # Solo se ejecuta cuando el volumen está vacío (primera vez)
+      - ./Data Base/asteron_v2.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: mysql
+      DB_USER: ${MYSQL_USER:-asteron_app}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_NAME: asteron
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env.produccion}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      FRONTEND_URL: https://${DOMINIO}
+      # La web usa el mismo dominio; esto es para la app móvil (Capacitor)
+      CORS_ORIGINS: https://${DOMINIO},${CORS_ORIGINS_EXTRA:-capacitor://localhost,http://localhost}
+      # Caddy es el único proxy delante del backend
+      TRUST_PROXY: 1
+      DOCS_HABILITADOS: ${DOCS_HABILITADOS:-true}
+      EMAIL_USER: ${EMAIL_USER:-}
+      EMAIL_PASS: ${EMAIL_PASS:-}
+    volumes:
+      - evidencias:/app/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Ruta relativa: el navegador llama al API en el mismo dominio
+        VITE_API_URL: /api
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  caddy:
+    image: caddy:2.8.4-alpine
+    restart: unless-stopped
+    environment:
+      DOMINIO: ${DOMINIO:?Falta DOMINIO en .env.produccion}
+      CORREO_ACME: ${CORREO_ACME:?Falta CORREO_ACME en .env.produccion}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificados: se conservan entre reinicios (Let's Encrypt limita las emisiones)
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+      - frontend
+
+  # Respaldo diario de la base y de las fotos en ./respaldos (RNF-16). Copien esa
+  # carpeta FUERA del servidor con regularidad: si el servidor se pierde, se pierden también.
+  respaldo:
+    image: mysql:8.0
+    restart: unless-stopped
+    entrypoint: ["bash", "/scripts/respaldar.sh"]
+    environment:
+      DB_HOST: mysql
+      DB_USER: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      DB_NAME: asteron
+      RESPALDOS_DIR: /respaldos
+      FOTOS_DIR: /fotos
+      INTERVALO_HORAS: 24
+      RETENER: ${RETENER_RESPALDOS:-14}
+      TZ: America/Bogota
+    volumes:
+      - ./Data Base/respaldar.sh:/scripts/respaldar.sh:ro
+      - ./respaldos:/respaldos
+      - evidencias:/fotos:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  db_data:
+  evidencias:
+  caddy_data:
+  caddy_config:
