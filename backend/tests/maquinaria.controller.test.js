@@ -1,11 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import pool from '../src/config/db.js'
 import { create, getAll, getOne, remove, update } from '../src/controllers/maquinaria.controller.js'
+import { registrarBitacora } from '../src/utils/bitacora.js'
 import { crearRes } from './helpers/express.js'
 
 // Doble de la BD: STUB (respuestas preparadas) y, donde importa qué se guarda,
 // se revisan los parámetros de la consulta (comportamiento).
 vi.mock('../src/config/db.js', () => ({ default: { query: vi.fn() } }))
+// Bitácora de auditoría (RNF-22): hace sus propias consultas antes y después del cambio.
+// Se reemplaza para que las respuestas simuladas de la BD sigan siendo solo las del controlador.
+const AUTOR = { id: 1 } // usuario autenticado que hace el cambio
+
+vi.mock('../src/utils/bitacora.js', () => ({ fotoUsuario: vi.fn(), fotoMaquina: vi.fn(), registrarBitacora: vi.fn() }))
 
 beforeEach(() => {
   vi.resetAllMocks()
@@ -21,7 +27,7 @@ describe('maquinaria.create', () => {
     const res = crearRes()
 
     // Act
-    await create({ body: { nombre: 'Taladro' } }, res)
+    await create({ user: AUTOR, body: { nombre: 'Taladro' } }, res)
 
     // Assert
     expect(pool.query.mock.calls[0][1]).toEqual(
@@ -32,7 +38,7 @@ describe('maquinaria.create', () => {
   it('no debe guardar nada cuando falta el nombre', async () => {
     const res = crearRes()
 
-    await create({ body: { codigo: 'MAQ-99' } }, res)
+    await create({ user: AUTOR, body: { codigo: 'MAQ-99' } }, res)
 
     expect(res.status).toHaveBeenCalledWith(400)
     expect(pool.query).not.toHaveBeenCalled()
@@ -73,7 +79,7 @@ describe('maquinaria.getOne, update y remove', () => {
       .mockResolvedValueOnce([[{ id_maquina: 3, responsable: 'Martín' }]])
     const res = crearRes()
 
-    await update({ params: { id: 3 }, body: { nombre: 'Dobladora', id_responsable: 7, estado: 'en_mantenimiento' } }, res)
+    await update({ user: AUTOR, params: { id: 3 }, body: { nombre: 'Dobladora', id_responsable: 7, estado: 'en_mantenimiento' } }, res)
 
     expect(pool.query.mock.calls[0][1]).toEqual(
       ['Dobladora', null, 'maquinaria_pesada', null, null, null, null, null, 'en_mantenimiento', 7, 3])
@@ -84,9 +90,10 @@ describe('maquinaria.getOne, update y remove', () => {
     pool.query.mockResolvedValueOnce([{ affectedRows: 1 }])
     const res = crearRes()
 
-    await remove({ params: { id: 3 } }, res)
+    await remove({ user: AUTOR, params: { id: 3 } }, res)
 
     expect(res.json).toHaveBeenCalledWith({ message: 'Equipo eliminado' })
+    expect(registrarBitacora).toHaveBeenCalledWith(expect.objectContaining({ entidad: 'maquinaria', accion: 'eliminar', autor: 1 }))
   })
 
   it.each([

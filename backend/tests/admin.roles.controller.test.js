@@ -52,7 +52,8 @@ describe('createRol, updateRol y deleteRol', () => {
 
     await createRol({ body: { nombre: '  Soldador  ', descripcion: ' Planta ' } }, res)
 
-    expect(pool.query.mock.calls[0][1]).toEqual(['Soldador', 'Planta'])
+    // Sin valor_hora (costos fuera del MVP) se guarda NULL, nunca 0
+    expect(pool.query.mock.calls[0][1]).toEqual(['Soldador', 'Planta', null])
     expect(res.status).toHaveBeenCalledWith(201)
     expect(res.json).toHaveBeenCalledWith({ id_rol: 10, nombre: 'Soldador', descripcion: 'Planta', total_usuarios: 0 })
   })

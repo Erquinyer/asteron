@@ -4,7 +4,7 @@ import { getNotificaciones } from '../src/controllers/notificaciones.controller.
 import { crearRes } from './helpers/express.js'
 
 // Dobles de esta prueba:
-// - BD: STUB con respuestas preparadas para cada una de las 4 consultas del panel.
+// - BD: STUB con respuestas preparadas para cada una de las consultas del panel.
 // - Reloj: FAKE (vi.useFakeTimers) con la zona horaria de Colombia, para reproducir
 //   la hora exacta en la que aparecía el defecto, sin depender de la hora real.
 vi.mock('../src/config/db.js', () => ({ default: { query: vi.fn() } }))
@@ -12,16 +12,28 @@ vi.mock('../src/config/db.js', () => ({ default: { query: vi.fn() } }))
 const zonaOriginal = process.env.TZ
 
 // Respuestas de la BD en el orden en que el controlador consulta
-const prepararBd = ({ vencidos = [], proximos = [], enMantenimiento = [], sinProyecto = 0 } = {}) =>
+const prepararBd = ({
+  vencidos = [], proximos = [], enMantenimiento = [], sinProyecto = 0,
+  enProceso = [], fasesRetrasadas = [], mantenimientos = [], modulosDelRol = null, atendidas = [],
+} = {}) => {
   pool.query
     .mockResolvedValueOnce([vencidos])
     .mockResolvedValueOnce([proximos])
     .mockResolvedValueOnce([enMantenimiento])
     .mockResolvedValueOnce([[{ sin_proyecto: sinProyecto }]])
+    .mockResolvedValueOnce([enProceso])
+    .mockResolvedValueOnce([fasesRetrasadas])
+    .mockResolvedValueOnce([mantenimientos])
+  // El Administrador Sistema ve todo; los demás roles consultan sus módulos (roles_permisos)
+  if (modulosDelRol) pool.query.mockResolvedValueOnce([modulosDelRol.map(nombre => ({ nombre }))])
+  pool.query.mockResolvedValueOnce([atendidas.map(clave => ({ clave }))])
+}
 
-const consultar = async () => {
+const ADMIN = { id: 1, rol: 'Administrador Sistema' }
+
+const consultar = async (user = ADMIN) => {
   const res = crearRes()
-  await getNotificaciones({}, res)
+  await getNotificaciones({ user }, res)
   return res
 }
 
@@ -123,6 +135,30 @@ describe('getNotificaciones: alertas a partir de los datos', () => {
 
     const mensajes = res.json.mock.calls[0][0].items.map(n => n.mensaje)
     expect(mensajes).toEqual(['[MAQ-03] Dobladora fuera de servicio', 'Pulidora fuera de servicio'])
+  })
+
+  it('debe mostrar a cada rol solo las alertas de los módulos a los que tiene acceso', async () => {
+    // Arrange: un pedido sin proyecto (módulo pedidos) y una máquina en mantenimiento (módulo maquinaria)
+    prepararBd({
+      sinProyecto: 1,
+      enMantenimiento: [{ id_maquina: 3, nombre: 'Dobladora', codigo: null }],
+      modulosDelRol: ['dashboard', 'pedidos', 'clientes'],
+    })
+
+    // Act: el Ejecutivo Comercial no tiene acceso a maquinaria
+    const res = await consultar({ id: 5, rol: 'Ejecutivo Comercial' })
+
+    // Assert
+    const { items } = res.json.mock.calls[0][0]
+    expect(items.map(n => n.titulo)).toEqual(['Pedidos sin proyecto'])
+  })
+
+  it('no debe volver a mostrar una alerta que el usuario ya marcó como atendida', async () => {
+    prepararBd({ sinProyecto: 2, atendidas: ['pedidos-sin-proyecto-2'] })
+
+    const res = await consultar()
+
+    expect(res.json).toHaveBeenCalledWith({ total: 0, items: [] })
   })
 
   it('debe responder 500 genérico cuando falla la BD', async () => {

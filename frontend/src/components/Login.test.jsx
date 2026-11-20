@@ -103,9 +103,25 @@ describe('Login', () => {
     await user.click(screen.getByRole('button', { name: 'Iniciar sesión' }))
 
     // Assert
-    expect(await screen.findByRole('alert')).toHaveTextContent('Valide el usuario y la contraseña ingresados.')
+    // Muestra el mensaje del servidor (genérico, no revela si el correo existe)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Credenciales incorrectas')
     expect(screen.queryByRole('heading', { name: 'Panel principal' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Iniciar sesión' })).toBeEnabled()
+    expect(getUser()).toBeNull()
+  })
+
+  it('debe avisar que no hay conexión, y no culpar a la contraseña, cuando el servidor no responde', async () => {
+    // Arrange: error de red, sin respuesta del servidor
+    loginRequest.mockRejectedValueOnce(new Error('Network Error'))
+    const { user } = renderLogin()
+
+    // Act
+    await user.type(screen.getByLabelText('Correo electrónico'), 'admin@macromet.com.co')
+    await user.type(screen.getByLabelText('Contraseña'), 'admin2026')
+    await user.click(screen.getByRole('button', { name: 'Iniciar sesión' }))
+
+    // Assert
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo conectar con el servidor')
     expect(getUser()).toBeNull()
   })
 

@@ -16,9 +16,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Sin "version": la toma de "packageManager" en package.json (pnpm 11).
+      # Indicar otra versión aquí hace fallar la acción.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       # Node 22: jsdom 30 (entorno de los tests de componentes) no corre en Node 20
       - uses: actions/setup-node@v4
@@ -42,17 +42,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # El backend usa pnpm (backend/pnpm-lock.yaml), igual que el frontend
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
 
       - name: Instalar dependencias Backend
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Ejecutar Tests Unitarios y Cobertura
-        run: npm run test:coverage
+        run: pnpm run test:coverage
 
   # Evidencia individual (guía del instructor, mecanismo 2): deja en el resumen
   # del run la lista de commits de test por autor desde el lunes.
