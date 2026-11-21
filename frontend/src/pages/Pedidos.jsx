@@ -165,7 +165,7 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
               <Package size={18} className="text-primary" />
             </div>
             <div>
-              <h3 className="text-[16px] font-semibold text-ink">
+              <h3 id="pedido-modal-titulo" className="text-[16px] font-semibold text-ink">
                 {pedido ? 'Editar pedido' : 'Nuevo pedido'}
               </h3>
               <p className="text-[12px] text-muted">
@@ -213,8 +213,8 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
           </div>
 
           <div>
-            <label className={labelCls}>Descripción del pedido</label>
-            <textarea aria-label="Descripción del pedido" name="descripcion" value={form.descripcion} onChange={setField} rows={2}
+            <label htmlFor="pedido-descripcion" className={labelCls}>Descripción del pedido</label>
+            <textarea id="pedido-descripcion" name="descripcion" value={form.descripcion} onChange={setField} rows={2}
               placeholder="Descripción general del pedido / proyecto a fabricar"
               className={`${inputCls} h-auto py-2.5 resize-none`}
             />
@@ -275,6 +275,7 @@ function PedidoModal({ pedido, clientes, onClose, onSaved, onCreated }) {
                           value={item.fecha_entrega_estimada}
                           onChange={e => setItem(i, 'fecha_entrega_estimada', e.target.value)}
                           title="Fecha de entrega estimada de este ítem"
+                          aria-label={`Fecha de entrega del ítem ${i + 1}`}
                           min={!item.id_detalle ? hoy : undefined}
                           className={`col-span-4 ${itemInputCls}`}
                         />
