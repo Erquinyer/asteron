@@ -29,7 +29,7 @@ export default defineConfig({
       // reportes y manejo de errores: lines 72,68% · branches 67,61% ·
       // functions 73,74% · statements 71,67%.
       // El umbral solo puede subir.
-      thresholds: { lines: 72, branches: 67, functions: 73, statements: 71 },
+      thresholds: { lines: 78, branches: 74, functions: 80, statements: 77 },
     },
   },
 })
