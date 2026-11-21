@@ -94,7 +94,7 @@ function ClienteModal({ cliente, onClose, onSaved }) {
   ]
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto
+    <div role="dialog" aria-modal="true" aria-label={cliente ? 'Editar cliente' : 'Nuevo cliente'} className="fixed inset-0 z-50 overflow-y-auto
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
       <div className="min-h-full flex items-center justify-center">
@@ -120,7 +120,7 @@ function ClienteModal({ cliente, onClose, onSaved }) {
               </p>
             </div>
           </div>
-          <button onClick={onClose}
+          <button aria-label="Cerrar" onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-[8px]
               bg-surface2 text-faint hover:text-muted transition-colors"
           >
@@ -151,8 +151,8 @@ function ClienteModal({ cliente, onClose, onSaved }) {
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
           {tab === 'general' && fields.map(f => (
             <div key={f.name}>
-              <label className={labelCls}>{f.label}</label>
-              <input name={f.name} value={form[f.name]}
+              <label htmlFor={f.name} className={labelCls}>{f.label}</label>
+              <input id={f.name} name={f.name} value={form[f.name]}
                 onChange={handleChange} placeholder={f.placeholder}
                 className={inputCls}
               />
@@ -183,9 +183,10 @@ function ClienteModal({ cliente, onClose, onSaved }) {
                         value={d.etiqueta}
                         onChange={e => setDireccion(i, 'etiqueta', e.target.value)}
                         placeholder={`Dirección ${i + 1}`}
+                        aria-label={`Nombre de la dirección ${i + 1}`}
                         className={`${inputCls} h-8 flex-1 min-w-0`}
                       />
-                      <button type="button" onClick={() => removeDireccion(i)}
+                      <button aria-label={`Eliminar la dirección ${i + 1}`} type="button" onClick={() => removeDireccion(i)}
                         title="Eliminar dirección"
                         className="w-8 h-8 shrink-0 flex items-center justify-center rounded-badge
                           text-faint hover:bg-error/10 hover:text-error transition-colors"
@@ -197,6 +198,7 @@ function ClienteModal({ cliente, onClose, onSaved }) {
                       value={d.direccion}
                       onChange={e => setDireccion(i, 'direccion', e.target.value)}
                       placeholder="Ej: Calle 10 # 5-20, Bogotá"
+                      aria-label={`Dirección ${i + 1}`}
                       className={`${inputCls} h-8 w-full`}
                     />
                   </div>
@@ -400,7 +402,7 @@ export default function Clientes() {
                         <td className="px-[18px] py-[13px]">
                           <div className="flex items-center gap-0.5">
                             {canDo('clientes', 'editar') && (
-                              <button onClick={() => setModal(c)} title="Editar"
+                              <button aria-label={`Editar ${c.nombre}`} onClick={() => setModal(c)} title="Editar"
                                 className="w-7 h-7 flex items-center justify-center rounded-badge
                                   text-faint hover:bg-primary/10 hover:text-primary transition-colors"
                               >
@@ -408,7 +410,7 @@ export default function Clientes() {
                               </button>
                             )}
                             {canDo('clientes', 'eliminar') && (
-                              <button onClick={() => handleDelete(c)} title="Eliminar"
+                              <button aria-label={`Eliminar ${c.nombre}`} onClick={() => handleDelete(c)} title="Eliminar"
                                 className="w-7 h-7 flex items-center justify-center rounded-badge
                                   text-faint hover:bg-error/10 hover:text-error transition-colors"
                               >

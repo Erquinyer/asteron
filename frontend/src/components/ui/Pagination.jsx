@@ -9,7 +9,7 @@ export default function Pagination({ page, totalPages, onPageChange }) {
         Página {page} de {totalPages}
       </p>
       <div className="flex items-center gap-1">
-        <button
+        <button aria-label="Página anterior"
           onClick={() => onPageChange(page - 1)}
           disabled={page === 1}
           className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
@@ -40,7 +40,7 @@ export default function Pagination({ page, totalPages, onPageChange }) {
           )
         }
 
-        <button
+        <button aria-label="Página siguiente"
           onClick={() => onPageChange(page + 1)}
           disabled={page === totalPages}
           className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"

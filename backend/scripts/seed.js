@@ -2,6 +2,15 @@ import dotenv from 'dotenv'
 dotenv.config()
 import bcrypt from 'bcryptjs'
 import pool from '../src/config/db.js'
+import { cargarRoles, cargarPermisos, cargarFasesEstandar } from './catalogos.js'
+import { hoyISO } from '../src/utils/dates.js'
+
+// El seed BORRA roles, usuarios, clientes, pedidos, proyectos y programación antes de
+// cargar los datos de prueba. En producción eso destruiría la información real.
+if (process.env.NODE_ENV === 'production') {
+  console.error('⛔ seed.js no se ejecuta con NODE_ENV=production: borraría los datos reales.')
+  process.exit(1)
+}
 
 const seed = async () => {
   console.log('🌱 Sembrando datos reales de Macromet...\n')
@@ -9,51 +18,17 @@ const seed = async () => {
   // ── ROLES reales de Macromet ─────────────────────
   await pool.query(`DELETE FROM roles`)
   await pool.query(`ALTER TABLE roles AUTO_INCREMENT = 1`)
-  await pool.query(`INSERT INTO roles (nombre, descripcion) VALUES
-    ('Gerente General',            'Dirección estratégica de la empresa'),
-    ('Consultor Estrategia',       'Consultoría en estrategia y negocios'),
-    ('Coordinador de Producción',  'Planificación y coordinación del proceso productivo'),
-    ('Coordinador de Planta',      'Supervisión directa de planta y equipos'),
-    ('Ejecutivo Comercial',        'Gestión de clientes, cotizaciones y pedidos'),
-    ('Jefe de Almacén',            'Control de inventarios y materiales'),
-    ('Administrativo',             'Gestión contable y administrativa'),
-    ('Operario',                   'Ejecución de tareas en planta'),
-    ('Administrador Sistema',      'Administrador del sistema con acceso total y gestión de permisos')`)
+  await cargarRoles(pool)
   console.log('✅ Roles (9 roles: 8 Macromet + Administrador Sistema)')
 
   // ── PERMISOS Y RBAC ───────────────────────────────
   await pool.query(`DELETE FROM roles_permisos`)
   await pool.query(`DELETE FROM permisos`)
   await pool.query(`ALTER TABLE permisos AUTO_INCREMENT = 1`)
-  await pool.query(`INSERT INTO permisos (nombre, descripcion) VALUES
-    ('dashboard',      'Acceso al panel principal con estadísticas'),
-    ('proyectos',      'Gestión de proyectos y sus fases'),
-    ('pedidos',        'Gestión de pedidos y detalle de pedido'),
-    ('clientes',       'Gestión de clientes'),
-    ('maquinaria',     'Gestión de inventario de maquinaria'),
-    ('mantenimientos', 'Registro y consulta de mantenimientos'),
-    ('programacion',   'Programación diaria de planta'),
-    ('usuarios',       'Administración de usuarios del sistema')`)
-
-  // Gerente General (1) — acceso total
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 1, id_permiso FROM permisos`)
-  // Consultor Estrategia (2)
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 2, id_permiso FROM permisos WHERE nombre IN ('dashboard','proyectos','pedidos','clientes')`)
-  // Coordinador de Producción (3)
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 3, id_permiso FROM permisos WHERE nombre IN ('dashboard','proyectos','pedidos','programacion')`)
-  // Coordinador de Planta (4)
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 4, id_permiso FROM permisos WHERE nombre IN ('dashboard','proyectos','maquinaria','mantenimientos','programacion')`)
-  // Ejecutivo Comercial (5)
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 5, id_permiso FROM permisos WHERE nombre IN ('dashboard','pedidos','clientes')`)
-  // Jefe de Almacén (6)
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 6, id_permiso FROM permisos WHERE nombre IN ('dashboard','maquinaria','mantenimientos')`)
-  // Administrativo (7)
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 7, id_permiso FROM permisos WHERE nombre IN ('dashboard','pedidos','clientes','usuarios')`)
-  // Operario (8)
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 8, id_permiso FROM permisos WHERE nombre IN ('dashboard','programacion')`)
-  // Administrador Sistema (9) — acceso total (igual que Gerente General pero rol distinto)
-  await pool.query(`INSERT INTO roles_permisos (id_rol, id_permiso) SELECT 9, id_permiso FROM permisos`)
-  console.log('✅ Permisos RBAC (8 módulos × 9 roles)')
+  // Módulos por rol y acciones por defecto (ver catalogos.js). DELETE FROM roles (arriba)
+  // borró en cascada acciones_modulo: sin recargarlas, solo el Administrador podría escribir.
+  await cargarPermisos(pool)
+  console.log('✅ Permisos RBAC (9 módulos × 9 roles)')
 
   // ── USUARIOS reales de Macromet ───────────────────
   const hashSuperAdmin = await bcrypt.hash('admin2026', 10)
@@ -85,18 +60,31 @@ const seed = async () => {
   console.log('✅ Usuarios (13 usuarios: 1 admin sistema + 12 equipo Macromet)')
 
   // ── CLIENTES reales ────────────────────────────────
+  // direcciones_cliente tiene ON DELETE CASCADE desde clientes, así que se
+  // limpia sola — no hace falta un DELETE FROM direcciones_cliente aparte.
   await pool.query(`DELETE FROM contactos_cliente`)
   await pool.query(`DELETE FROM clientes`)
   await pool.query(`ALTER TABLE clientes AUTO_INCREMENT = 1`)
-  await pool.query(`INSERT INTO clientes (nombre, nit, codigo_cliente, direccion) VALUES
-    ('Castrol Colombia',         '900112233-1', 'CLI-001', 'Bogotá, Colombia'),
-    ('Bosch Colombia',           '800223344-2', 'CLI-002', 'Bogotá, Colombia'),
-    ('Alpina Productos Alimenticios','900334455-3','CLI-003','Sopó, Cundinamarca'),
-    ('Juan Valdez Café',         '860034313-4', 'CLI-004', 'Bogotá, Colombia'),
-    ('LEGO Colombia',            '900556677-5', 'CLI-005', 'Bogotá, Colombia'),
-    ('Papa John''s Colombia',    '900667788-6', 'CLI-006', 'Bogotá, Colombia'),
-    ('Makita Colombia',          '900778899-7', 'CLI-007', 'Bogotá, Colombia'),
-    ('3M Colombia',              '860051234-8', 'CLI-008', 'Bogotá, Colombia')`)
+  await pool.query(`INSERT INTO clientes (nombre, nit, codigo_cliente) VALUES
+    ('Castrol Colombia',         '900112233-1', 'CLI-001'),
+    ('Bosch Colombia',           '800223344-2', 'CLI-002'),
+    ('Alpina Productos Alimenticios','900334455-3','CLI-003'),
+    ('Juan Valdez Café',         '860034313-4', 'CLI-004'),
+    ('LEGO Colombia',            '900556677-5', 'CLI-005'),
+    ('Papa John''s Colombia',    '900667788-6', 'CLI-006'),
+    ('Makita Colombia',          '900778899-7', 'CLI-007'),
+    ('3M Colombia',              '860051234-8', 'CLI-008')`)
+  // clientes.direccion no existe (normalizado en 1FN) — cada dirección vive
+  // en direcciones_cliente, igual que clientes.controller.js (guardarDirecciones).
+  await pool.query(`INSERT INTO direcciones_cliente (id_cliente, etiqueta, direccion, principal) VALUES
+    (1, 'Sede principal', 'Bogotá, Colombia',        1),
+    (2, 'Sede principal', 'Bogotá, Colombia',        1),
+    (3, 'Sede principal', 'Sopó, Cundinamarca',      1),
+    (4, 'Sede principal', 'Bogotá, Colombia',        1),
+    (5, 'Sede principal', 'Bogotá, Colombia',        1),
+    (6, 'Sede principal', 'Bogotá, Colombia',        1),
+    (7, 'Sede principal', 'Bogotá, Colombia',        1),
+    (8, 'Sede principal', 'Bogotá, Colombia',        1)`)
   console.log('✅ Clientes (marcas reales de Macromet)')
 
   // ── PEDIDOS ────────────────────────────────────────
@@ -109,39 +97,51 @@ const seed = async () => {
     (3, '2026-02-03', 'pendiente',  'Nevera de exhibición para productos lácteos - tiendas de barrio'),
     (4, '2025-12-10', 'entregado',  'Módulo de exhibición Juan Valdez para aeropuerto El Dorado'),
     (5, '2026-02-20', 'en_proceso', 'Stand de exhibición LEGO para centro comercial')`)
-  await pool.query(`INSERT INTO detalle_pedido (id_pedido, producto, cantidad, punto_descargue, estado) VALUES
-    (1, 'Exhibidor metálico aceites Castrol',   12, 'Talleres Bogotá Norte', 'en_produccion'),
-    (1, 'Base para garrafas 4L',                12, 'Talleres Bogotá Norte', 'pendiente'),
-    (2, 'Display pared Bosch Power Tools',       5, 'Homecenter Calle 80',   'en_produccion'),
-    (2, 'Gancho porta-taladro con seguro',       80,'Homecenter Calle 80',   'pendiente'),
-    (3, 'Módulo frío exhibición lácteos',         3, 'Supermercados piloto', 'pendiente'),
-    (4, 'Módulo café isla aeropuerto',            1, 'El Dorado - Puerta 12','listo'),
-    (5, 'Stand interactivo LEGO modular',         2, 'C.C. Santafé - Piso 2','en_produccion')`)
+  await pool.query(`INSERT INTO detalle_pedido (id_pedido, producto, cantidad, estado) VALUES
+    (1, 'Exhibidor metálico aceites Castrol',   12, 'en_produccion'),
+    (1, 'Base para garrafas 4L',                12, 'pendiente'),
+    (2, 'Display pared Bosch Power Tools',       5, 'en_produccion'),
+    (2, 'Gancho porta-taladro con seguro',       80,'pendiente'),
+    (3, 'Módulo frío exhibición lácteos',         3, 'pendiente'),
+    (4, 'Módulo café isla aeropuerto',            1, 'listo'),
+    (5, 'Stand interactivo LEGO modular',         2, 'en_produccion')`)
+
+  // puntos_entrega_detalle no existe (normalizado en 1FN) — reemplaza al
+  // antiguo detalle_pedido.punto_descargue, igual que pedidos.controller.js
+  // (guardarUbicaciones). El primer ítem se reparte entre 2 destinos a
+  // propósito, para demostrar el caso real de envío a varias ubicaciones;
+  // el resto va completo a un solo destino. El orden de id_detalle coincide
+  // con el orden del INSERT de arriba (AUTO_INCREMENT no se resetea en cada
+  // seed, así que no se pueden hardcodear los id_detalle).
+  const [detalleRows] = await pool.query(
+    `SELECT id_detalle, id_pedido FROM detalle_pedido WHERE id_pedido IN (1,2,3,4,5) ORDER BY id_detalle`)
+  // id_pedido == id_proyecto para los 5 pedidos con proyecto de este seed (ver
+  // el INSERT INTO proyectos de abajo: proyecto 1 ↔ pedido 1, ..., proyecto 5 ↔
+  // pedido 5) — se reutiliza más abajo para generar las fases por ítem.
+  const itemsPorProyecto = {}
+  for (const row of detalleRows) {
+    (itemsPorProyecto[row.id_pedido] ||= []).push(row.id_detalle)
+  }
+  const ubicacionesPorItem = [
+    [{ direccion: 'Talleres Bogotá Norte', cantidad: 8 }, { direccion: 'Talleres Bogotá Sur', cantidad: 4 }],
+    [{ direccion: 'Talleres Bogotá Norte', cantidad: 12 }],
+    [{ direccion: 'Homecenter Calle 80', cantidad: 5 }],
+    [{ direccion: 'Homecenter Calle 80', cantidad: 80 }],
+    [{ direccion: 'Supermercados piloto', cantidad: 3 }],
+    [{ direccion: 'El Dorado - Puerta 12', cantidad: 1 }],
+    [{ direccion: 'C.C. Santafé - Piso 2', cantidad: 2 }],
+  ]
+  const entregaValues = detalleRows.flatMap((row, i) =>
+    ubicacionesPorItem[i].map(u => [row.id_detalle, u.direccion, u.cantidad]))
+  await pool.query(
+    'INSERT INTO puntos_entrega_detalle (id_detalle, direccion, cantidad) VALUES ?', [entregaValues])
   console.log('✅ Pedidos y detalles (proyectos reales Macromet)')
 
   // ── FASES ESTÁNDAR adaptadas a Macromet ───────────
   await pool.query(`DELETE FROM fases_estandar`)
   await pool.query(`ALTER TABLE fases_estandar AUTO_INCREMENT = 1`)
-  // Fase 1 (Diseño, render e ingeniería) y fase 2 (Compra de materiales) son "fases
-  // únicas": una sola por proyecto, asignadas automáticamente a una persona por rol
-  // (ver resolveUsuarioPorRol en proyectos.controller.js), sin turno de planta ni
-  // máquina. De la fase 3 en adelante, cada fase se repite una vez por ítem del
-  // pedido (ver proyectos.controller.js create).
-  // requiere_turno=0: fase de control manual, nunca recibe turnos de Programación
-  // (Diseño/Compra ya lo eran; Pintura y acabados se agrega porque la hace un
-  // tercero, no personal ni equipo propio). categoria_equipo: qué categoría de
-  // maquinaria.categoria aplica a cada fase — NULL cuando no hay equipo obligatorio.
-  await pool.query(`INSERT INTO fases_estandar (nombre, descripcion, orden, requiere_turno, categoria_equipo) VALUES
-    ('Diseño, render e ingeniería', 'Diseño 3D, renderizado, aprobación por el cliente, planos técnicos y despiece', 1, 0, NULL),
-    ('Compra de materiales',     'Adquisición de lámina, tubería, platina y demás insumos',       2, 0, NULL),
-    ('Corte',                    'Tronzado, cizallado y corte de piezas según planos',             3, 1, 'maquinaria_pesada'),
-    ('Doblez y conformado',      'Doblado de lámina y tubo según geometría del diseño',           4, 1, 'maquinaria_pesada'),
-    ('Soldadura MIG',            'Unión de componentes metálicos en puestos de soldadura',        5, 1, 'equipo_mig'),
-    ('Lijado y preparación',     'Esmerilado, lijado y preparación de superficies',               6, 1, 'herramienta_electrica'),
-    ('Pintura y acabados',       'Pintura electrostática, anodizado o acabado final — la realiza un tercero', 7, 0, NULL),
-    ('Ensamble final',           'Ensamble y ajuste de todos los componentes del exhibidor',      8, 1, 'herramienta_electrica'),
-    ('Control de calidad',       'Revisión dimensional, visual y funcional del producto',         9, 1, NULL),
-    ('Despacho e instalación',   'Empaque, transporte e instalación en el punto de venta',       10, 1, NULL)`)
+  // Fases únicas (Diseño, Compra), por ítem, requiere_turno y categoria_equipo: ver catalogos.js
+  await cargarFasesEstandar(pool)
   console.log('✅ Fases estándar (adaptadas al proceso real de Macromet)')
 
   // ── MAQUINARIA REAL del inventario ────────────────
@@ -291,14 +291,27 @@ const seed = async () => {
   }
 
   // Fase "Diseño, render e ingeniería" y "Compra de materiales" son únicas del
-  // proyecto, asignadas automáticamente por rol — igual que proyectos.controller.js create().
+  // proyecto, asignadas automáticamente por rol — igual que proyectos.controller.js
+  // create(). El resto de fases (Corte → Despacho) se clona una vez por ítem del
+  // pedido (mismo avance/estado de la "historia" de arriba duplicado en cada
+  // ítem) — igual que create() hace con items.length > 0 — para que el panel
+  // "Resumen por fase" de ProyectoDetalle.jsx tenga datos reales que mostrar en
+  // los proyectos Castrol y Bosch (2 ítems cada uno). Sin ítems (proyectos
+  // Makita/3M, sin pedido) se inserta una sola fila sin ítem, como antes.
   for (const [p, filas] of filasPorProyecto) {
+    const items = itemsPorProyecto[p] || []
     for (const [nombre, { fi, ff, est, av }] of filas) {
+      const esFaseUnica = nombre === 'Diseño, render e ingeniería' || nombre === 'Compra de materiales'
       const id_usuario_asignado = nombre === 'Diseño, render e ingeniería' ? admin
         : nombre === 'Compra de materiales' ? coord_prod : null
-      await pool.query(
-        `INSERT INTO fases_proyecto (id_proyecto,id_fase_estandar,fecha_inicio,fecha_fin,estado,porcentaje_avance,id_usuario_asignado)
-         VALUES (?,?,?,?,?,?,?)`, [p, fid[nombre], fi, ff, est, av, id_usuario_asignado])
+      const destinos = esFaseUnica || items.length === 0 ? [null] : items
+      for (const id_detalle_pedido of destinos) {
+        await pool.query(
+          `INSERT INTO fases_proyecto
+           (id_proyecto,id_fase_estandar,id_detalle_pedido,fecha_inicio,fecha_fin,estado,porcentaje_avance,id_usuario_asignado)
+           VALUES (?,?,?,?,?,?,?,?)`,
+          [p, fid[nombre], id_detalle_pedido, fi, ff, est, av, id_usuario_asignado])
+      }
     }
   }
   console.log('✅ Fases de proyecto (todas las fases estándar por proyecto, sin omitir ninguna)')
@@ -310,23 +323,29 @@ const seed = async () => {
   // recomputeFase en programacion.controller.js), el resultado coincida exactamente
   // con el estado/avance ya sembrado arriba para esa fase — así la demo queda
   // consistente con el flujo real de principio a fin.
-  const today = new Date().toISOString().split('T')[0]
+  const today = hoyISO()
+  // Proyectos 1 y 2 ahora tienen una fila de fase por ítem (ver arriba) — estos
+  // turnos de ejemplo se anclan al primer ítem de cada uno (id_detalle_pedido)
+  // para que la sub-consulta siga devolviendo una sola fila en vez de las 2 que
+  // ahora existen por fase.
+  const item1Castrol = itemsPorProyecto[1][0]
+  const item1Bosch    = itemsPorProyecto[2][0]
   await pool.query(`INSERT INTO programacion_planta
     (fecha, id_operario, id_maquina, id_proyecto, id_fase_proyecto, tiempo_estimado, tiempo_real, porcentaje_avance, estado, observaciones) VALUES
     -- P1 Castrol · fase "Pintura y acabados" (en_curso, 70%) = promedio de estos 2 turnos
     (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='EM-01'),
-     1, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=1 AND id_fase_estandar=7),
+     1, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=1 AND id_fase_estandar=7 AND id_detalle_pedido=${item1Castrol}),
      480, 460, 100, 'completado', 'Aplicación de base — marco exhibidor Castrol'),
     (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='EM-01'),
-     1, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=1 AND id_fase_estandar=7),
+     1, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=1 AND id_fase_estandar=7 AND id_detalle_pedido=${item1Castrol}),
      480, NULL, 40, 'en_proceso', 'Pintura electrostática — segunda mano'),
     -- P2 Bosch · fase "Soldadura MIG" (en_curso, 55%) = este único turno
     (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='EM-02'),
-     2, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=2 AND id_fase_estandar=5),
+     2, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=2 AND id_fase_estandar=5 AND id_detalle_pedido=${item1Bosch}),
      480, NULL, 55, 'en_proceso', 'Soldadura laterales display Bosch'),
     -- P2 Bosch · fase "Lijado y preparación" (pendiente, 0%) — turno aún sin iniciar
     (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='TZ-01'),
-     2, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=2 AND id_fase_estandar=6),
+     2, (SELECT id_fase_proyecto FROM fases_proyecto WHERE id_proyecto=2 AND id_fase_estandar=6 AND id_detalle_pedido=${item1Bosch}),
      240, NULL, 0, 'programado', 'Corte de perfilería cuadrada 20x20'),
     -- P5 LEGO · fase "Soldadura MIG" (pendiente, 0%) — turno aún sin iniciar
     (?, ?, (SELECT id_maquina FROM maquinaria WHERE codigo='TZ-02'),
@@ -337,6 +356,12 @@ const seed = async () => {
      today, uid['soldador2@macromet.com.co'],
      today, uid['soldador3@macromet.com.co'],
      today, uid['ayudante@macromet.com.co']])
+  // Las actividades ya iniciadas o completadas deben tener sus horas registradas,
+  // igual que las deja programacion.controller.js updateEstado.
+  await pool.query(`UPDATE programacion_planta SET hora_inicio = updated_at WHERE estado = 'en_proceso'`)
+  await pool.query(`UPDATE programacion_planta
+    SET hora_fin = updated_at, hora_inicio = DATE_SUB(updated_at, INTERVAL tiempo_real MINUTE)
+    WHERE estado = 'completado' AND tiempo_real IS NOT NULL`)
   console.log('✅ Programación de planta (hoy) — con fases vinculadas')
 
   // ── MANTENIMIENTOS ────────────────────────────────
@@ -350,6 +375,18 @@ const seed = async () => {
            'Reparación cargador y revisión de carbones',
            ?
     FROM maquinaria WHERE codigo = 'TL-07'`, [uid['martin@macromet.com.co']])
+  // Uno próximo y uno vencido, para demostrar la lista de programados y sus alertas
+  const diasDesdeHoy = (dias) => {
+    const d = new Date(`${hoyISO()}T00:00:00`)
+    d.setDate(d.getDate() + dias)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  await pool.query(`INSERT INTO mantenimientos (id_maquina, fecha, tipo, descripcion, estado)
+    SELECT id_maquina, ?, 'preventivo', 'Revisión de antorcha y alimentador de alambre', 'programado'
+    FROM maquinaria WHERE codigo = 'EM-03'`, [diasDesdeHoy(4)])
+  await pool.query(`INSERT INTO mantenimientos (id_maquina, fecha, tipo, descripcion, estado)
+    SELECT id_maquina, ?, 'calibracion', 'Calibración anual de la tronzadora', 'programado'
+    FROM maquinaria WHERE codigo = 'TZ-01'`, [diasDesdeHoy(-2)])
   console.log('✅ Mantenimientos')
 
   console.log('\n🎉 Seed Macromet completado')

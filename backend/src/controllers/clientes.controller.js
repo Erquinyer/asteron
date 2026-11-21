@@ -1,4 +1,5 @@
 import pool from '../config/db.js'
+import { responderError } from '../utils/errores.js'
 
 const BASE = `
   SELECT c.*,
@@ -12,6 +13,27 @@ const BASE = `
   LEFT JOIN contactos_cliente cc ON cc.id_cliente = c.id_cliente
   LEFT JOIN direcciones_cliente d ON d.id_cliente = c.id_cliente
   LEFT JOIN pedidos p ON p.id_cliente = c.id_cliente`
+
+// Traduce errores reales de MySQL a una respuesta clara para el cliente HTTP.
+// Un doble de la BD (pool simulado) no distingue cuál UNIQUE KEY falló ni
+// trunca datos por longitud — esto solo salió al probar contra el motor
+// real (ver tests/integration/clientes.db.test.js, semana 6):
+// - `clientes` tiene DOS unique keys (nit y codigo_cliente); antes de este
+//   cambio, cualquier ER_DUP_ENTRY respondía siempre "el código ya existe",
+//   aunque el NIT fuera el que chocó.
+// - `nombre` es VARCHAR(120): un nombre más largo no viola ninguna regla de
+//   la app, pero MySQL lo rechaza con ER_DATA_TOO_LONG, que caía al 500
+//   genérico en vez de un 400 claro.
+const mensajeErrorCliente = (err) => {
+  if (err.code === 'ER_DUP_ENTRY') {
+    if (err.sqlMessage?.includes('uq_cliente_nit')) return { status: 409, message: 'El NIT ya existe' }
+    return { status: 409, message: 'El código de cliente ya existe' }
+  }
+  if (err.code === 'ER_DATA_TOO_LONG') {
+    return { status: 400, message: 'Uno de los campos supera la longitud permitida' }
+  }
+  return null
+}
 
 // Reemplaza por completo las direcciones de un cliente (el formulario edita
 // la lista entera cada vez, igual que los ítems de un pedido).
@@ -31,8 +53,7 @@ export const getAll = async (_req, res) => {
     const [rows] = await pool.query(`${BASE} GROUP BY c.id_cliente ORDER BY c.nombre`)
     res.json(rows)
   } catch (err) {
-    console.error('[clientes.getAll]', err)
-    res.status(500).json({ message: 'Error al obtener clientes' })
+    responderError(res, err, 'clientes.getAll', 'Error al obtener clientes')
   }
 }
 
@@ -55,8 +76,7 @@ export const getOne = async (req, res) => {
 
     res.json({ ...rows[0], direcciones, pedidos })
   } catch (err) {
-    console.error('[clientes.getOne]', err)
-    res.status(500).json({ message: 'Error al obtener cliente' })
+    responderError(res, err, 'clientes.getOne', 'Error al obtener cliente')
   }
 }
 
@@ -71,9 +91,9 @@ export const create = async (req, res) => {
     const [rows] = await pool.query(`${BASE} WHERE c.id_cliente = ? GROUP BY c.id_cliente`, [result.insertId])
     res.status(201).json(rows[0])
   } catch (err) {
-    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'El código de cliente ya existe' })
-    console.error('[clientes.create]', err)
-    res.status(500).json({ message: 'Error al crear cliente' })
+    const conocido = mensajeErrorCliente(err)
+    if (conocido) return res.status(conocido.status).json({ message: conocido.message })
+    responderError(res, err, 'clientes.create', 'Error al crear cliente')
   }
 }
 
@@ -88,9 +108,9 @@ export const update = async (req, res) => {
     const [rows] = await pool.query(`${BASE} WHERE c.id_cliente = ? GROUP BY c.id_cliente`, [req.params.id])
     res.json(rows[0])
   } catch (err) {
-    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'El código de cliente ya existe' })
-    console.error('[clientes.update]', err)
-    res.status(500).json({ message: 'Error al actualizar cliente' })
+    const conocido = mensajeErrorCliente(err)
+    if (conocido) return res.status(conocido.status).json({ message: conocido.message })
+    responderError(res, err, 'clientes.update', 'Error al actualizar cliente')
   }
 }
 
@@ -100,7 +120,6 @@ export const remove = async (req, res) => {
     if (result.affectedRows === 0) return res.status(404).json({ message: 'Cliente no encontrado' })
     res.json({ message: 'Cliente eliminado' })
   } catch (err) {
-    console.error('[clientes.remove]', err)
-    res.status(500).json({ message: 'Error al eliminar cliente' })
+    responderError(res, err, 'clientes.remove', 'Error al eliminar cliente')
   }
 }

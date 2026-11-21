@@ -11,6 +11,7 @@ export default function FieldFilter({ fields, field, onFieldChange, value, onVal
       focus-within:border-primary transition-colors ${className}`}
     >
       <select
+        aria-label="Buscar en"
         value={field}
         onChange={e => onFieldChange(e.target.value)}
         className="h-full pl-3 pr-6 bg-surface2 border-r border-border
@@ -33,6 +34,7 @@ export default function FieldFilter({ fields, field, onFieldChange, value, onVal
           value={value}
           onChange={e => onValueChange(e.target.value)}
           placeholder={current.placeholder || 'Buscar…'}
+          aria-label={`Buscar por ${current.label.toLowerCase()}`}
           className="w-full h-[38px] pl-7 pr-3 bg-transparent text-[13px]
             text-ink placeholder:text-faint focus:outline-none"
         />

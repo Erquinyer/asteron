@@ -82,13 +82,13 @@ function MaquinaModal({ maquina, onClose, onSaved }) {
   const field = (name, label, placeholder = '') => (
     <div key={name}>
       <label className={labelCls}>{label}</label>
-      <input name={name} value={form[name]} onChange={set}
+      <input name={name} aria-label={label.replace(/\s*\*$/, '')} value={form[name]} onChange={set}
         placeholder={placeholder} className={inputCls} />
     </div>
   )
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto
+    <div role="dialog" aria-modal="true" aria-label={maquina ? 'Editar equipo' : 'Nuevo equipo'} className="fixed inset-0 z-50 overflow-y-auto
       bg-black/50 backdrop-blur-sm p-4 animate-ov-in"
     >
       <div className="min-h-full flex items-center justify-center">
@@ -112,7 +112,7 @@ function MaquinaModal({ maquina, onClose, onSaved }) {
               </p>
             </div>
           </div>
-          <button onClick={onClose}
+          <button aria-label="Cerrar" onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-[8px]
               bg-surface2 text-faint hover:text-muted transition-colors"
           >
@@ -122,15 +122,15 @@ function MaquinaModal({ maquina, onClose, onSaved }) {
 
         {/* Cuerpo */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {field('nombre', 'Nombre *', 'Ej: Equipo MIG')}
             {field('codigo', 'Código',   'Ej: EM-07')}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Categoría</label>
-              <select name="categoria" value={form.categoria} onChange={set} className={inputCls}>
+              <select aria-label="Categoría" name="categoria" value={form.categoria} onChange={set} className={inputCls}>
                 <option value="maquinaria_pesada">Maquinaria pesada</option>
                 <option value="equipo_mig">Equipo MIG</option>
                 <option value="herramienta_electrica">Herramienta eléctrica</option>
@@ -138,7 +138,7 @@ function MaquinaModal({ maquina, onClose, onSaved }) {
             </div>
             <div>
               <label className={labelCls}>Estado</label>
-              <select name="estado" value={form.estado} onChange={set} className={inputCls}>
+              <select aria-label="Estado" name="estado" value={form.estado} onChange={set} className={inputCls}>
                 {Object.entries(estadoConfig).map(([k, v]) => (
                   <option key={k} value={k}>{v.label}</option>
                 ))}
@@ -146,19 +146,19 @@ function MaquinaModal({ maquina, onClose, onSaved }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {field('marca',      'Marca',      'Ej: ESAB')}
             {field('referencia', 'Referencia', 'Ej: Smashweld 257')}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {field('serial',    'Serial',     'Ej: F1002540')}
             {field('ubicacion', 'Ubicación',  'Ej: Planta A')}
           </div>
 
           <div>
             <label className={labelCls}>Encargado / Responsable</label>
-            <select name="id_responsable" value={form.id_responsable} onChange={set} className={inputCls}>
+            <select aria-label="Encargado / Responsable" name="id_responsable" value={form.id_responsable} onChange={set} className={inputCls}>
               <option value="">Sin asignar</option>
               {encargados.map(u => (
                 <option key={u.id_usuario} value={u.id_usuario}>{u.nombre} — {u.rol}</option>
@@ -168,7 +168,7 @@ function MaquinaModal({ maquina, onClose, onSaved }) {
 
           <div>
             <label className={labelCls}>Descripción</label>
-            <textarea name="descripcion" value={form.descripcion} onChange={set} rows={2}
+            <textarea aria-label="Descripción" name="descripcion" value={form.descripcion} onChange={set} rows={2}
               placeholder="Descripción breve del equipo"
               className={`${inputCls} h-auto py-2.5 resize-none`} />
           </div>
@@ -264,6 +264,7 @@ export default function Maquinaria() {
             value={search}
             onChange={e => handleSearch(e.target.value)}
             placeholder="Buscar por código o serial…"
+            aria-label="Buscar equipos"
             className="w-full h-[38px] pl-9 pr-4 bg-surface border border-border
               rounded-control text-[13px] text-ink placeholder:text-faint
               focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary
@@ -458,7 +459,7 @@ export default function Maquinaria() {
                         <td className="px-[18px] py-[13px]">
                           <div className="flex items-center gap-0.5">
                             {canDo('maquinaria', 'editar') && (
-                              <button
+                              <button aria-label={`Editar ${m.nombre}`}
                                 onClick={() => setModal(m)}
                                 title="Editar"
                                 className="w-7 h-7 flex items-center justify-center rounded-badge
@@ -468,7 +469,7 @@ export default function Maquinaria() {
                               </button>
                             )}
                             {canDo('maquinaria', 'eliminar') && (
-                              <button
+                              <button aria-label={`Eliminar ${m.nombre}`}
                                 onClick={() => handleDelete(m)}
                                 title="Eliminar"
                                 className="w-7 h-7 flex items-center justify-center rounded-badge
