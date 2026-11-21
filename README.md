@@ -648,19 +648,19 @@ git push origin nombre/develop   # subir cambios a tu rama
 # Resetear datos (solo si es necesario)
 cd backend && pnpm seed
 ```
-------------------------------------------------------------------------
-## 📌 Tipo de Cambio (Semana 2)
-- [x] Configuración de CI (`.github/workflows/tests.yml`) y umbral de cobertura (30%).
-- [x] Pruebas unitarias de lógica pura en Frontend (`validaciones.test.js`).
+## Pruebas
 
-## 🧪 Pruebas Unitarias e Informe de Cobertura
-- Se implementaron 3 pruebas unitarias bajo la estructura **AAA** para `validarEmail()` y `validarPassword()`.
-- **Cobertura obtenida:** 88.88% de líneas / 80% de ramas (supera el piso del 30%).
+Plan, matriz de casos, reporte y colección Postman en **[`docs/pruebas/`](docs/pruebas/README.md)**.
 
-## 🧬 Evidencia de Mutación Manual
-- **Mutante probado:** Cambié `password.length < 8` por `password.length <= 8` en `validarPassword()`.
-- **Test que lo detectó:** `debe rechazar contraseñas de menos de 8 caracteres`.
+| Nivel | Herramienta | Comando | Estado (20 nov 2026) |
+|---|---|---|---|
+| Unitario + API (backend) | Vitest + Supertest, BD simulada | `cd backend && pnpm test:coverage` | 343 ✅ · cobertura de líneas 78,7 % (Programación 70,3 %) |
+| Unitario + componente (frontend) | Vitest + Testing Library | `cd frontend && pnpm test:coverage` | 48 ✅ · cobertura de líneas 7,3 % |
+| Integración con MySQL real | Vitest + Docker (`mysql-test`) | `docker compose up -d mysql-test && cd backend && pnpm test:integration` | 5 casos |
+| API de caja negra | Postman / Newman | ver [`docs/pruebas/README.md`](docs/pruebas/README.md) | 29 peticiones · 59 validaciones ✅ |
+| End-to-end | Playwright | `cd e2e && pnpm test` | 2 ✅ |
 
-## 👥 Asignaciones
-- **Autor:** @nixonhalejo
-- **Revisores asignados:** @Erquinyer
+- **CI:** `.github/workflows/tests.yml` corre las pruebas de backend y frontend en cada PR a `develop` y `main` y falla si la cobertura baja del umbral (`backend/vitest.config.js`, `frontend/vite.config.js`). Los umbrales solo suben.
+- **Ambiente de pruebas separado:** `bash docs/pruebas/preparar-ambiente.sh` crea la BD `asteron_test` y se levanta un backend aparte en el puerto 3001. Las pruebas que escriben datos no tocan la BD de desarrollo.
+- **Rotación por capas** (Front, API, BD, E2E) y cobertura semanal: [`docs/matriz-rotacion.md`](docs/matriz-rotacion.md). Hallazgos por semana: [`docs/retos/`](docs/retos/).
+- **Historial:** la semana 2 (Nixon, @nixonhalejo) configuró el CI con el primer umbral de cobertura (30 %) y las primeras pruebas AAA de `validarEmail()` / `validarPassword()`, con una mutación (`<` → `<=`) que el test detectó.
