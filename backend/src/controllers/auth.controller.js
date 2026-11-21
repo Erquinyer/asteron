@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import pool from '../config/db.js'
+import { POLITICA_DATOS_VERSION } from '../utils/politicaDatos.js'
 
 export const login = async (req, res) => {
   const { correo, contrasena } = req.body
@@ -82,6 +83,8 @@ export const login = async (req, res) => {
         rol:    user.rol,
         modulos,
         acciones,
+        // true = debe autorizar la versión vigente de la política de datos antes de usar el sistema
+        politica_pendiente: user.politica_datos_version !== POLITICA_DATOS_VERSION,
         token,
       },
     })

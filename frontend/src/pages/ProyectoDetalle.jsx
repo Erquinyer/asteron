@@ -8,9 +8,12 @@ import {
 import { useFetch }    from '../hooks/useFetch'
 import { getProyecto, updateFase } from '../api/proyectos.service'
 import { getActividadesFase } from '../api/programacion.service'
+import { canDo } from '../utils/auth'
+import { canAccess } from '../config/permissions'
 import { getUser }     from '../utils/auth'
 import Spinner    from '../components/ui/Spinner'
 import EmptyState from '../components/ui/EmptyState'
+import GaleriaEvidencias from '../components/evidencias/GaleriaEvidencias'
 import toast      from 'react-hot-toast'
 
 // ── Configuración de prioridades ──────────────────────────────────────────────
@@ -138,6 +141,8 @@ function ActividadesFase({ faseId, indent = true }) {
 
 // ── Tablero Kanban de fases (arrastrar y soltar entre Pendiente/En curso/Completada) ──
 function FaseKanbanCard({ fase, draggable, onDragStart, mostrarItem, abierta, onToggleActividades }) {
+  const { id: idProyecto } = useParams()
+  const navigate = useNavigate()
   const locked = fase.turnos_vinculados > 0
   return (
     <div
@@ -169,15 +174,27 @@ function FaseKanbanCard({ fase, draggable, onDragStart, mostrarItem, abierta, on
 
       {locked && (
         <div className="mt-2 pt-2 border-t border-border">
-          <button
-            type="button"
-            draggable={false}
-            onClick={(e) => { e.stopPropagation(); onToggleActividades(fase.id_fase_proyecto) }}
-            className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
-          >
-            <ChevronRight size={11} className={`transition-transform ${abierta ? 'rotate-90' : ''}`} />
-            {abierta ? 'Ocultar actividades' : 'Ver actividades'} ({fase.turnos_vinculados})
-          </button>
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              draggable={false}
+              onClick={(e) => { e.stopPropagation(); onToggleActividades(fase.id_fase_proyecto) }}
+              className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+            >
+              <ChevronRight size={11} className={`transition-transform ${abierta ? 'rotate-90' : ''}`} />
+              {abierta ? 'Ocultar actividades' : 'Ver actividades'} ({fase.turnos_vinculados})
+            </button>
+            {canAccess(getUser()?.rol, 'programacion') && (
+            <button
+              type="button"
+              draggable={false}
+              onClick={(e) => { e.stopPropagation(); navigate(`/programacion?proyecto=${idProyecto}`) }}
+              className="shrink-0 text-[11px] text-faint hover:text-primary hover:underline"
+            >
+              Ver en Programación →
+            </button>
+            )}
+          </div>
           {abierta && <ActividadesFase faseId={fase.id_fase_proyecto} indent={false} />}
         </div>
       )}
@@ -185,7 +202,7 @@ function FaseKanbanCard({ fase, draggable, onDragStart, mostrarItem, abierta, on
   )
 }
 
-function FasesKanban({ fases, mostrarItem, onDrop, openTurnos, onToggleTurnos }) {
+function FasesKanban({ fases, mostrarItem, onDrop, openTurnos, onToggleTurnos, soloLectura }) {
   const [dragId, setDragId] = useState(null)
 
   const handleDropColumn = (estado) => {
@@ -218,7 +235,7 @@ function FasesKanban({ fases, mostrarItem, onDrop, openTurnos, onToggleTurnos })
                   key={fase.id_fase_proyecto}
                   fase={fase}
                   mostrarItem={mostrarItem}
-                  draggable
+                  draggable={!soloLectura}
                   onDragStart={() => setDragId(fase.id_fase_proyecto)}
                   abierta={openTurnos.has(fase.id_fase_proyecto)}
                   onToggleActividades={onToggleTurnos}
@@ -236,7 +253,7 @@ function FasesKanban({ fases, mostrarItem, onDrop, openTurnos, onToggleTurnos })
 // acabado colapsable por ítem (mismo encabezado que la vista Lista), con un
 // tablero Pendiente/En curso/Completada propio adentro — así con varios
 // ítems no queda todo mezclado en las mismas tres columnas.
-function ItemsKanban({ grupos, openItems, onToggleItem, openTurnos, onToggleTurnos, onDrop }) {
+function ItemsKanban({ grupos, openItems, onToggleItem, openTurnos, onToggleTurnos, onDrop, soloLectura }) {
   return (
     <div className="divide-y divide-border">
       {grupos.map(grupo => {
@@ -282,7 +299,7 @@ function ItemsKanban({ grupos, openItems, onToggleItem, openTurnos, onToggleTurn
             </button>
             {abierto && (
               <FasesKanban fases={grupo.fases} mostrarItem={false} onDrop={onDrop}
-                openTurnos={openTurnos} onToggleTurnos={onToggleTurnos}
+                openTurnos={openTurnos} onToggleTurnos={onToggleTurnos} soloLectura={soloLectura}
               />
             )}
           </div>
@@ -303,6 +320,8 @@ export default function ProyectoDetalle() {
   const [openItems,  setOpenItems]  = useState(new Set())
   const [openTurnos, setOpenTurnos] = useState(new Set())
   const [vista,      setVista]      = useState('lista') // 'lista' | 'kanban'
+  // Sin la acción "editar" el proyecto se consulta en solo lectura (ej. Ejecutivo Comercial).
+  const soloLectura = !canDo('proyectos', 'editar')
 
   const toggleTurnos = (faseId) => setOpenTurnos(prev => {
     const next = new Set(prev)
@@ -338,6 +357,28 @@ export default function ProyectoDetalle() {
     grupo.fases.push(f)
   }
   const mostrarPorItem = gruposItem.length > 1
+
+  // Fotos: quien edita proyectos o programación puede adjuntar a cualquier fase;
+  // la persona asignada a Diseño/Compra, solo a su fase (mismas reglas que el backend).
+  const puedeEditarFotos = canDo('proyectos', 'editar') || canDo('programacion', 'editar')
+  const fasesFoto = puedeEditarFotos
+    ? fases
+    : fases.filter(f => f.id_usuario_asignado === user?.id_usuario)
+
+  // Resumen cruzado por fase: cuántos productos hay en cada estado para una
+  // misma fase (ej. "Corte: 2 completados, 1 en curso, 2 pendientes") — el
+  // acordeón por ítem de abajo ya muestra las fases agrupadas por producto,
+  // pero no permite ver de un vistazo cuántos productos hay en una fase dada.
+  const resumenPorFase = []
+  for (const f of fasesResto) {
+    let r = resumenPorFase.find(r => r.fase_nombre === f.fase_nombre)
+    if (!r) {
+      r = { fase_nombre: f.fase_nombre, total: 0, pendiente: 0, en_curso: 0, completada: 0, bloqueada: 0 }
+      resumenPorFase.push(r)
+    }
+    r.total++
+    r[f.estado] = (r[f.estado] ?? 0) + 1
+  }
 
   const toggleItem = (key) => setOpenItems(prev => {
     const next = new Set(prev)
@@ -419,7 +460,7 @@ export default function ProyectoDetalle() {
     const cfg      = faseCfg[edit.estado] || faseCfg.pendiente
     const locked   = fase.turnos_vinculados > 0
     const turnosAbierto = openTurnos.has(fase.id_fase_proyecto)
-    const dirty    = !locked && isDirty(fase)
+    const dirty    = !locked && !soloLectura && isDirty(fase)
     const isSaving = saving === fase.id_fase_proyecto
     const IconComp = cfg.Icon
 
@@ -452,8 +493,9 @@ export default function ProyectoDetalle() {
 
           {/* Select de estado */}
           <select
+            aria-label={`Estado de la fase ${fase.fase_nombre}`}
             value={edit.estado}
-            disabled={locked}
+            disabled={locked || soloLectura}
             onChange={e =>
               setEdit(fase.id_fase_proyecto, 'estado', e.target.value)
             }
@@ -462,7 +504,7 @@ export default function ProyectoDetalle() {
               border-0 appearance-none text-center
               focus:outline-none focus:ring-2 focus:ring-primary/25
               transition-colors ${cfg.selectStyle}
-              ${locked ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
+              ${locked || soloLectura ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
           >
             {ESTADOS_FASE.map(s => (
               <option key={s} value={s}>{estadoLabel[s]}</option>
@@ -482,8 +524,9 @@ export default function ProyectoDetalle() {
             </div>
             <input
               type="number" min={0} max={100}
+              aria-label={`Avance de la fase ${fase.fase_nombre} (%)`}
               value={edit.porcentaje_avance}
-              disabled={locked}
+              disabled={locked || soloLectura}
               onChange={e =>
                 setEdit(
                   fase.id_fase_proyecto,
@@ -530,18 +573,29 @@ export default function ProyectoDetalle() {
 
         {locked && (
           <div className="mt-1.5 ml-[68px]">
-            <button
-              type="button"
-              onClick={() => toggleTurnos(fase.id_fase_proyecto)}
-              className="flex items-center gap-1 text-[11.5px] font-semibold
-                text-primary hover:underline"
-            >
-              <ChevronRight size={12}
-                className={`transition-transform ${turnosAbierto ? 'rotate-90' : ''}`}
-              />
-              {turnosAbierto ? 'Ocultar actividades' : 'Ver actividades'}
-              {' '}({fase.turnos_vinculados})
-            </button>
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => toggleTurnos(fase.id_fase_proyecto)}
+                className="flex items-center gap-1 text-[11.5px] font-semibold
+                  text-primary hover:underline"
+              >
+                <ChevronRight size={12}
+                  className={`transition-transform ${turnosAbierto ? 'rotate-90' : ''}`}
+                />
+                {turnosAbierto ? 'Ocultar actividades' : 'Ver actividades'}
+                {' '}({fase.turnos_vinculados})
+              </button>
+              {canAccess(getUser()?.rol, 'programacion') && (
+              <button
+                type="button"
+                onClick={() => navigate(`/programacion?proyecto=${id}`)}
+                className="shrink-0 text-[11.5px] text-faint hover:text-primary hover:underline"
+              >
+                Ver en Programación →
+              </button>
+              )}
+            </div>
             {turnosAbierto && <ActividadesFase faseId={fase.id_fase_proyecto} />}
           </div>
         )}
@@ -554,7 +608,7 @@ export default function ProyectoDetalle() {
 
       {/* ── Encabezado ── */}
       <div className="flex items-start gap-3">
-        <button
+        <button aria-label="Volver a proyectos"
           onClick={() => navigate('/proyectos')}
           className="mt-0.5 w-9 h-9 flex items-center justify-center shrink-0
             border border-border rounded-control
@@ -589,6 +643,26 @@ export default function ProyectoDetalle() {
             <span className={`w-1.5 h-1.5 rounded-full ${egCfg.dot}`} />
             {egCfg.label}
           </span>
+          {proyecto.id_pedido && (
+            <button type="button"
+              onClick={() => navigate(`/pedidos?ver=${proyecto.id_pedido}`)}
+              className="inline-flex items-center gap-1.5 font-mono text-[11px]
+                font-semibold px-2.5 py-[5px] rounded-badge
+                bg-surface2 text-muted border border-border hover:text-primary hover:border-primary/30 transition-colors"
+            >
+              <Package size={11} /> Ver pedido #{proyecto.id_pedido}
+            </button>
+          )}
+          {canAccess(getUser()?.rol, 'programacion') && (
+          <button type="button"
+            onClick={() => navigate(`/programacion?proyecto=${id}&tab=en_proceso`)}
+            className="inline-flex items-center gap-1.5 font-mono text-[11px]
+              font-semibold px-2.5 py-[5px] rounded-badge
+              bg-surface2 text-muted border border-border hover:text-primary hover:border-primary/30 transition-colors"
+          >
+            <Clock3 size={11} /> Actividades en curso
+          </button>
+          )}
         </div>
       </div>
 
@@ -769,6 +843,50 @@ export default function ProyectoDetalle() {
           )}
         </div>
 
+        {/* Resumen por fase: cuántos productos hay en cada fase, por estado —
+            solo tiene sentido con 2+ productos (si no, coincide 1 a 1 con la
+            lista de abajo). */}
+        {mostrarPorItem && resumenPorFase.length > 0 && (
+          <div className="px-6 py-4 border-b border-border bg-surface2">
+            <p className="font-mono text-[9px] font-semibold uppercase tracking-[.08em] text-faint mb-2.5">
+              Resumen por fase ({gruposItem.length} productos)
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+              {resumenPorFase.map(r => (
+                <div key={r.fase_nombre}
+                  className="bg-surface border border-border rounded-control p-2.5"
+                >
+                  <p className="text-[11.5px] font-medium text-ink truncate mb-1.5" title={r.fase_nombre}>
+                    {r.fase_nombre}
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap font-mono text-[10.5px]">
+                    {r.completada > 0 && (
+                      <span className="flex items-center gap-1 text-success">
+                        <CheckCircle2 size={11} /> {r.completada}
+                      </span>
+                    )}
+                    {r.en_curso > 0 && (
+                      <span className="flex items-center gap-1 text-primary">
+                        <Clock3 size={11} /> {r.en_curso}
+                      </span>
+                    )}
+                    {r.pendiente > 0 && (
+                      <span className="flex items-center gap-1 text-faint">
+                        <Circle size={11} /> {r.pendiente}
+                      </span>
+                    )}
+                    {r.bloqueada > 0 && (
+                      <span className="flex items-center gap-1 text-error">
+                        <Lock size={11} /> {r.bloqueada}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {fasesResto.length === 0 ? (
           <div className="p-10 text-center font-mono text-[13px] text-faint">
             No hay fases registradas.
@@ -777,10 +895,11 @@ export default function ProyectoDetalle() {
           mostrarPorItem ? (
             <ItemsKanban grupos={gruposItem} openItems={openItems} onToggleItem={toggleItem}
               openTurnos={openTurnos} onToggleTurnos={toggleTurnos} onDrop={handleKanbanDrop}
+              soloLectura={soloLectura}
             />
           ) : (
             <FasesKanban fases={fasesResto} mostrarItem={false} onDrop={handleKanbanDrop}
-              openTurnos={openTurnos} onToggleTurnos={toggleTurnos}
+              openTurnos={openTurnos} onToggleTurnos={toggleTurnos} soloLectura={soloLectura}
             />
           )
         ) : !mostrarPorItem ? (
@@ -841,6 +960,13 @@ export default function ProyectoDetalle() {
           </div>
         )}
       </div>
+
+      {/* ── Evidencia fotográfica (RF-25/RF-26) ── */}
+      <GaleriaEvidencias
+        idProyecto={Number(id)}
+        fases={fasesFoto}
+        puedeSubir={puedeEditarFotos || fasesFoto.length > 0}
+      />
     </div>
   )
 }

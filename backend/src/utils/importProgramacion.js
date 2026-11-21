@@ -1,6 +1,7 @@
 import { Readable } from 'node:stream'
 import ExcelJS from 'exceljs'
 import pool from '../config/db.js'
+import { ErrorApp } from './errores.js'
 
 const norm = (s) => String(s ?? '').trim().toLowerCase()
 
@@ -43,7 +44,7 @@ export async function leerFilas(buffer, nombreArchivo) {
   const faltantes = COLUMNAS_REQUERIDAS.filter(req =>
     !columnas.some(c => norm(c) === norm(req)))
   if (faltantes.length > 0) {
-    throw new Error(
+    throw new ErrorApp(400,
       `El archivo no tiene las columnas requeridas: ${faltantes.join(', ')}. Descarga la plantilla e intenta de nuevo.`)
   }
 

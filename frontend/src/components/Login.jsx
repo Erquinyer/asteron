@@ -87,7 +87,7 @@ const Login = () => {
           <div role="alert" className="mb-5 flex items-start gap-2.5 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30">
             <AlertCircle size={15} className="text-red-400 shrink-0 mt-0.5" />
             <p className="text-red-400 text-sm">
-              Valide el usuario y la contraseña ingresados.
+              {serverError}
             </p>
           </div>
         )}
@@ -181,7 +181,10 @@ const Login = () => {
 
       {/* Footer */}
       <p className="relative z-10 mt-8 text-xs text-slate-600 text-center">
-        © {new Date().getFullYear()} Asteron · Macromet S.A.S.
+        © {new Date().getFullYear()} Asteron · Macromet S.A.S. ·{' '}
+        <Link to="/politica-datos" className="hover:text-slate-400 underline-offset-2 hover:underline">
+          Política de tratamiento de datos
+        </Link>
       </p>
 
     </div>

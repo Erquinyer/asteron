@@ -1,4 +1,6 @@
 import pool from '../config/db.js'
+import { fotoUsuario, registrarBitacora } from '../utils/bitacora.js'
+import { responderError } from '../utils/errores.js'
 
 // Rol protegido: no se puede editar, eliminar ni reasignar desde ningún endpoint de admin
 export const ROL_INMUTABLE = 'Administrador Sistema'
@@ -22,6 +24,7 @@ const MODULO_ACCIONES = {
   mantenimientos: ['crear', 'eliminar'],
   programacion:   ['crear', 'editar', 'eliminar'],
   usuarios:       ['crear', 'editar', 'eliminar'],
+  reportes:       [],
 }
 
 // GET /api/admin/usuarios
@@ -36,7 +39,7 @@ export const getUsuariosAdmin = async (_req, res) => {
       ORDER BY u.codigo_empleado`)
     res.json(rows)
   } catch (err) {
-    res.status(500).json({ message: 'Error al obtener usuarios' })
+    responderError(res, err, 'admin.getUsuarios', 'Error al obtener usuarios')
   }
 }
 
@@ -72,8 +75,7 @@ export const getAcciones = async (_req, res) => {
       })),
     })
   } catch (err) {
-    console.error('[admin.getAcciones]', err)
-    res.status(500).json({ message: 'Error al obtener acciones' })
+    responderError(res, err, 'admin.getAcciones', 'Error al obtener acciones')
   }
 }
 
@@ -151,8 +153,7 @@ export const guardarPermisosLote = async (req, res) => {
     res.json({ message: 'Permisos actualizados', cambios: cambios.length })
   } catch (err) {
     await conn.rollback()
-    console.error('[admin.guardarPermisosLote]', err)
-    res.status(500).json({ message: 'Error al guardar permisos' })
+    responderError(res, err, 'admin.guardarPermisosLote', 'Error al guardar permisos')
   } finally {
     conn.release()
   }
@@ -162,7 +163,7 @@ export const guardarPermisosLote = async (req, res) => {
 export const getRoles = async (_req, res) => {
   try {
     const [rows] = await pool.query(`
-      SELECT r.id_rol, r.nombre, r.descripcion,
+      SELECT r.id_rol, r.nombre, r.descripcion, r.valor_hora,
              COUNT(u.id_usuario) AS total_usuarios
       FROM roles r
       LEFT JOIN usuarios u ON u.id_rol = r.id_rol
@@ -170,24 +171,35 @@ export const getRoles = async (_req, res) => {
       ORDER BY r.id_rol`)
     res.json(rows)
   } catch (err) {
-    res.status(500).json({ message: 'Error al obtener roles' })
+    responderError(res, err, 'admin.getRoles', 'Error al obtener roles')
   }
+}
+
+// Valor hora del cargo, en COP: vacío significa "sin definir" (el reporte de costos
+// lo muestra como tal en vez de calcular un costo de cero).
+const leerValorHora = (valor) => {
+  if (valor === undefined || valor === null || valor === '') return { valor: null }
+  const numero = Number(valor)
+  if (!Number.isFinite(numero) || numero < 0) return { error: 'El valor hora no es válido' }
+  return { valor: numero }
 }
 
 // POST /api/admin/roles — create role
 export const createRol = async (req, res) => {
   const { nombre, descripcion = '' } = req.body
   if (!nombre?.trim()) return res.status(400).json({ message: 'El nombre es requerido' })
+  const valorHora = leerValorHora(req.body.valor_hora)
+  if (valorHora.error) return res.status(400).json({ message: valorHora.error })
   try {
     const [result] = await pool.query(
-      'INSERT INTO roles (nombre, descripcion) VALUES (?,?)',
-      [nombre.trim(), descripcion.trim()])
+      'INSERT INTO roles (nombre, descripcion, valor_hora) VALUES (?,?,?)',
+      [nombre.trim(), descripcion.trim(), valorHora.valor])
     const [[rol]] = await pool.query(
-      'SELECT id_rol, nombre, descripcion FROM roles WHERE id_rol = ?', [result.insertId])
+      'SELECT id_rol, nombre, descripcion, valor_hora FROM roles WHERE id_rol = ?', [result.insertId])
     res.status(201).json({ ...rol, total_usuarios: 0 })
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'Ya existe un rol con ese nombre' })
-    res.status(500).json({ message: 'Error al crear rol' })
+    responderError(res, err, 'admin.createRol', 'Error al crear rol')
   }
 }
 
@@ -196,21 +208,23 @@ export const updateRol = async (req, res) => {
   const { id } = req.params
   const { nombre, descripcion } = req.body
   if (!nombre?.trim()) return res.status(400).json({ message: 'El nombre es requerido' })
+  const valorHora = leerValorHora(req.body.valor_hora)
+  if (valorHora.error) return res.status(400).json({ message: valorHora.error })
 
   const [[rol]] = await pool.query('SELECT nombre FROM roles WHERE id_rol = ?', [id])
   const editErr = assertRolEditable(rol)
   if (editErr) return res.status(editErr.status).json({ message: editErr.message })
   try {
-    await pool.query('UPDATE roles SET nombre=?, descripcion=? WHERE id_rol=?',
-      [nombre.trim(), descripcion?.trim() ?? '', id])
+    await pool.query('UPDATE roles SET nombre=?, descripcion=?, valor_hora=? WHERE id_rol=?',
+      [nombre.trim(), descripcion?.trim() ?? '', valorHora.valor, id])
     const [[updated]] = await pool.query(
-      `SELECT r.id_rol, r.nombre, r.descripcion, COUNT(u.id_usuario) AS total_usuarios
+      `SELECT r.id_rol, r.nombre, r.descripcion, r.valor_hora, COUNT(u.id_usuario) AS total_usuarios
        FROM roles r LEFT JOIN usuarios u ON u.id_rol = r.id_rol
        WHERE r.id_rol = ? GROUP BY r.id_rol`, [id])
     res.json(updated)
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'Ya existe un rol con ese nombre' })
-    res.status(500).json({ message: 'Error al actualizar rol' })
+    responderError(res, err, 'admin.updateRol', 'Error al actualizar rol')
   }
 }
 
@@ -229,7 +243,7 @@ export const deleteRol = async (req, res) => {
     await pool.query('DELETE FROM roles WHERE id_rol = ?', [id])
     res.json({ message: 'Rol eliminado' })
   } catch (err) {
-    res.status(500).json({ message: 'Error al eliminar rol' })
+    responderError(res, err, 'admin.deleteRol', 'Error al eliminar rol')
   }
 }
 
@@ -248,13 +262,50 @@ export const updateUsuarioRol = async (req, res) => {
   }
 
   try {
+    const antes = await fotoUsuario(id)
     await pool.query('UPDATE usuarios SET id_rol = ? WHERE id_usuario = ?', [id_rol, id])
+    await registrarBitacora({
+      entidad: 'usuario', id_registro: Number(id), accion: 'editar',
+      antes, despues: await fotoUsuario(id), autor: req.user.id,
+    })
     const [[updated]] = await pool.query(`
       SELECT u.id_usuario, u.nombre, u.correo, u.id_rol, r.nombre AS rol
       FROM usuarios u LEFT JOIN roles r ON u.id_rol = r.id_rol
       WHERE u.id_usuario = ?`, [id])
     res.json(updated)
   } catch (err) {
-    res.status(500).json({ message: 'Error al actualizar rol' })
+    responderError(res, err, 'admin.updateUsuarioRol', 'Error al actualizar rol')
+  }
+}
+
+// GET /api/admin/bitacora — historial de cambios en usuarios y maquinaria (RNF-22)
+// Filtros opcionales: entidad, id_registro, desde, hasta (YYYY-MM-DD). Devuelve los 300 más recientes.
+export const getBitacora = async (req, res) => {
+  const { entidad, id_registro, desde, hasta } = req.query
+  const filtros = []
+  const valores = []
+  if (entidad) {
+    if (!['usuario', 'maquinaria'].includes(entidad)) {
+      return res.status(400).json({ message: 'entidad debe ser usuario o maquinaria' })
+    }
+    filtros.push('b.entidad = ?'); valores.push(entidad)
+  }
+  if (id_registro) { filtros.push('b.id_registro = ?'); valores.push(Number(id_registro)) }
+  // Rango por día completo: hasta incluye todo ese día
+  if (desde) { filtros.push('b.fecha >= ?');                         valores.push(desde) }
+  if (hasta) { filtros.push('b.fecha < DATE_ADD(?, INTERVAL 1 DAY)'); valores.push(hasta) }
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT b.id_bitacora, b.entidad, b.id_registro, b.nombre_registro, b.accion,
+              b.cambios, b.detalle, b.fecha, a.nombre AS autor
+       FROM bitacora_auditoria b
+       LEFT JOIN usuarios a ON a.id_usuario = b.id_autor
+       ${filtros.length ? `WHERE ${filtros.join(' AND ')}` : ''}
+       ORDER BY b.fecha DESC, b.id_bitacora DESC
+       LIMIT 300`, valores)
+    res.json(rows)
+  } catch (err) {
+    responderError(res, err, 'admin.getBitacora', 'Error al obtener la bitácora')
   }
 }

@@ -154,7 +154,7 @@ const PermissionsMatrix = ({
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
           <input
             value={moduleSearch} onChange={e => setModuleSearch(e.target.value)}
-            placeholder="Filtrar módulo o acción…"
+            placeholder="Filtrar módulo o acción…" aria-label="Filtrar módulo o acción"
             className="w-full h-[34px] pl-8 pr-3 border border-border rounded-control
               text-[12px] bg-surface2 text-ink placeholder:text-faint
               focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-colors"

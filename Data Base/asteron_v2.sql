@@ -19,6 +19,7 @@ CREATE TABLE roles (
   id_rol       INT          NOT NULL AUTO_INCREMENT,
   nombre       VARCHAR(100) NOT NULL,
   descripcion  TEXT,
+  valor_hora   DECIMAL(12,2) DEFAULT NULL COMMENT 'Valor hora del cargo en COP para el costo de mano de obra; NULL = sin definir',
   created_at   DATETIME     DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id_rol),
@@ -69,6 +70,8 @@ CREATE TABLE usuarios (
   id_rol           INT          DEFAULT NULL,
   estado           TINYINT(1)   DEFAULT 1,
   ultimo_login     DATETIME     DEFAULT NULL,
+  politica_datos_version     VARCHAR(10) DEFAULT NULL COMMENT 'Versión de la política de datos que autorizó; NULL = no ha autorizado',
+  politica_datos_aceptada_en DATETIME    DEFAULT NULL COMMENT 'Prueba de la autorización (Decreto 1377 de 2013)',
   created_at       DATETIME     DEFAULT CURRENT_TIMESTAMP,
   updated_at       DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id_usuario),
@@ -136,11 +139,23 @@ CREATE TABLE detalle_pedido (
   id_pedido        INT          DEFAULT NULL,
   producto         VARCHAR(120) DEFAULT NULL,
   cantidad         INT          DEFAULT NULL,
-  punto_descargue  VARCHAR(150) DEFAULT NULL,
   estado           ENUM('pendiente','en_produccion','listo','entregado') NOT NULL DEFAULT 'pendiente',
   fecha_entrega_estimada DATE  DEFAULT NULL  COMMENT 'Fecha de entrega propia de este ítem (puede diferir de los demás del pedido)',
   PRIMARY KEY (id_detalle),
   CONSTRAINT fk_detalle_pedido FOREIGN KEY (id_pedido) REFERENCES pedidos(id_pedido) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Resuelve 1FN: un mismo ítem puede despacharse a varios puntos de entrega,
+-- cada uno con su propia cantidad (deben sumar detalle_pedido.cantidad —
+-- validado en pedidos.controller.js, no a nivel de base de datos).
+-- Reemplaza al antiguo detalle_pedido.punto_descargue (un solo destino por ítem).
+CREATE TABLE puntos_entrega_detalle (
+  id_entrega   INT          NOT NULL AUTO_INCREMENT,
+  id_detalle   INT          NOT NULL,
+  direccion    VARCHAR(255) NOT NULL,
+  cantidad     INT          NOT NULL,
+  PRIMARY KEY (id_entrega),
+  CONSTRAINT fk_entrega_detalle FOREIGN KEY (id_detalle) REFERENCES detalle_pedido(id_detalle) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ============================================================
@@ -170,9 +185,10 @@ CREATE TABLE mantenimientos (
   id_mantenimiento  INT  NOT NULL AUTO_INCREMENT,
   id_maquina        INT  NOT NULL,
   fecha             DATE NOT NULL,
-  tipo              ENUM('preventivo','correctivo','predictivo') NOT NULL,
+  tipo              ENUM('preventivo','correctivo','predictivo','calibracion') NOT NULL,
   descripcion       TEXT,
   realizado_por     INT  DEFAULT NULL,
+  estado            ENUM('programado','realizado') NOT NULL DEFAULT 'realizado' COMMENT 'programado: fecha es la prevista; realizado: fecha es la de ejecución',
   created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id_mantenimiento),
@@ -277,6 +293,8 @@ CREATE TABLE programacion_planta (
   id_fase_proyecto  INT  DEFAULT NULL  COMMENT 'Fase del proyecto en ejecución en esta programación',
   tiempo_estimado   INT  DEFAULT NULL  COMMENT 'En minutos',
   tiempo_real       INT  DEFAULT NULL  COMMENT 'En minutos',
+  hora_inicio       DATETIME DEFAULT NULL COMMENT 'Se fija al iniciar la actividad',
+  hora_fin          DATETIME DEFAULT NULL COMMENT 'Se fija al completar o cancelar la actividad',
   porcentaje_avance TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '% de avance de la actividad (100 al completar)',
   estado            ENUM('programado','en_proceso','completado','cancelado') NOT NULL DEFAULT 'programado',
   observaciones     TEXT,
@@ -289,6 +307,98 @@ CREATE TABLE programacion_planta (
   CONSTRAINT fk_prog_maquina      FOREIGN KEY (id_maquina)       REFERENCES maquinaria(id_maquina)            ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT fk_prog_proyecto     FOREIGN KEY (id_proyecto)      REFERENCES proyectos(id_proyecto)            ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT fk_prog_fase         FOREIGN KEY (id_fase_proyecto) REFERENCES fases_proyecto(id_fase_proyecto)  ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Alertas que cada usuario ya marcó como atendidas (las alertas se calculan en
+-- cada consulta; aquí solo se guarda la clave de las que no debe volver a ver)
+CREATE TABLE notificaciones_atendidas (
+  id_usuario   INT         NOT NULL,
+  clave        VARCHAR(60) NOT NULL,
+  atendida_en  DATETIME    DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id_usuario, clave),
+  CONSTRAINT fk_notif_usuario FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Trazabilidad: cada corrección manual de las horas de una actividad
+CREATE TABLE correcciones_tiempo (
+  id_correccion         INT      NOT NULL AUTO_INCREMENT,
+  id_programacion       INT      NOT NULL,
+  hora_inicio_anterior  DATETIME DEFAULT NULL,
+  hora_fin_anterior     DATETIME DEFAULT NULL,
+  tiempo_real_anterior  INT      DEFAULT NULL,
+  hora_inicio_nueva     DATETIME NOT NULL,
+  hora_fin_nueva        DATETIME NOT NULL,
+  tiempo_real_nuevo     INT      NOT NULL,
+  motivo                TEXT     NOT NULL,
+  corregido_por         INT      DEFAULT NULL,
+  corregido_en          DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id_correccion),
+  CONSTRAINT fk_correccion_prog    FOREIGN KEY (id_programacion) REFERENCES programacion_planta(id_programacion) ON DELETE CASCADE  ON UPDATE CASCADE,
+  CONSTRAINT fk_correccion_usuario FOREIGN KEY (corregido_por)   REFERENCES usuarios(id_usuario)                  ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Auditoría: cambios en usuarios y maquinaria (quién, cuándo, antes y después)
+CREATE TABLE bitacora_auditoria (
+  id_bitacora      INT          NOT NULL AUTO_INCREMENT,
+  entidad          ENUM('usuario','maquinaria') NOT NULL,
+  id_registro      INT          NOT NULL COMMENT 'Sin FK a propósito: el historial de un equipo eliminado debe seguir consultable',
+  nombre_registro  VARCHAR(150) DEFAULT NULL COMMENT 'Nombre al momento del cambio, por si el registro se elimina',
+  accion           ENUM('crear','editar','estado','contrasena','eliminar') NOT NULL,
+  cambios          JSON         NOT NULL COMMENT '{ campo: { antes, despues } } — solo los campos que cambiaron',
+  detalle          VARCHAR(255) DEFAULT NULL,
+  id_autor         INT          DEFAULT NULL,
+  fecha            DATETIME     NOT NULL,
+  PRIMARY KEY (id_bitacora),
+  KEY idx_bitacora_registro (entidad, id_registro),
+  KEY idx_bitacora_fecha (fecha),
+  CONSTRAINT fk_bitacora_autor FOREIGN KEY (id_autor) REFERENCES usuarios(id_usuario) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Permisos por acción (crear / editar / eliminar) de cada rol sobre cada módulo.
+-- Los valores por defecto los carga backend/scripts/accionesPorDefecto.js.
+CREATE TABLE acciones_modulo (
+  id      INT NOT NULL AUTO_INCREMENT,
+  id_rol  INT NOT NULL,
+  modulo  VARCHAR(50) NOT NULL,
+  accion  ENUM('crear','editar','eliminar') NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_rol_mod_acc (id_rol, modulo, accion),
+  CONSTRAINT fk_am_rol FOREIGN KEY (id_rol) REFERENCES roles(id_rol) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Enlaces de recuperación de contraseña (RF-05): un solo uso y con vencimiento
+CREATE TABLE password_reset_tokens (
+  id          INT        NOT NULL AUTO_INCREMENT,
+  id_usuario  INT        NOT NULL,
+  token       CHAR(64)   NOT NULL COMMENT '32 bytes aleatorios en hexadecimal',
+  expires_at  DATETIME   NOT NULL,
+  usado       TINYINT(1) NOT NULL DEFAULT 0,
+  created_at  DATETIME   DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_reset_token (token),
+  KEY idx_reset_usuario (id_usuario, usado),
+  CONSTRAINT fk_reset_usuario FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Evidencia fotográfica (RF-25/RF-26): la imagen se guarda en disco
+-- (backend/uploads/evidencias/) y aquí solo el nombre del archivo
+CREATE TABLE evidencias_fotograficas (
+  id_evidencia      INT          NOT NULL AUTO_INCREMENT,
+  id_proyecto       INT          NOT NULL,
+  id_fase_proyecto  INT          DEFAULT NULL COMMENT 'Fase a la que corresponde la foto (opcional)',
+  id_programacion   INT          DEFAULT NULL COMMENT 'Actividad/turno a la que corresponde la foto (opcional)',
+  archivo           VARCHAR(255) NOT NULL     COMMENT 'Nombre generado en el servidor, no el original del usuario',
+  nombre_original   VARCHAR(255) DEFAULT NULL,
+  descripcion       VARCHAR(255) DEFAULT NULL,
+  id_autor          INT          DEFAULT NULL,
+  fecha             DATETIME     NOT NULL,
+  PRIMARY KEY (id_evidencia),
+  UNIQUE KEY uq_evidencia_archivo (archivo),
+  KEY idx_evidencia_proyecto_fecha (id_proyecto, fecha),
+  CONSTRAINT fk_evidencia_proyecto FOREIGN KEY (id_proyecto)      REFERENCES proyectos(id_proyecto)               ON DELETE CASCADE  ON UPDATE CASCADE,
+  CONSTRAINT fk_evidencia_fase     FOREIGN KEY (id_fase_proyecto) REFERENCES fases_proyecto(id_fase_proyecto)     ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT fk_evidencia_prog     FOREIGN KEY (id_programacion)  REFERENCES programacion_planta(id_programacion) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT fk_evidencia_autor    FOREIGN KEY (id_autor)         REFERENCES usuarios(id_usuario)                 ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ============================================================

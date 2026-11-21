@@ -6,6 +6,7 @@ import { canDo } from '../../utils/auth'
 import { relativeTime } from '../../utils/format'
 import EmptyState from '../ui/EmptyState'
 import ActivityDetailModal from './ActivityDetailModal'
+import { clicConTeclado } from '../../utils/teclado'
 
 const ESTADO_CONFIG = {
   en_proceso: { label: 'En proceso', badge: 'bg-primary/10 text-primary',     Icon: Play,        iconBg: 'bg-primary/10 text-primary'     },
@@ -105,7 +106,7 @@ const PlantToday = ({ schedule }) => {
             return (
               <div
                 key={item.id_programacion}
-                onClick={() => setSelectedItem(item)}
+                {...clicConTeclado(() => setSelectedItem(item))}
                 className="px-[18px] py-3 flex items-center gap-3 hover:bg-hover transition-colors cursor-pointer"
               >
                 <div className={`w-8 h-8 rounded-[8px] flex items-center justify-center shrink-0 ${cfg.iconBg}`}>

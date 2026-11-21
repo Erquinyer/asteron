@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+.env.*
+*.log
+
+# Native mobile projects — irrelevant to the web build, and large.
+ios
+android
