@@ -67,21 +67,23 @@ Colección `postman/asteron.postman_collection.json` con el ambiente `postman/as
 
 ## 4. Defectos
 
+Cada defecto está registrado como issue de GitHub con la etiqueta `bug` y su severidad (`severidad: alta`, `media` o `baja`). Los que se corrigieron antes de llevar issues (DEF-01 a DEF-04 y DEF-07 a DEF-09) se registraron el 20 nov y se cerraron enlazando su commit.
+
 Severidad: **Alta** = bloquea un flujo, pierde datos o es de seguridad · **Media** = resultado incorrecto (código o mensaje equivocado, dato mal calculado) · **Baja** = cosmético o en la suite de pruebas. Detalle de cada nivel en el [plan](plan-de-pruebas.md#6-gestión-de-defectos).
 
-| ID | Defecto | Detectado por | Severidad | Estado | Corrección | Verificación |
-|---|---|---|---|---|---|---|
-| DEF-01 | Un NIT duplicado respondía "El código de cliente ya existe" | Integración con MySQL real (semana 6) | Media | ✅ Cerrado | `31a4954`: `mensajeErrorCliente` distingue cuál `UNIQUE KEY` falló | CP-INT-02 y CP-API-11; se revirtió el fix y el test falló ([semana 6](../retos/semana-06-bd.md)) |
-| DEF-02 | Un nombre de cliente de 121+ caracteres respondía 500 | Integración con MySQL real (semana 6) | Media | ✅ Cerrado | `31a4954`: `ER_DATA_TOO_LONG` → 400 | CP-INT-04 y CP-API-12 |
-| DEF-03 | Recuperar la clave respondía 500 en toda BD: no existía la tabla `password_reset_tokens` (RF-05) | Revisión de RF-05 | **Alta** | ✅ Cerrado | `c5a19c7`: tabla en el esquema y en `migrate_recuperacion.js` | CP-API-08 (200) |
-| DEF-04 | Crear, editar o desactivar usuarios no exigía el permiso del módulo usuarios | Pruebas de seguridad del API, semana 4 ([PR #6](https://github.com/Erquinyer/asteron/pull/6), David) | **Alta** | ✅ Cerrado | `8e448e4` | Pruebas de seguridad de `backend/tests/api/` |
-| DEF-05 | La E2E "crear cliente" fallaba: el selector `Contraseña` encontraba también el botón "Mostrar contraseña" (agregado por RNF-14) | Esta ejecución (E2E) | Baja | ✅ Verificado | `3789b7c`: `getByLabel('Contraseña', { exact: true })` | CP-E2E-02 pasa |
-| DEF-06 | La E2E "crear cliente" no aceptaba el modal de la política de datos (Ley 1581), que bloquea la app en una BD nueva | Esta ejecución (E2E) | Baja | ✅ Verificado | `3789b7c`: la prueba acepta el modal si aparece | CP-E2E-02 pasa con BD nueva y con política ya aceptada |
-| DEF-07 | La cobertura del frontend se reportaba en 97 % cuando la real era 3 % (no medía `src/**`) | Revisión del informe de cobertura | Media | ✅ Cerrado | `aded1ee` | Umbral real en `frontend/vite.config.js` |
-| DEF-08 | Las notificaciones calculaban "vencido" con la fecha UTC y no la local (un día de diferencia en la noche) | Dobles de prueba de reloj, semana 5 ([PR #7](https://github.com/Erquinyer/asteron/pull/7), David) | Media | ✅ Cerrado | `a1c8143` | Pruebas de notificaciones con reloj simulado |
-| DEF-09 | Programación abría siempre en el día actual: "Actividades en curso" desde un proyecto mostraba un día vacío | Uso del sistema (Gabriel) | Media | ✅ Cerrado | `618e182` ([PR #30](https://github.com/Erquinyer/asteron/pull/30)) | CP-API-24 y pruebas de `GET /programacion` con `?proyecto` y `?pendientes` |
-| DEF-10 | Un código de máquina largo o repetido respondía 500 ([#26](https://github.com/Erquinyer/asteron/issues/26)) | E2E semana 7 | Media | 🟡 Corregido y verificado; **issue por cerrar** | Manejo central de errores (RNF-06, `utils/errores.js`) | CP-API-27: 400 con código largo; 409 con código repetido (verificado a mano el 20 nov) |
-| DEF-11 | El código `EMP-NNN` automático se repite en altas simultáneas y se atasca después de `EMP-999` ([#25](https://github.com/Erquinyer/asteron/issues/25)) | Pruebas de concurrencia | **Alta** | 🔴 Abierto | — | — |
+| ID | Issue | Defecto | Detectado por | Severidad | Estado | Corrección | Verificación |
+|---|---|---|---|---|---|---|---|
+| DEF-01 | [#33](https://github.com/Erquinyer/asteron/issues/33) | Un NIT duplicado respondía "El código de cliente ya existe" | Integración con MySQL real (semana 6) | Media | ✅ Cerrado | `31a4954`: `mensajeErrorCliente` distingue cuál `UNIQUE KEY` falló | CP-INT-02 y CP-API-11; se revirtió el fix y el test falló ([semana 6](../retos/semana-06-bd.md)) |
+| DEF-02 | [#34](https://github.com/Erquinyer/asteron/issues/34) | Un nombre de cliente de 121+ caracteres respondía 500 | Integración con MySQL real (semana 6) | Media | ✅ Cerrado | `31a4954`: `ER_DATA_TOO_LONG` → 400 | CP-INT-04 y CP-API-12 |
+| DEF-03 | [#35](https://github.com/Erquinyer/asteron/issues/35) | Recuperar la clave respondía 500 en toda BD: no existía la tabla `password_reset_tokens` (RF-05) | Revisión de RF-05 | **Alta** | ✅ Cerrado | `c5a19c7`: tabla en el esquema y en `migrate_recuperacion.js` | CP-API-08 (200) |
+| DEF-04 | [#36](https://github.com/Erquinyer/asteron/issues/36) | Crear, editar o desactivar usuarios no exigía el permiso del módulo usuarios | Pruebas de seguridad del API, semana 4 ([PR #6](https://github.com/Erquinyer/asteron/pull/6), David) | **Alta** | ✅ Cerrado | `8e448e4` | Pruebas de seguridad de `backend/tests/api/` |
+| DEF-05 | [#40](https://github.com/Erquinyer/asteron/issues/40) | La E2E "crear cliente" fallaba: el selector `Contraseña` encontraba también el botón "Mostrar contraseña" (agregado por RNF-14) | Esta ejecución (E2E) | Baja | ✅ Verificado | `3789b7c`: `getByLabel('Contraseña', { exact: true })` | CP-E2E-02 pasa |
+| DEF-06 | [#41](https://github.com/Erquinyer/asteron/issues/41) | La E2E "crear cliente" no aceptaba el modal de la política de datos (Ley 1581), que bloquea la app en una BD nueva | Esta ejecución (E2E) | Baja | ✅ Verificado | `3789b7c`: la prueba acepta el modal si aparece | CP-E2E-02 pasa con BD nueva y con política ya aceptada |
+| DEF-07 | [#37](https://github.com/Erquinyer/asteron/issues/37) | La cobertura del frontend se reportaba en 97 % cuando la real era 3 % (no medía `src/**`) | Revisión del informe de cobertura | Media | ✅ Cerrado | `aded1ee` | Umbral real en `frontend/vite.config.js` |
+| DEF-08 | [#38](https://github.com/Erquinyer/asteron/issues/38) | Las notificaciones calculaban "vencido" con la fecha UTC y no la local (un día de diferencia en la noche) | Dobles de prueba de reloj, semana 5 ([PR #7](https://github.com/Erquinyer/asteron/pull/7), David) | Media | ✅ Cerrado | `a1c8143` | Pruebas de notificaciones con reloj simulado |
+| DEF-09 | [#39](https://github.com/Erquinyer/asteron/issues/39) | Programación abría siempre en el día actual: "Actividades en curso" desde un proyecto mostraba un día vacío | Uso del sistema (Gabriel) | Media | ✅ Cerrado | `618e182` ([PR #30](https://github.com/Erquinyer/asteron/pull/30)) | CP-API-24 y pruebas de `GET /programacion` con `?proyecto` y `?pendientes` |
+| DEF-10 | [#26](https://github.com/Erquinyer/asteron/issues/26) | Un código de máquina largo o repetido respondía 500 ([#26](https://github.com/Erquinyer/asteron/issues/26)) | E2E semana 7 | Media | ✅ Cerrado (verificado el 20 nov) | Manejo central de errores (RNF-06, `utils/errores.js`) | CP-API-27: 400 con código largo; 409 con código repetido (verificado a mano el 20 nov) |
+| DEF-11 | [#25](https://github.com/Erquinyer/asteron/issues/25) | El código `EMP-NNN` automático se repite en altas simultáneas y se atasca después de `EMP-999` ([#25](https://github.com/Erquinyer/asteron/issues/25)) | Pruebas de concurrencia | **Alta** | 🔴 Abierto | — | — |
 
 ### Ciclos "detectar → corregir → verificar" demostrados
 
@@ -97,5 +99,4 @@ Severidad: **Alta** = bloquea un flujo, pierde datos o es de seguridad · **Medi
 
 - Ejecutar **CP-INT-01 a CP-INT-05** con Docker encendido.
 - Ejecutar **CP-MAN-01** (correo real) con un buzón del equipo.
-- Cerrar el **#26** con la evidencia de DEF-10 y corregir el **#25** (Alta).
-- Registrar como issues, con su etiqueta de severidad, los defectos que se corrigieron sin issue (DEF-01 a DEF-09).
+- Corregir el **#25** (Alta).
