@@ -195,3 +195,53 @@ describe('PUT /api/programacion/:id — regla "la fecha solo se revalida si camb
     expect(res.body.message).toMatch(/fecha pasada/i)
   })
 })
+
+describe('GET /api/programacion — filtros de la vista', () => {
+  // La primera consulta es el permiso de lectura (roles_permisos); se responde
+  // por texto de SQL para que el orden de las consultas no importe.
+  beforeEach(() => {
+    vi.resetAllMocks()
+    pool.query.mockImplementation(async (sql) =>
+      sql.includes('roles_permisos') ? [[{ permitido: 1 }]] : [[]])
+  })
+  const consultaTurnos = () => pool.query.mock.calls.find(([sql]) => sql.includes('FROM programacion_planta'))
+
+  it('sin parámetros filtra por el día de hoy', async () => {
+    const res = await request(app).get('/api/programacion')
+      .set('Authorization', `Bearer ${tokenPlantScheduler()}`)
+
+    expect(res.status).toBe(200)
+    const [sql, valores] = consultaTurnos()
+    expect(sql).toContain('pp.fecha BETWEEN ? AND ?')
+    expect(valores).toHaveLength(2)
+  })
+
+  it('?pendientes=1 trae lo programado o en curso de cualquier fecha', async () => {
+    const res = await request(app).get('/api/programacion?pendientes=1')
+      .set('Authorization', `Bearer ${tokenPlantScheduler()}`)
+
+    expect(res.status).toBe(200)
+    const [sql, valores] = consultaTurnos()
+    expect(sql).not.toContain('pp.fecha BETWEEN')
+    expect(sql).toContain("pp.estado IN ('programado','en_proceso')")
+    expect(valores).toEqual([])
+  })
+
+  it('?proyecto=X trae los turnos de ese proyecto de cualquier fecha', async () => {
+    const res = await request(app).get('/api/programacion?proyecto=7')
+      .set('Authorization', `Bearer ${tokenPlantScheduler()}`)
+
+    expect(res.status).toBe(200)
+    const [sql, valores] = consultaTurnos()
+    expect(sql).not.toContain('pp.fecha BETWEEN')
+    expect(sql).toContain('pp.id_proyecto = ?')
+    expect(valores).toEqual([7])
+  })
+
+  it('?proyecto=X con un rango respeta las fechas', async () => {
+    await request(app).get('/api/programacion?proyecto=7&desde=2026-10-01&hasta=2026-10-31')
+      .set('Authorization', `Bearer ${tokenPlantScheduler()}`)
+
+    expect(consultaTurnos()[1]).toEqual(['2026-10-01', '2026-10-31', 7])
+  })
+})

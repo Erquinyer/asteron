@@ -40,6 +40,21 @@ const fmtFechaLarga = (iso) => {
 }
 const isoDia = (v) => String(v ?? '').slice(0, 10)
 
+// Día al que saltar cuando se llega filtrando un proyecto: el de su actividad en
+// curso (si se pidió esa pestaña), hoy si tiene actividades hoy, la próxima
+// programada o, si no queda ninguna, la más reciente. null = quedarse en hoy.
+const diaDelProyecto = (turnos, hoy, enCurso) => {
+  const vivos = turnos.filter(t => t.estado !== 'cancelado')
+  if (vivos.length === 0) return null
+  const fechas = vivos.map(t => isoDia(t.fecha)).sort()
+  if (enCurso) {
+    const enProceso = vivos.filter(t => t.estado === 'en_proceso').map(t => isoDia(t.fecha)).sort()
+    if (enProceso.length) return enProceso[enProceso.length - 1]
+  }
+  if (fechas.includes(hoy)) return hoy
+  return fechas.find(f => f > hoy) || fechas[fechas.length - 1]
+}
+
 // ── Vistas de periodo: día · semana · mes ────────────────────────────────────
 const startOfWeek = (iso) => {           // lunes de la semana que contiene la fecha
   const d = new Date(iso + 'T12:00:00')
@@ -61,6 +76,7 @@ const rangoDe = (iso, modo) => {
   return { desde: iso, hasta: iso }
 }
 const fmtPeriodoLabel = (iso, modo) => {
+  if (modo === 'pendientes') return 'Pendientes y en curso'
   if (modo === 'dia') return fmtFechaCorta(iso)
   if (modo === 'semana') {
     const { desde, hasta } = rangoDe(iso, 'semana')
@@ -72,7 +88,10 @@ const fmtPeriodoLabel = (iso, modo) => {
   const d = new Date(iso + 'T12:00:00')
   return `${MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}`
 }
+// 'pendientes' (la vista de entrada): todo lo programado o en curso, de
+// cualquier fecha, agrupado por proyecto.
 const MODOS = [
+  { value: 'pendientes', label: 'Pendientes' },
   { value: 'dia',    label: 'Día'    },
   { value: 'semana', label: 'Semana' },
   { value: 'mes',    label: 'Mes'    },
@@ -157,7 +176,7 @@ function StateBadge({ estado }) {
 }
 
 // ── Fila compacta de actividad ────────────────────────────────────────────────
-function ActivityRow({ item, onClick, onIniciar, onCompletar, onEditar, onCancelar, onDelete, showProyecto = false }) {
+function ActivityRow({ item, onClick, onIniciar, onCompletar, onEditar, onCancelar, onDelete, showProyecto = false, showFecha = false }) {
   const navigate = useNavigate()
   const verProyecto = (e) => { e.stopPropagation(); navigate(`/proyectos/${item.id_proyecto}`) }
   const isLive    = item.estado === 'en_proceso'
@@ -199,6 +218,14 @@ function ActivityRow({ item, onClick, onIniciar, onCompletar, onEditar, onCancel
               </button>
             ) : 'Sin proyecto'}
             {item.cliente ? ` · ${item.cliente}` : ''}
+          </p>
+        )}
+        {showFecha && (
+          <p className="font-mono text-[10.5px] text-faint mt-0.5">
+            {fmtFechaCorta(isoDia(item.fecha))}
+            {item.estado === 'programado' && isoDia(item.fecha) < toISO(new Date()) && (
+              <span className="ml-1.5 text-error font-semibold">· atrasada</span>
+            )}
           </p>
         )}
       </div>
@@ -309,11 +336,13 @@ function ActivityRow({ item, onClick, onIniciar, onCompletar, onEditar, onCancel
 }
 
 // ── Resumen del día ────────────────────────────────────────────────────────────
-function ResumenDia({ total, enCurso, completados, sinOperario, periodoLabel = 'Turnos hoy' }) {
+function ResumenDia({ total, enCurso, completados, programados, sinOperario, periodoLabel = 'Turnos hoy' }) {
   const cells = [
     { label: periodoLabel,     value: total },
     { label: 'En curso',       value: enCurso,      tone: enCurso > 0 ? 'text-primary' : 'text-ink' },
-    { label: 'Completados',    value: completados,  tone: 'text-success' },
+    programados !== undefined
+      ? { label: 'Programados',  value: programados }
+      : { label: 'Completados',  value: completados,  tone: 'text-success' },
     { label: 'Sin operario',   value: sinOperario,  tone: sinOperario > 0 ? 'text-error' : 'text-ink' },
   ]
   return (
@@ -335,7 +364,7 @@ function ResumenDia({ total, enCurso, completados, sinOperario, periodoLabel = '
 }
 
 // ── Grupo de actividades por proyecto (desplegable) ───────────────────────────
-function ProjectGroup({ nombre, items, collapsed, onToggle, onSelect, onIniciar, onCompletar, onEditar, onCancelar, onDelete, showProyecto = false }) {
+function ProjectGroup({ nombre, items, collapsed, onToggle, onSelect, onIniciar, onCompletar, onEditar, onCancelar, onDelete, showProyecto = false, showFecha = false }) {
   return (
     <div className="bg-surface border border-border rounded-card shadow-card dark:shadow-card-dk overflow-hidden">
       <button onClick={onToggle}
@@ -357,7 +386,7 @@ function ProjectGroup({ nombre, items, collapsed, onToggle, onSelect, onIniciar,
               onClick={() => onSelect(item)}
               onIniciar={onIniciar} onCompletar={onCompletar}
               onEditar={onEditar} onCancelar={onCancelar} onDelete={onDelete}
-              showProyecto={showProyecto}
+              showProyecto={showProyecto} showFecha={showFecha}
             />
           ))}
         </div>
@@ -910,7 +939,7 @@ function KanbanBoard({ items, onSelect, onDrop }) {
 export default function Programacion() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [fecha,           setFecha]           = useState(toISO(new Date()))
-  const [modo,            setModo]            = useState('dia') // 'dia' | 'semana' | 'mes'
+  const [modo,            setModo]            = useState('pendientes') // 'pendientes' | 'dia' | 'semana' | 'mes'
   const [modoMenu,        setModoMenu]        = useState(false)
   const [modalTurno,      setModalTurno]      = useState(null) // null | 'new' | <turno a editar>
   const [showImportar,    setShowImportar]    = useState(false)
@@ -924,7 +953,8 @@ export default function Programacion() {
   const [expandedGroups,  setExpandedGroups]  = useState(new Set())
   // Llega desde ProyectoDetalle.jsx ("Ver en Programación" / "Actividades en
   // curso") con ?proyecto=X y, opcionalmente, ?tab=en_proceso — mismo patrón
-  // que ?nuevo=1&id_pedido=X en Proyectos.jsx.
+  // que ?nuevo=1&id_pedido=X en Proyectos.jsx. Como la vista abre en hoy y el
+  // proyecto puede no tener actividades hoy, se salta al día que corresponda.
   const [filtroProyectoId, setFiltroProyectoId] = useState(null)
   useEffect(() => {
     const proyecto = searchParams.get('proyecto')
@@ -933,6 +963,15 @@ export default function Programacion() {
       setFiltroProyectoId(Number(proyecto))
       if (['todas', 'en_proceso', 'programado', 'completado'].includes(tab)) setActiveTab(tab)
       setSearchParams({}, { replace: true })
+      getProgramacion({ proyecto })
+        .then(res => {
+          const turnos = res.data || []
+          const dia = diaDelProyecto(turnos, toISO(new Date()), tab === 'en_proceso')
+          if (dia) { setFecha(dia); setModo('dia') }
+          // Sin actividades en curso, la pestaña "En curso" quedaría vacía.
+          if (tab === 'en_proceso' && !turnos.some(t => t.estado === 'en_proceso')) setActiveTab('todas')
+        })
+        .catch(() => {})
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -951,9 +990,10 @@ export default function Programacion() {
   ]
 
   const rango = rangoDe(fecha, modo)
+  const pendientes = modo === 'pendientes'
   const { data, loading, error, refresh } = useFetch(
-    () => getProgramacion(modo === 'dia' ? fecha : rango),
-    [rango.desde, rango.hasta])
+    () => getProgramacion(pendientes ? { pendientes: 1 } : modo === 'dia' ? fecha : rango),
+    [pendientes, rango.desde, rango.hasta])
   const { data: usuarios }  = useFetch(getUsuarios)
   const { data: maquinas }  = useFetch(getMaquinaria)
   const { data: proyectos } = useFetch(getProyectos)
@@ -1048,7 +1088,7 @@ export default function Programacion() {
     { key: 'en_proceso', label: 'En curso',     count: stats.en_proceso },
     { key: 'programado', label: 'Programadas',  count: stats.programado },
     { key: 'completado', label: 'Completadas',  count: stats.completado },
-  ]
+  ].filter(t => !(pendientes && t.key === 'completado'))
 
   // Actividades de la pestaña activa, agrupadas por proyecto (orden de llegada del backend)
   const filtradasPorTab = activeTab === 'todas'
@@ -1079,7 +1119,7 @@ export default function Programacion() {
   const filtradasPorSearch = filtradasPorTab.filter(matchesTodo)
 
   // En vista día se agrupa por proyecto; en semana / mes por fecha.
-  const agruparPorFecha = modo !== 'dia'
+  const agruparPorFecha = modo === 'semana' || modo === 'mes'
   const grupos = []
   const gruposPorId = new Map()
   for (const item of filtradasPorSearch) {
@@ -1116,6 +1156,7 @@ export default function Programacion() {
 
         {/* Navegador de fecha */}
         <div className="flex items-center gap-1">
+          {!pendientes && (
           <button aria-label="Periodo anterior" onClick={prevDay}
             className="w-[38px] h-[38px] flex items-center justify-center
               bg-surface border border-border rounded-control
@@ -1123,6 +1164,7 @@ export default function Programacion() {
           >
             <ChevronLeft size={16} />
           </button>
+          )}
 
           {/* Etiqueta del periodo — al hacer clic se elige día / semana / mes o se salta a una fecha */}
           <div className="relative">
@@ -1171,7 +1213,12 @@ export default function Programacion() {
                       type="date"
                       aria-label="Ir a una fecha"
                       value={fecha}
-                      onChange={e => { if (e.target.value) { setFecha(e.target.value); setModoMenu(false) } }}
+                      onChange={e => {
+                        if (!e.target.value) return
+                        setFecha(e.target.value)
+                        if (pendientes) setModo('dia')
+                        setModoMenu(false)
+                      }}
                       className="w-full h-9 border border-border rounded-control px-2.5 text-[12px]
                         bg-surface2 text-ink focus:outline-none focus:ring-2 focus:ring-primary/25"
                     />
@@ -1181,6 +1228,7 @@ export default function Programacion() {
             )}
           </div>
 
+          {!pendientes && (
           <button aria-label="Periodo siguiente" onClick={nextDay}
             className="w-[38px] h-[38px] flex items-center justify-center
               bg-surface border border-border rounded-control
@@ -1188,8 +1236,9 @@ export default function Programacion() {
           >
             <ChevronRight size={16} />
           </button>
+          )}
 
-          {!hoyEnRango && (
+          {!pendientes && !hoyEnRango && (
             <button onClick={() => setFecha(hoyISO)}
               className="h-[38px] px-3 font-mono text-[12px] text-primary
                 border border-primary/30 bg-primary/8 hover:bg-primary/15
@@ -1271,7 +1320,9 @@ export default function Programacion() {
         <EmptyState
           title="Sin actividades programadas"
           description={
-            modo === 'dia'
+            pendientes
+              ? 'No hay actividades programadas ni en curso.'
+              : modo === 'dia'
               ? `No hay actividades para el ${fmtFechaCorta(fecha)}.`
               : `No hay actividades en ${modo === 'semana' ? 'la semana' : 'el mes'} de ${fmtPeriodoLabel(fecha, modo)}.`
           }
@@ -1280,7 +1331,8 @@ export default function Programacion() {
         <>
           {/* ── Resumen del periodo ── */}
           <ResumenDia
-            periodoLabel={modo === 'dia' ? 'Turnos hoy' : modo === 'semana' ? 'Turnos (semana)' : 'Turnos (mes)'}
+            periodoLabel={pendientes ? 'Turnos pendientes' : modo === 'dia' ? 'Turnos hoy' : modo === 'semana' ? 'Turnos (semana)' : 'Turnos (mes)'}
+            programados={pendientes ? stats.programado : undefined}
             total={(data || []).length}
             enCurso={stats.en_proceso}
             completados={stats.completado}
@@ -1321,9 +1373,9 @@ export default function Programacion() {
                 <div className="space-y-3">
                   {grupos.map(g => (
                     <ProjectGroup key={g.key} nombre={g.nombre} items={g.items}
-                      showProyecto={agruparPorFecha}
-                      collapsed={searchActive ? false
-                        : agruparPorFecha ? expandedGroups.has(g.key) : !expandedGroups.has(g.key)}
+                      showProyecto={agruparPorFecha} showFecha={pendientes}
+                      collapsed={searchActive || filtroProyectoId ? false
+                        : agruparPorFecha || pendientes ? expandedGroups.has(g.key) : !expandedGroups.has(g.key)}
                       onToggle={() => toggleGroup(g.key)}
                       onSelect={setSelectedItem}
                       onIniciar={handleIniciar}
