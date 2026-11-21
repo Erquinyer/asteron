@@ -506,6 +506,8 @@ const paths = {
         query('fecha', 'Un solo día (por defecto, hoy)', FECHA),
         query('desde', 'Inicio del rango', FECHA),
         query('hasta', 'Fin del rango', FECHA),
+        query('proyecto', 'Solo los turnos de ese proyecto; sin fechas, de cualquier día', { type: 'integer' }),
+        query('pendientes', 'Con 1, solo turnos programados o en curso; sin fechas, de cualquier día', { type: 'integer', enum: [1] }),
       ],
       respuesta: lista('Registro'),
     }),

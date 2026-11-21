@@ -67,10 +67,28 @@ export const getOcupados = async (req, res) => {
 
 export const getAll = async (req, res) => {
   // Rango de fechas: ?desde=YYYY-MM-DD&hasta=YYYY-MM-DD (vista semana / mes) o
-  // ?fecha=YYYY-MM-DD (vista día, comportamiento por defecto).
+  // ?fecha=YYYY-MM-DD (vista día, comportamiento por defecto). Con ?proyecto=X
+  // y sin fechas devuelve todos los turnos de ese proyecto (Programación lo usa
+  // para saber a qué día saltar al llegar desde ProyectoDetalle.jsx). Con
+  // ?pendientes=1 y sin fechas, todos los turnos programados o en curso (vista
+  // "Pendientes", la de entrada a Programación).
   const hoy = hoyISO()
+  const { proyecto } = req.query
+  const pendientes = req.query.pendientes === '1'
+  const sinFechas = !req.query.desde && !req.query.fecha && !req.query.hasta
   const desde = req.query.desde || req.query.fecha || hoy
   const hasta = req.query.hasta || req.query.fecha || desde
+  const condiciones = []
+  const valores = []
+  if (!((proyecto || pendientes) && sinFechas)) {
+    condiciones.push('pp.fecha BETWEEN ? AND ?')
+    valores.push(desde, hasta)
+  }
+  if (pendientes) condiciones.push("pp.estado IN ('programado','en_proceso')")
+  if (proyecto) {
+    condiciones.push('pp.id_proyecto = ?')
+    valores.push(Number(proyecto))
+  }
   try {
     const [rows] = await pool.query(`
       SELECT pp.*,
@@ -89,10 +107,10 @@ export const getAll = async (req, res) => {
       LEFT JOIN fases_proyecto fp ON pp.id_fase_proyecto = fp.id_fase_proyecto
       LEFT JOIN fases_estandar fe ON fp.id_fase_estandar = fe.id_fase_estandar
       LEFT JOIN detalle_pedido dp ON fp.id_detalle_pedido = dp.id_detalle
-      WHERE pp.fecha BETWEEN ? AND ?
+      WHERE ${condiciones.join(' AND ')}
       ORDER BY pp.fecha,
                FIELD(pp.estado,'en_proceso','programado','completado','cancelado')`,
-      [desde, hasta])
+      valores)
     res.json(rows)
   } catch (err) {
     responderError(res, err, 'programacion.getAll', 'Error al obtener programación')
