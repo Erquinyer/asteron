@@ -8,9 +8,19 @@ test('debe crear un cliente nuevo y verlo aparecer en la lista', async ({ page }
   // Arrange — inicia sesión y abre el módulo de Clientes
   await page.goto('/login');
   await page.getByLabel('Correo electrónico').fill(correo);
-  await page.getByLabel('Contraseña').fill(contrasena);
+  // exact: el botón "Mostrar contraseña" también contiene la palabra "contraseña"
+  await page.getByLabel('Contraseña', { exact: true }).fill(contrasena);
   await page.getByRole('button', { name: 'Iniciar sesión' }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
+
+  // En una BD recién creada el usuario aún no ha autorizado la política de
+  // datos (Ley 1581) y el modal bloquea la app hasta aceptarla.
+  const politica = page.getByRole('dialog', { name: 'Autorización de tratamiento de datos personales' });
+  if (await politica.waitFor({ timeout: 3000 }).then(() => true, () => false)) {
+    await politica.getByRole('checkbox').check();
+    await politica.getByRole('button', { name: 'Aceptar y continuar' }).click();
+    await expect(politica).toBeHidden();
+  }
 
   await page.goto('/clientes');
   // Nombre único con Date.now() para no chocar con clientes de corridas anteriores.
