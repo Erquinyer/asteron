@@ -5,6 +5,8 @@ import { API_PORT, API_URL, FRONT_PORT, SESION_ADMIN } from './tests/support/ent
 //   docker compose up -d --wait mysql-test
 // Playwright levanta lo demás: un backend propio contra esa BD (nunca la de
 // desarrollo) y el frontend apuntando a ese backend.
+// En el CI (job test-e2e de .github/workflows/tests.yml) el workflow arranca
+// el backend en segundo plano y espera con curl; Playwright lo reutiliza.
 
 export default defineConfig({
   testDir: './tests',
@@ -36,7 +38,10 @@ export default defineConfig({
       cwd: '../backend',
       // Sin token responde 401: basta para saber que el API ya está arriba.
       url: `${API_URL}/pedidos`,
-      reuseExistingServer: !process.env.CI,
+      // Siempre se reutiliza si ya responde: en el CI lo arranca el workflow
+      // (y aquí no podría volver a usar el puerto). Es el backend de pruebas
+      // del puerto 3100, nunca el de desarrollo.
+      reuseExistingServer: true,
       env: {
         PORT: String(API_PORT),
         DB_HOST: '127.0.0.1',
@@ -46,6 +51,8 @@ export default defineConfig({
         DB_NAME: 'asteron',
         JWT_SECRET: 'secreto-e2e',
         FRONTEND_URL: `http://localhost:${FRONT_PORT}`,
+        // El límite de intentos de login (limites.js) no aplica a la suite E2E
+        LIMITE_LOGIN: '1000',
       },
     },
     {
