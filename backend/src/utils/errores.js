@@ -27,6 +27,10 @@ const ERRORES_MYSQL = {
   ER_NO_REFERENCED_ROW_2:    [400, 'Uno de los datos relacionados no existe'],
   ER_DATA_TOO_LONG:          [400, 'Uno de los campos supera la longitud permitida'],
   ER_TRUNCATED_WRONG_VALUE:  [400, 'Uno de los campos tiene un formato inválido'],
+  // Valor fuera de un ENUM o de tipo incorrecto (ej. estado 'terminado'): en modo
+  // estricto MySQL rechaza el INSERT con estos códigos y antes terminaban en 500.
+  WARN_DATA_TRUNCATED:                [400, 'Uno de los campos tiene un formato inválido'],
+  ER_TRUNCATED_WRONG_VALUE_FOR_FIELD: [400, 'Uno de los campos tiene un formato inválido'],
   ER_BAD_NULL_ERROR:         [400, 'Falta un dato obligatorio'],
   ER_CHECK_CONSTRAINT_VIOLATED: [400, 'Uno de los campos tiene un valor fuera del rango permitido'],
 }

@@ -135,6 +135,70 @@ describe('pedidos.update', () => {
     expect(conn.commit).toHaveBeenCalledOnce()
   })
 
+  // Semana 6: defectos encontrados con tests/integration/pedidos.db.test.js
+  it('debe responder 400 sin abrir conexión cuando falta id_cliente (no le borra el cliente al pedido)', async () => {
+    const res = crearRes()
+
+    await update({ params: { id: 30 }, body: { descripcion: 'Sin cliente' } }, res)
+
+    expect(res.status).toHaveBeenCalledWith(400)
+    expect(res.json).toHaveBeenCalledWith({ message: 'El cliente es requerido' })
+    expect(pool.getConnection).not.toHaveBeenCalled()
+  })
+
+  it('debe tratar un id_detalle en texto como el mismo ítem y no insertarlo de nuevo', async () => {
+    conn.query.mockImplementation(async (sql) => {
+      if (sql.includes('UPDATE pedidos'))                        return [{ affectedRows: 1 }]
+      if (sql.includes('SELECT id_detalle FROM detalle_pedido')) return [[{ id_detalle: 8 }]]
+      return [{}]
+    })
+    pool.query.mockResolvedValueOnce([[{ id_pedido: 30 }]])
+    const res = crearRes()
+
+    await update({ params: { id: 30 }, body: { id_cliente: 4, items: [{ id_detalle: '8', producto: 'Góndola' }] } }, res)
+
+    const sqls = conn.query.mock.calls.map(([sql]) => sql)
+    expect(sqls.some(sql => sql.includes('INSERT INTO detalle_pedido'))).toBe(false)
+    const [, paramsDelete] = conn.query.mock.calls.find(([sql]) => sql.includes('DELETE FROM detalle_pedido'))
+    expect(paramsDelete).toEqual([30, 8])
+    expect(conn.commit).toHaveBeenCalledOnce()
+  })
+
+  it('no debe borrar los puntos de entrega de un ítem cuando la edición no trae ubicaciones', async () => {
+    conn.query.mockImplementation(async (sql) => {
+      if (sql.includes('UPDATE pedidos'))                        return [{ affectedRows: 1 }]
+      if (sql.includes('SELECT id_detalle FROM detalle_pedido')) return [[{ id_detalle: 8 }]]
+      return [{}]
+    })
+    pool.query.mockResolvedValueOnce([[{ id_pedido: 30 }]])
+    const res = crearRes()
+
+    await update({ params: { id: 30 }, body: { id_cliente: 4, items: [{ id_detalle: 8, producto: 'Góndola' }] } }, res)
+
+    const sqls = conn.query.mock.calls.map(([sql]) => sql)
+    expect(sqls.some(sql => sql.includes('puntos_entrega_detalle'))).toBe(false)
+    expect(conn.commit).toHaveBeenCalledOnce()
+  })
+
+  it('debe responder 409 con un mensaje claro cuando el ítem quitado ya tiene actividades registradas', async () => {
+    conn.query.mockImplementation(async (sql) => {
+      if (sql.includes('UPDATE pedidos'))                        return [{ affectedRows: 1 }]
+      if (sql.includes('SELECT id_detalle FROM detalle_pedido')) return [[{ id_detalle: 8 }, { id_detalle: 9 }]]
+      if (sql.includes('DELETE FROM detalle_pedido')) {
+        throw Object.assign(new Error('FK'), { code: 'ER_ROW_IS_REFERENCED_2' })
+      }
+      return [{}]
+    })
+    const res = crearRes()
+
+    await update({ params: { id: 30 }, body: { id_cliente: 4, items: [{ id_detalle: 8, producto: 'Góndola' }] } }, res)
+
+    expect(conn.rollback).toHaveBeenCalledOnce()
+    expect(conn.commit).not.toHaveBeenCalled()
+    expect(res.status).toHaveBeenCalledWith(409)
+    expect(res.json.mock.calls[0][0].message).toContain('actividades registradas')
+  })
+
   it('debe responder 404 y deshacer la transacción cuando el pedido no existe', async () => {
     conn.query.mockResolvedValueOnce([{ affectedRows: 0 }])
     const res = crearRes()
