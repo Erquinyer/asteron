@@ -2,13 +2,11 @@
 // Datos mínimos para los E2E (semana 7) en la BD de pruebas desechable
 // (servicio mysql-test de docker-compose, puerto 3308).
 //
-// Por qué un seed propio y no scripts/seed.js:
-//  - El esquema "Data Base/asteron_v2.sql" no crea la tabla acciones_modulo
-//    (la crea scripts/migrate_acciones_modulo.js), y el login la consulta:
-//    sin ella, iniciar sesión responde 500.
-//  - scripts/seed.js inserta clientes con una columna "direccion" que ya no
-//    existe en el esquema (ahora es la tabla direcciones_cliente), así que
-//    falla a mitad de camino contra una BD nueva.
+// Por qué un seed propio y no scripts/seed.js: seed.js carga todos los datos
+// de demostración de Macromet; los E2E necesitan solo lo mínimo y que cada
+// test cree sus propios datos. (Cuando se escribió, además, el esquema no traía
+// acciones_modulo y seed.js fallaba contra una BD nueva; el CREATE TABLE IF NOT
+// EXISTS de abajo se conserva por si se corre contra una BD vieja.)
 //
 // Es idempotente (se puede correr en cada arranque de Playwright) y solo
 // crea lo que los E2E necesitan: roles, permisos, acciones, un usuario
@@ -19,6 +17,7 @@ import dotenv from 'dotenv'
 dotenv.config()
 import bcrypt from 'bcryptjs'
 import pool from '../src/config/db.js'
+import { POLITICA_DATOS_VERSION } from '../src/utils/politicaDatos.js'
 
 // Protección: este script solo corre contra la BD de pruebas (puerto 3308),
 // nunca contra la de desarrollo.
@@ -87,10 +86,15 @@ const sembrar = async () => {
 
   for (const u of USUARIOS_E2E) {
     const hash = await bcrypt.hash(u.contrasena, 10)
+    // Los usuarios E2E ya autorizaron la política de datos vigente (Ley 1581):
+    // si no, el modal de autorización tapa la app después del login y ningún
+    // test puede hacer clic. El modal no es lo que prueban estos tests.
     await pool.query(
-      `INSERT INTO usuarios (nombre, correo, password_hash, id_rol, estado) VALUES (?, ?, ?, ?, 1)
-       ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), id_rol = VALUES(id_rol), estado = 1`,
-      [u.nombre, u.correo, hash, await idRol(u.rol)])
+      `INSERT INTO usuarios (nombre, correo, password_hash, id_rol, estado, politica_datos_version, politica_datos_aceptada_en)
+       VALUES (?, ?, ?, ?, 1, ?, NOW())
+       ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), id_rol = VALUES(id_rol), estado = 1,
+         politica_datos_version = VALUES(politica_datos_version), politica_datos_aceptada_en = NOW()`,
+      [u.nombre, u.correo, hash, await idRol(u.rol), POLITICA_DATOS_VERSION])
   }
 
   const [[{ total }]] = await pool.query('SELECT COUNT(*) AS total FROM fases_estandar')
