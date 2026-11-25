@@ -41,7 +41,7 @@ test.describe('Registrar un pedido', () => {
     await pedidos.botonCrear.click();
 
     // Assert: lo que ve la persona usuaria…
-    await expect(page.getByRole('status').filter({ hasText: 'Pedido registrado' })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'Pedido creado' })).toBeVisible();
     await expect(pedidos.formulario).toBeHidden();
     await pedidos.buscador.fill(cliente.nombre);
     const fila = pedidos.filaDelCliente(cliente.nombre);
