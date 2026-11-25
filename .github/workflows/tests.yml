@@ -59,6 +59,97 @@ jobs:
       - name: Ejecutar Tests Unitarios y Cobertura
         run: pnpm run test:coverage
 
+  # E2E (Playwright, semana 8): la app completa en un navegador real, contra
+  # MySQL 8.0 como servicio del job (la misma BD desechable de mysql-test).
+  # El backend arranca en segundo plano y el job espera con curl a que
+  # responda; Playwright lo reutiliza y levanta el frontend (e2e/playwright.config.js).
+  test-e2e:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: asteron_test
+        ports:
+          - "3308:3306"
+        # El job no sigue hasta que MySQL responde (sin pausas fijas)
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost -uroot -pasteron_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: "3308"
+      DB_USER: root
+      DB_PASSWORD: asteron_test
+      DB_NAME: asteron
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
+      # Caché del almacén de pnpm: la segunda corrida restaura las dependencias
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            backend/pnpm-lock.yaml
+            frontend/pnpm-lock.yaml
+            e2e/pnpm-lock.yaml
+
+      # El servicio arranca vacío: se crea el esquema del proyecto
+      - name: Crear el esquema en la BD de pruebas
+        run: mysql -h 127.0.0.1 -P 3308 -uroot -pasteron_test < "Data Base/asteron_v2.sql"
+
+      - name: Instalar dependencias Backend
+        working-directory: backend
+        run: pnpm install --frozen-lockfile
+
+      - name: Instalar dependencias Frontend
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Instalar dependencias E2E y Chromium
+        working-directory: e2e
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+
+      # Datos mínimos (roles, permisos, usuarios E2E) y el API en segundo plano
+      - name: Arrancar el backend en segundo plano
+        working-directory: backend
+        env:
+          PORT: "3100"
+          JWT_SECRET: secreto-e2e
+          FRONTEND_URL: http://localhost:5180
+          LIMITE_LOGIN: "1000"
+        run: |
+          node scripts/seed-e2e.js
+          node server.js > api.log 2>&1 &
+
+      # Espera a que el API y su BD respondan (máximo 60 s)
+      - name: Esperar a que el API responda
+        run: curl --silent --fail --retry 30 --retry-delay 2 --retry-all-errors http://localhost:3100/api/health
+
+      - name: Ejecutar los E2E
+        working-directory: e2e
+        run: pnpm test
+
+      # Si algo falla: reporte HTML con trazas y el log del backend, para
+      # diagnosticar sin reproducir en local
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-report
+          path: |
+            e2e/playwright-report/
+            backend/api.log
+          retention-days: 7
+
   # Evidencia individual (guía del instructor, mecanismo 2): deja en el resumen
   # del run la lista de commits de test por autor desde el lunes.
   evidencia-individual:

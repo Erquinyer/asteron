@@ -65,9 +65,13 @@ export const getOne = async (req, res) => {
 
 // Reemplaza todas las ubicaciones de un ítem (delete + re-insert), igual que
 // guardarDirecciones en clientes.controller.js para direcciones_cliente.
-const guardarUbicaciones = async (conn, id_detalle, ubicaciones = []) => {
+// Si el ítem no trae `ubicaciones` (undefined), se conservan las que tenía,
+// igual que los ítems cuando no viene `items`: antes se borraban todas sin aviso
+// (hallazgo de tests/integration/pedidos.db.test.js). Un arreglo vacío sí las quita.
+const guardarUbicaciones = async (conn, id_detalle, ubicaciones) => {
+  if (ubicaciones === undefined) return
   await conn.query('DELETE FROM puntos_entrega_detalle WHERE id_detalle = ?', [id_detalle])
-  const validas = ubicaciones.filter(u => u.direccion?.trim() && (parseInt(u.cantidad, 10) || 0) > 0)
+  const validas = (ubicaciones || []).filter(u => u.direccion?.trim() && (parseInt(u.cantidad, 10) || 0) > 0)
   if (validas.length === 0) return
   const values = validas.map(u => [id_detalle, u.direccion, parseInt(u.cantidad, 10)])
   await conn.query(
@@ -98,7 +102,13 @@ const insertItems = async (conn, id_pedido, items) => {
 // Devuelve los ítems recién insertados (para poder generarles sus fases si
 // el pedido ya tiene un proyecto asociado).
 const sincronizarItems = async (conn, id_pedido, items) => {
-  const validos = items.filter(it => it.producto?.trim())
+  // id_detalle se normaliza a número: si llegaba como texto ("12"), el Set de
+  // ids actuales (números) no lo encontraba y el ítem se insertaba de nuevo,
+  // mientras el DELETE ... NOT IN ('12') de MySQL sí conservaba el original
+  // → el ítem quedaba duplicado (hallazgo de la semana 6 contra MySQL real).
+  const validos = items
+    .filter(it => it.producto?.trim())
+    .map(it => ({ ...it, id_detalle: Number(it.id_detalle) || null }))
 
   const [actuales] = await conn.query(
     'SELECT id_detalle FROM detalle_pedido WHERE id_pedido=?', [id_pedido])
@@ -167,6 +177,11 @@ export const create = async (req, res) => {
 export const update = async (req, res) => {
   const { id_cliente, descripcion, items } = req.body
 
+  // Igual que al crear: sin id_cliente el UPDATE dejaba el pedido con
+  // id_cliente = NULL (la columna lo permite), o sea que un cuerpo incompleto
+  // le borraba el cliente al pedido sin ningún aviso.
+  if (!id_cliente) return res.status(400).json({ message: 'El cliente es requerido' })
+
   // Igual que al crear: un ítem que se está registrando ahora (sin id_detalle
   // todavía, sea porque el pedido es nuevo o porque se agregó en esta edición)
   // no puede quedar con fecha de entrega pasada. Los ítems ya existentes no
@@ -217,6 +232,12 @@ export const update = async (req, res) => {
     res.json(pedido)
   } catch (err) {
     await conn.rollback()
+    // Quitar un ítem borra en cascada sus fases, y actividades.id_fase es
+    // ON DELETE RESTRICT: MySQL lo impide si ya hay tiempo registrado. El
+    // mensaje genérico ("No se puede eliminar…") no explica qué pasó al editar.
+    if (err?.code === 'ER_ROW_IS_REFERENCED_2') {
+      return res.status(409).json({ message: 'No se puede quitar un ítem que ya tiene actividades registradas en sus fases' })
+    }
     responderError(res, err, 'pedidos.update', 'Error al actualizar pedido')
   } finally { conn.release() }
 }

@@ -9,7 +9,8 @@
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "codegen": "playwright codegen http://localhost:5173",
-    "report": "playwright show-report"
+    "report": "playwright show-report",
+    "test:estable": "playwright test --repeat-each=5"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

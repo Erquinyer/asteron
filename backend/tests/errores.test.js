@@ -40,6 +40,9 @@ describe('responderError: errores de MySQL causados por los datos', () => {
     ['ER_NO_REFERENCED_ROW_2', 400, 'Uno de los datos relacionados no existe'],
     ['ER_DATA_TOO_LONG', 400, 'Uno de los campos supera la longitud permitida'],
     ['ER_BAD_NULL_ERROR', 400, 'Falta un dato obligatorio'],
+    // Semana 6: un valor fuera del ENUM respondía 500 (encontrado contra MySQL real)
+    ['WARN_DATA_TRUNCATED', 400, 'Uno de los campos tiene un formato inválido'],
+    ['ER_TRUNCATED_WRONG_VALUE_FOR_FIELD', 400, 'Uno de los campos tiene un formato inválido'],
   ])('%s responde %i con un mensaje entendible', (code, estado, mensaje) => {
     const err = Object.assign(new Error(`${code}: Duplicate entry 'x' for key 'uq' en INSERT INTO ...`), { code })
     const res = crearRes()

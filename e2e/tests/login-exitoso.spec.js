@@ -5,6 +5,10 @@ import { expect, test } from '@playwright/test';
 const correo = process.env.E2E_CORREO ?? 'admin@macromet.com.co';
 const contrasena = process.env.E2E_CONTRASENA ?? 'admin2026';
 
+// Este test prueba el propio formulario de login: arranca SIN la sesión que
+// guarda auth.setup.js para el resto de la suite.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test('debe entrar al dashboard y saludar al usuario cuando las credenciales son válidas', async ({ page }) => {
   // Arrange
   await page.goto('/login');
