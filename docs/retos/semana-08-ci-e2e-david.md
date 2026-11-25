@@ -54,10 +54,15 @@ Después del merge de la semana (20 nov) **todos los E2E fallaban**: tras el log
 
 ## Rojo provocado
 
-| | Enlace |
-|---|---|
-| Run en rojo (aserción con un texto que la app no muestra) | _pendiente_ |
-| Run en verde con la corrección | _pendiente_ |
+Cambio: en `pedidos.spec.js`, el test del caso feliz espera el aviso "Pedido registrado", que la app nunca muestra (muestra "Pedido creado").
+
+| Run | Resultado | Enlace |
+|---|---|---|
+| #73 · el job `test-e2e` nuevo | ✅ los 4 jobs en verde (el CI pasa de ~20 s a 1m 20s porque ahora instala Chromium y corre Playwright) | https://github.com/Erquinyer/asteron/actions/runs/45517442231 |
+| #74 · rojo provocado | ❌ solo falla `test-e2e` (`Process completed with exit code 1`): el test falla en el intento y en el reintento. Queda el artefacto **e2e-report** (3,16 MB) con el reporte HTML, la traza y `api.log` | https://github.com/Erquinyer/asteron/actions/runs/45517649103 |
+| #75 · corrección (`git revert`) | ✅ de vuelta en verde | https://github.com/Erquinyer/asteron/actions/runs/45518201970 |
+
+En la traza del artefacto se ve el paso exacto: el aviso de la app dice "Pedido creado" y la aserción busca "Pedido registrado" durante 5 s antes de fallar. Los otros tres jobs siguen en verde: el rojo queda aislado en la capa que se rompió.
 
 ## ¿Cómo lo ejecuto en local?
 
